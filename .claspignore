@@ -1,0 +1,14 @@
+# dependencies
+node_modules/**
+
+# git
+.git/**
+.gitignore
+
+# docs
+README.md
+
+# local config
+package.json
+package-lock.json
+.claspignore
