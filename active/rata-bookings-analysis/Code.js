@@ -1,4 +1,4 @@
-function testLocalSetup2() {
+function testLocalSetup4() {
   Logger.log("Local Apps Script setup is working");
 }
 
