@@ -1,3 +1,7 @@
+function testLocalSetup2() {
+  Logger.log("Local Apps Script setup is working");
+}
+
 function updateFromHerokDataSource()
 {
   var utility = new WildernessAppScriptLibrary.Utility();  
