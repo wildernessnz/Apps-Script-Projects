@@ -16,6 +16,10 @@ function test() {
   // TODO: add test logic
 }
 
+function testReturnString() {
+  return "test passed";
+}
+
 
 function populateSheet(sheetName,url, startCol, endCol) {
   
