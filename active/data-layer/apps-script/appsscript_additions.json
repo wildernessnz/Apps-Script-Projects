@@ -1,0 +1,16 @@
+{
+  "_comment": "Merge these additions into your existing appsscript.json files",
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/bigquery.readonly",
+    "https://www.googleapis.com/auth/spreadsheets"
+  ],
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "BigQuery",
+        "serviceId": "bigquery",
+        "version": "v2"
+      }
+    ]
+  }
+}
