@@ -1,12 +1,12 @@
 # dependencies
 node_modules/
 
-# clasp
+# clasp temp files
 .clasp.json
 .clasprc.json
 
-# credentials - never commit
-Config.js
-
 # OS files
 .DS_Store
+
+# credentials - never commit
+Config.js
