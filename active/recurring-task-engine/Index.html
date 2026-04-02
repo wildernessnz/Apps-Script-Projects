@@ -162,6 +162,19 @@
   .drawer-empty .icon { font-size:28px; margin-bottom:10px; }
   .drawer-loading { text-align:center; padding:48px; color:var(--muted); }
 
+  /* Confirm Modal */
+  .confirm-backdrop { display:none; position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200; align-items:center; justify-content:center; }
+  .confirm-backdrop.open { display:flex; }
+  .confirm-modal { background:var(--surface); border:1px solid var(--border); border-radius:12px; width:400px; max-width:calc(100vw - 40px); animation:modalIn .18s ease; overflow:hidden; }
+  .confirm-icon { width:44px; height:44px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 14px; flex-shrink:0; }
+  .confirm-icon.danger { background:rgba(255,77,77,.12); }
+  .confirm-icon.warn { background:rgba(240,165,0,.12); }
+  .confirm-icon.success { background:rgba(46,204,113,.12); }
+  .confirm-body { padding:28px 28px 20px; text-align:center; }
+  .confirm-title { font-size:15px; font-weight:600; margin-bottom:8px; }
+  .confirm-message { font-size:13px; color:var(--muted); line-height:1.6; }
+  .confirm-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:var(--surface2); }
+
   @media (max-width:700px) {
     .shell { grid-template-columns:1fr; }
     .sidebar { display:none; }
@@ -365,10 +378,82 @@
   <div class="drawer-body" id="drawerBody"></div>
 </div>
 
+<!-- Confirm Modal -->
+<div class="confirm-backdrop" id="confirmBackdrop">
+  <div class="confirm-modal">
+    <div class="confirm-body">
+      <div class="confirm-icon" id="confirmIcon">
+        <svg id="confirmIconSvg" width="22" height="22" viewBox="0 0 20 20" fill="currentColor"></svg>
+      </div>
+      <div class="confirm-title" id="confirmTitle"></div>
+      <div class="confirm-message" id="confirmMessage"></div>
+    </div>
+    <div class="confirm-footer">
+      <button class="btn btn-ghost" id="confirmCancelBtn" onclick="closeConfirm()">Cancel</button>
+      <button class="btn" id="confirmOkBtn" onclick="confirmOk()"></button>
+    </div>
+  </div>
+</div>
+
 <!-- Toast -->
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
+// ── Confirm Modal ─────────────────────────────────────────────
+let _confirmCallback = null;
+
+const CONFIRM_ICONS = {
+  danger:  '<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>',
+  warn:    '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>',
+  success: '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'
+};
+
+const CONFIRM_COLORS = {
+  danger:  'var(--danger)',
+  warn:    'var(--warn)',
+  success: 'var(--success)'
+};
+
+const CONFIRM_BTN_BG = {
+  danger:  'var(--danger)',
+  warn:    'var(--warn)',
+  success: 'var(--success)'
+};
+
+function showConfirm(options, callback) {
+  // options: { title, message, okLabel, type }
+  // type: 'danger' | 'warn' | 'success'
+  const type = options.type || 'danger';
+  document.getElementById('confirmTitle').textContent   = options.title || 'Are you sure?';
+  document.getElementById('confirmMessage').textContent = options.message || '';
+  document.getElementById('confirmIcon').className      = 'confirm-icon ' + type;
+  document.getElementById('confirmIconSvg').innerHTML   = CONFIRM_ICONS[type];
+  document.getElementById('confirmIconSvg').style.color = CONFIRM_COLORS[type];
+
+  const okBtn = document.getElementById('confirmOkBtn');
+  okBtn.textContent       = options.okLabel || 'Confirm';
+  okBtn.style.background  = CONFIRM_BTN_BG[type];
+  okBtn.style.color       = '#fff';
+
+  _confirmCallback = callback;
+  document.getElementById('confirmBackdrop').classList.add('open');
+  setTimeout(() => okBtn.focus(), 50);
+}
+
+function closeConfirm() {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  _confirmCallback = null;
+}
+
+function confirmOk() {
+  document.getElementById('confirmBackdrop').classList.remove('open');
+  if (_confirmCallback) {
+    const cb = _confirmCallback;
+    _confirmCallback = null;
+    cb();
+  }
+}
+
 // ── State ─────────────────────────────────────────────────────
 let _departments = [];
 
@@ -572,8 +657,13 @@ function saveSchedule() {
 
 // ── Delete ────────────────────────────────────────────────────
 function deleteSchedule(id, btn) {
-  if (!confirm('Delete this schedule? Future tasks will no longer be created.')) return;
   btn.disabled = true;
+  showConfirm({
+    title: 'Delete Schedule',
+    message: 'Future tasks will no longer be created. This cannot be undone.',
+    okLabel: 'Delete',
+    type: 'danger'
+  }, function() {
   google.script.run
     .withSuccessHandler(function(result) {
       if (result.error) { toast('Error: ' + result.error, 'error'); btn.disabled = false; return; }
@@ -582,13 +672,22 @@ function deleteSchedule(id, btn) {
     })
     .withFailureHandler(function(e) { toast('Delete failed: ' + e.message, 'error'); btn.disabled = false; })
     .deleteSchedule(id);
+  }); // end showConfirm
 }
 
 // ── Pause / Resume ────────────────────────────────────────────
 function togglePause(id, pause, btn) {
   const action = pause ? 'Pause' : 'Resume';
-  if (!confirm(action + ' this schedule?')) return;
   btn.disabled = true;
+  const isPauseAction = pause;
+  showConfirm({
+    title: isPauseAction ? 'Pause Schedule' : 'Resume Schedule',
+    message: isPauseAction
+      ? 'The schedule will be paused and no tasks will be created until resumed.'
+      : 'The schedule will resume and tasks will be created on the next due date.',
+    okLabel: isPauseAction ? 'Pause' : 'Resume',
+    type: isPauseAction ? 'warn' : 'success'
+  }, function() {
   const fn = pause ? 'pauseSchedule' : 'resumeSchedule';
   google.script.run
     .withSuccessHandler(function(result) {
@@ -598,12 +697,18 @@ function togglePause(id, pause, btn) {
     })
     .withFailureHandler(function(e) { toast('Failed: ' + e.message, 'error'); btn.disabled = false; })
     [fn](id);
+  }); // end showConfirm
 }
 
 // ── Run Now ───────────────────────────────────────────────────
 function runNow(id, btn) {
-  if (!confirm('Create a Jira task for this schedule right now?')) return;
   btn.disabled = true;
+  showConfirm({
+    title: 'Run Now',
+    message: 'A Jira task will be created immediately and the next run date will advance.',
+    okLabel: 'Run Now',
+    type: 'success'
+  }, function() {
   btn.innerHTML = '<div class="spinner"></div>';
 
   google.script.run
@@ -620,6 +725,7 @@ function runNow(id, btn) {
       toast('Run failed: ' + e.message, 'error');
     })
     .runScheduleNow(id);
+  }); // end showConfirm
 }
 
 // ── Next Run Override ─────────────────────────────────────────
@@ -746,6 +852,7 @@ function closeDrawer() {
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
     closeDrawer();
+    closeConfirm();
     document.getElementById('editModalBackdrop').classList.remove('open');
   }
 });
