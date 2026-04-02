@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recurring Task Engine</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f12;
+    --surface:   #151820;
+    --surface2:  #1c2030;
+    --border:    #272d3d;
+    --border2:   #333b52;
+    --accent:    #4f7fff;
+    --accent2:   #7ba3ff;
+    --danger:    #ff4d4d;
+    --danger2:   #ff7070;
+    --success:   #2ecc71;
+    --warn:      #f0a500;
+    --text:      #dce3f0;
+    --muted:     #6b7896;
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'IBM Plex Sans', sans-serif;
+  }
+
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; }
+
+  /* ── Layout ── */
+  .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    background: var(--surface); border-right: 1px solid var(--border);
+    display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow: hidden;
+  }
+  .brand { padding: 28px 24px 24px; border-bottom: 1px solid var(--border); }
+  .brand-label { font-family: var(--mono); font-size: 9px; font-weight: 600; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  .brand-title { font-size: 15px; font-weight: 600; color: var(--text); line-height: 1.3; }
+  .nav { padding: 16px 12px; flex: 1; display: flex; flex-direction: column; gap: 4px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 6px;
+    cursor: pointer; font-size: 13.5px; font-weight: 500; color: var(--muted);
+    border: none; background: none; width: 100%; text-align: left; transition: all .15s;
+  }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(79,127,255,.12); color: var(--accent2); }
+  .nav-item .icon { width: 18px; height: 18px; opacity: .7; flex-shrink: 0; }
+  .nav-item.active .icon { opacity: 1; }
+  .sidebar-footer { padding: 16px 24px; border-top: 1px solid var(--border); }
+  .trigger-badge { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .trigger-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .trigger-dot.active { background: var(--success); box-shadow: 0 0 6px var(--success); }
+
+  /* ── Main ── */
+  .main { display: flex; flex-direction: column; min-height: 100vh; }
+  .topbar {
+    border-bottom: 1px solid var(--border); padding: 20px 32px;
+    display: flex; align-items: center; justify-content: space-between;
+    background: var(--surface); position: sticky; top: 0; z-index: 10;
+  }
+  .topbar-title { font-size: 17px; font-weight: 600; }
+  .topbar-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 2px; }
+  .content { padding: 32px; flex: 1; }
+
+  /* ── Panels ── */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ── Form ── */
+  .form-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 28px 32px; max-width: 680px; }
+  .form-section-title {
+    font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent); margin-bottom: 18px; padding-bottom: 10px; border-bottom: 1px solid var(--border);
+  }
+  .form-grid { display: grid; gap: 18px; }
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label { font-size: 12px; font-weight: 500; color: var(--muted); letter-spacing: .03em; }
+  .field input, .field select {
+    background: var(--bg); border: 1px solid var(--border2); border-radius: 6px;
+    padding: 10px 12px; color: var(--text); font-family: var(--sans); font-size: 13.5px;
+    outline: none; transition: border-color .15s; width: 100%; appearance: none;
+  }
+  .field select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7896' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px;
+  }
+  .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(79,127,255,.12); }
+  .field input::placeholder { color: var(--muted); }
+  .inline-pair { display: grid; grid-template-columns: 100px 1fr; gap: 8px; align-items: end; }
+  .separator { height: 1px; background: var(--border); margin: 8px 0; }
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 6px; border: none; font-family: var(--sans); font-size: 13.5px; font-weight: 500; cursor: pointer; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent2); transform: translateY(-1px); }
+  .btn-primary:active { transform: none; }
+  .btn-primary:disabled { background: var(--border2); color: var(--muted); cursor: not-allowed; transform: none; }
+  .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border2); }
+  .btn-ghost:hover { color: var(--text); background: var(--surface2); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-icon { background: transparent; border: 1px solid transparent; color: var(--muted); padding: 6px 8px; border-radius: 5px; cursor: pointer; font-size: 13px; transition: all .15s; }
+  .btn-icon:hover { background: var(--surface2); color: var(--text); border-color: var(--border); }
+  .btn-icon.danger:hover { background: rgba(255,77,77,.1); color: var(--danger); border-color: rgba(255,77,77,.25); }
+  .form-actions { display: flex; gap: 10px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--border); }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+  .toast { background: var(--surface2); border: 1px solid var(--border2); border-left: 3px solid var(--accent); border-radius: 7px; padding: 12px 16px; font-size: 13px; max-width: 320px; animation: slideIn .2s ease; box-shadow: 0 4px 24px rgba(0,0,0,.4); }
+  .toast.error { border-left-color: var(--danger); }
+  .toast.success { border-left-color: var(--success); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* ── Table ── */
+  .list-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; }
+  .list-title { font-size: 16px; font-weight: 600; }
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 99px; font-family: var(--mono); font-size: 11px; background: rgba(79,127,255,.1); color: var(--accent2); border: 1px solid rgba(79,127,255,.2); }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { background: var(--surface2); border-bottom: 1px solid var(--border); }
+  th { padding: 12px 16px; text-align: left; font-family: var(--mono); font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
+  td { padding: 13px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; color: var(--text); }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.018); }
+  .task-name { font-weight: 500; }
+  .dept-chip { display: inline-block; padding: 2px 8px; border-radius: 4px; background: var(--surface2); border: 1px solid var(--border2); font-size: 11px; font-family: var(--mono); color: var(--muted); }
+  .recurrence-text { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+  .next-due { font-family: var(--mono); font-size: 12px; }
+  .next-due.overdue { color: var(--danger2); }
+  .next-due.soon { color: var(--warn); }
+  .next-due.ok { color: var(--success); }
+  .actions-cell { display: flex; gap: 4px; align-items: center; }
+  .empty-state { padding: 60px 32px; text-align: center; color: var(--muted); }
+  .empty-state .icon { font-size: 32px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; }
+  .empty-state small { font-size: 12px; color: var(--border2); display: block; margin-top: 4px; }
+
+  /* ── Spinner ── */
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.2); border-top-color: #fff; border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-row td { text-align: center; padding: 48px; color: var(--muted); }
+
+  /* ── Modal (Edit) ── */
+  .modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.65);
+    z-index: 100; align-items: center; justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    width: 560px; max-width: calc(100vw - 40px); max-height: calc(100vh - 60px);
+    overflow-y: auto; animation: modalIn .2s ease;
+  }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(16px) scale(.97); } to { opacity: 1; transform: none; } }
+  .modal-header { padding: 20px 24px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .modal-title { font-size: 15px; font-weight: 600; }
+  .modal-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 4px; }
+  .modal-close:hover { color: var(--text); background: var(--surface2); }
+  .modal-body { padding: 24px; }
+  .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; }
+
+  /* ── History Drawer ── */
+  .drawer-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5);
+    z-index: 100;
+  }
+  .drawer-backdrop.open { display: block; }
+  .drawer {
+    position: fixed; top: 0; right: -640px; width: 620px; max-width: 100vw;
+    height: 100vh; background: var(--surface); border-left: 1px solid var(--border);
+    z-index: 101; display: flex; flex-direction: column;
+    transition: right .25s cubic-bezier(.4,0,.2,1);
+    overflow: hidden;
+  }
+  .drawer.open { right: 0; }
+  .drawer-header { padding: 20px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: flex-start; justify-content: space-between; flex-shrink: 0; }
+  .drawer-title { font-size: 15px; font-weight: 600; }
+  .drawer-sub { font-size: 12px; color: var(--muted); font-family: var(--mono); margin-top: 3px; }
+  .drawer-close { background: none; border: none; color: var(--muted); font-size: 20px; cursor: pointer; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
+  .drawer-close:hover { color: var(--text); background: var(--surface2); }
+  .drawer-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+  .log-entry {
+    border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px;
+    margin-bottom: 10px; background: var(--surface2);
+    display: grid; grid-template-columns: 1fr auto; gap: 6px 16px; align-items: start;
+  }
+  .log-issue-key {
+    font-family: var(--mono); font-size: 13px; font-weight: 600; color: var(--accent2);
+    text-decoration: none;
+  }
+  .log-issue-key:hover { text-decoration: underline; }
+  .log-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .log-due { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: right; white-space: nowrap; }
+  .log-timestamp { font-family: var(--mono); font-size: 11px; color: var(--border2); grid-column: 1 / -1; margin-top: 2px; }
+  .log-trigger { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 10px; font-family: var(--mono); background: rgba(79,127,255,.08); color: var(--accent); border: 1px solid rgba(79,127,255,.15); margin-left: 8px; }
+
+  .drawer-empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .drawer-empty .icon { font-size: 28px; margin-bottom: 10px; }
+  .drawer-loading { text-align: center; padding: 48px; color: var(--muted); }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .content { padding: 20px 16px; }
+    .drawer { width: 100vw; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-label">Company Work Items</div>
+      <div class="brand-title">Recurring Task<br>Engine</div>
+    </div>
+    <nav class="nav">
+      <button class="nav-item active" onclick="showPanel('schedules')" id="nav-schedules">
+        <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v1h1a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V7a2 2 0 012-2h1V4zm8 0H7v1h6V4zm-6 7a1 1 0 100 2h6a1 1 0 100-2H7zm0-3a1 1 0 100 2h6a1 1 0 100-2H7z"/></svg>
+        Active Schedules
+      </button>
+      <button class="nav-item" onclick="showPanel('new')" id="nav-new">
+        <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        New Schedule
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="trigger-badge" id="triggerBadge">
+        <div class="trigger-dot" id="triggerDot"></div>
+        <span id="triggerText">Checking trigger…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topbarTitle">Active Schedules</div>
+        <div class="topbar-sub">Jira · Company Work Items</div>
+      </div>
+      <button class="btn btn-primary" onclick="showPanel('new')" id="topbarAction">
+        <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+        New Schedule
+      </button>
+    </div>
+
+    <div class="content">
+
+      <!-- ═══ Active Schedules ═══ -->
+      <div class="panel active" id="panel-schedules">
+        <div class="list-header">
+          <div class="list-title">All Recurring Schedules</div>
+          <div class="badge" id="scheduleCount">— schedules</div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Task Name</th>
+                <th>Department</th>
+                <th>Recurs Every</th>
+                <th>Due Offset</th>
+                <th>Next Run</th>
+                <th>Last Created</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="scheduleBody">
+              <tr class="loading-row"><td colspan="7"><div class="spinner"></div>&nbsp; Loading schedules…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ═══ New Schedule ═══ -->
+      <div class="panel" id="panel-new">
+        <div class="form-card">
+          <div class="form-section-title">Task Definition</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Task Name</label>
+              <input type="text" id="taskName" placeholder="e.g. Monthly Finance Reconciliation">
+            </div>
+            <div class="field">
+              <label>Department</label>
+              <select id="department"><option value="">Loading departments…</option></select>
+            </div>
+            <div class="field">
+              <label>Start Date</label>
+              <input type="date" id="startDate">
+            </div>
+          </div>
+          <div class="separator" style="margin: 22px 0 18px"></div>
+          <div class="form-section-title">Recurrence</div>
+          <div class="form-grid">
+            <div class="field">
+              <label>Repeat Every</label>
+              <div class="inline-pair">
+                <input type="number" id="recurrenceValue" min="1" value="1">
+                <select id="recurrenceUnit">
+                  <option value="days">Days</option>
+                  <option value="weeks">Weeks</option>
+                  <option value="months" selected>Months</option>
+                  <option value="years">Years</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="separator" style="margin: 22px 0 18px"></div>
+          <div class="form-section-title">Due Date Offset</div>
+          <p style="font-size:12.5px; color:var(--muted); margin-bottom:14px; line-height:1.6">
+            The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
+          </p>
+          <div class="form-grid">
+            <div class="field">
+              <label>Offset Amount</label>
+              <div class="inline-pair">
+                <input type="number" id="offsetValue" min="1" value="2">
+                <select id="offsetUnit">
+                  <option value="days">Days</option>
+                  <option value="weeks" selected>Weeks</option>
+                  <option value="months">Months</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="form-actions">
+            <button class="btn btn-primary" id="saveBtn" onclick="saveSchedule()">Save Schedule</button>
+            <button class="btn btn-ghost" onclick="showPanel('schedules')">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Edit Modal ═══ -->
+<div class="modal-backdrop" id="editModalBackdrop" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Edit Schedule</div>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <input type="hidden" id="editNextDue">
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Task Definition</div>
+        <div class="field">
+          <label>Task Name</label>
+          <input type="text" id="editTaskName">
+        </div>
+        <div class="field">
+          <label>Department</label>
+          <select id="editDepartment"></select>
+        </div>
+        <div class="field">
+          <label>Start Date</label>
+          <input type="date" id="editStartDate">
+        </div>
+      </div>
+      <div class="separator" style="margin: 20px 0 16px"></div>
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Recurrence</div>
+        <div class="field">
+          <label>Repeat Every</label>
+          <div class="inline-pair">
+            <input type="number" id="editRecurrenceValue" min="1">
+            <select id="editRecurrenceUnit">
+              <option value="days">Days</option>
+              <option value="weeks">Weeks</option>
+              <option value="months">Months</option>
+              <option value="years">Years</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="separator" style="margin: 20px 0 16px"></div>
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Due Date Offset</div>
+        <div class="field">
+          <label>Offset Amount</label>
+          <div class="inline-pair">
+            <input type="number" id="editOffsetValue" min="1">
+            <select id="editOffsetUnit">
+              <option value="days">Days</option>
+              <option value="weeks">Weeks</option>
+              <option value="months">Months</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ History Drawer ═══ -->
+<div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
+<div class="drawer" id="historyDrawer">
+  <div class="drawer-header">
+    <div>
+      <div class="drawer-title" id="drawerTitle">Task History</div>
+      <div class="drawer-sub" id="drawerSub">Loading…</div>
+    </div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body" id="drawerBody">
+    <div class="drawer-loading"><div class="spinner"></div></div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let _departments = [];
+
+// ── Helpers ──────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  document.getElementById('toastContainer').appendChild(el);
+  setTimeout(() => el.remove(), 4000);
+}
+
+function showPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  const titles = { schedules: 'Active Schedules', new: 'New Schedule' };
+  document.getElementById('topbarTitle').textContent = titles[name] || '';
+  document.getElementById('topbarAction').style.display = name === 'new' ? 'none' : '';
+}
+
+function formatDate(val) {
+  if (!val) return '—';
+  const d = new Date(val);
+  if (isNaN(d)) return val;
+  return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function formatDateTime(val) {
+  if (!val) return '—';
+  const d = new Date(val);
+  if (isNaN(d)) return val;
+  return d.toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function nextDueClass(val) {
+  if (!val) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const diff = (new Date(val) - today) / 86400000;
+  if (diff < 0)  return 'overdue';
+  if (diff <= 7) return 'soon';
+  return 'ok';
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function setSelectValue(id, value) {
+  const sel = document.getElementById(id);
+  for (let i = 0; i < sel.options.length; i++) {
+    if (sel.options[i].value === String(value)) { sel.selectedIndex = i; return; }
+  }
+}
+
+
+// ── Load Departments ─────────────────────────────────────────
+function loadDepartments() {
+  google.script.run
+    .withSuccessHandler(function(data) {
+      _departments = data.departments || [];
+      populateDeptSelect('department');
+    })
+    .withFailureHandler(function() {
+      toast('Could not load departments from Jira. Check Config.gs.', 'error');
+    })
+    .getJiraFieldOptions();
+}
+
+function populateDeptSelect(id, selectedValue) {
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">Select department…</option>';
+  _departments.forEach(function(d) {
+    const opt = document.createElement('option');
+    opt.value = d; opt.textContent = d;
+    if (d === selectedValue) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+
+// ── Load Schedules ───────────────────────────────────────────
+function loadSchedules() {
+  const tbody = document.getElementById('scheduleBody');
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="7"><div class="spinner"></div>&nbsp; Loading…</td></tr>';
+
+  google.script.run
+    .withSuccessHandler(function(schedules) {
+      if (schedules && schedules.error) {
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:40px">Error: ${schedules.error}</td></tr>`;
+        return;
+      }
+      const active = (schedules || []).filter(s => s.active);
+      document.getElementById('scheduleCount').textContent = `${active.length} schedule${active.length !== 1 ? 's' : ''}`;
+
+      if (!active.length) {
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><div class="icon">📋</div><p>No active schedules yet</p><small>Click "New Schedule" to create your first recurring task.</small></div></td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = active.map(function(s) {
+        const cls = nextDueClass(s.nextDue);
+        const sid = escHtml(s.id);
+        return `
+          <tr>
+            <td class="task-name">${escHtml(s.taskName)}</td>
+            <td><span class="dept-chip">${escHtml(s.department)}</span></td>
+            <td class="recurrence-text">Every ${s.recurrenceValue} ${escHtml(s.recurrenceUnit)}</td>
+            <td class="recurrence-text">+${s.offsetValue} ${escHtml(s.offsetUnit)}</td>
+            <td class="next-due ${cls}">${formatDate(s.nextDue)}</td>
+            <td style="color:var(--muted);font-size:12px;font-family:var(--mono)">${formatDate(s.lastCreated)}</td>
+            <td>
+              <div class="actions-cell">
+                <button class="btn-icon" title="View history" onclick='openDrawer(${JSON.stringify(s)})'>
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                </button>
+                <button class="btn-icon" title="Edit schedule" onclick='openEditModal(${JSON.stringify(s)})'>
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                </button>
+                <button class="btn-icon danger" title="Delete schedule" onclick="deleteSchedule('${sid}', this)">
+                  <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                </button>
+              </div>
+            </td>
+          </tr>`;
+      }).join('');
+    })
+    .withFailureHandler(function(e) {
+      tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:40px">Failed to load: ${e.message}</td></tr>`;
+    })
+    .getSchedules();
+}
+
+
+// ── Save New Schedule ────────────────────────────────────────
+function saveSchedule() {
+  const taskName        = document.getElementById('taskName').value.trim();
+  const department      = document.getElementById('department').value;
+  const startDate       = document.getElementById('startDate').value;
+  const recurrenceValue = document.getElementById('recurrenceValue').value;
+  const recurrenceUnit  = document.getElementById('recurrenceUnit').value;
+  const offsetValue     = document.getElementById('offsetValue').value;
+  const offsetUnit      = document.getElementById('offsetUnit').value;
+
+  if (!taskName)   { toast('Please enter a task name.', 'error'); return; }
+  if (!department) { toast('Please select a department.', 'error'); return; }
+  if (!startDate)  { toast('Please select a start date.', 'error'); return; }
+  if (recurrenceValue < 1) { toast('Enter a valid recurrence interval.', 'error'); return; }
+  if (offsetValue < 1)     { toast('Enter a valid due date offset.', 'error'); return; }
+
+  const btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Saving…';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false; btn.textContent = 'Save Schedule';
+      if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+      toast('Schedule saved successfully.', 'success');
+      document.getElementById('taskName').value = '';
+      document.getElementById('department').value = '';
+      document.getElementById('startDate').valueAsDate = new Date();
+      document.getElementById('recurrenceValue').value = 1;
+      document.getElementById('offsetValue').value = 2;
+      showPanel('schedules');
+      loadSchedules();
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'Save Schedule';
+      toast('Save failed: ' + e.message, 'error');
+    })
+    .saveSchedule({ taskName, department, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+}
+
+
+// ── Delete Schedule ──────────────────────────────────────────
+function deleteSchedule(id, btn) {
+  if (!confirm('Delete this schedule? Future tasks will no longer be created.')) return;
+  btn.disabled = true;
+  google.script.run
+    .withSuccessHandler(function(result) {
+      if (result.error) { toast('Error: ' + result.error, 'error'); btn.disabled = false; return; }
+      toast('Schedule deleted.', 'success');
+      loadSchedules();
+    })
+    .withFailureHandler(function(e) {
+      toast('Delete failed: ' + e.message, 'error'); btn.disabled = false;
+    })
+    .deleteSchedule(id);
+}
+
+
+// ── Edit Modal ───────────────────────────────────────────────
+function openEditModal(schedule) {
+  // Populate dept dropdown first (may not be loaded yet if coming back)
+  populateDeptSelect('editDepartment', schedule.department);
+
+  document.getElementById('editId').value            = schedule.id;
+  document.getElementById('editNextDue').value       = schedule.nextDue;
+  document.getElementById('editTaskName').value      = schedule.taskName;
+  document.getElementById('editStartDate').value     = schedule.startDate ? schedule.startDate.substring(0, 10) : '';
+  document.getElementById('editRecurrenceValue').value = schedule.recurrenceValue;
+  document.getElementById('editOffsetValue').value   = schedule.offsetValue;
+  setSelectValue('editRecurrenceUnit', schedule.recurrenceUnit);
+  setSelectValue('editOffsetUnit', schedule.offsetUnit);
+
+  document.getElementById('editModalBackdrop').classList.add('open');
+}
+
+function closeEditModal(e) {
+  if (e && e.target !== document.getElementById('editModalBackdrop')) return;
+  document.getElementById('editModalBackdrop').classList.remove('open');
+}
+
+function saveEdit() {
+  const id              = document.getElementById('editId').value;
+  const nextDue         = document.getElementById('editNextDue').value;
+  const taskName        = document.getElementById('editTaskName').value.trim();
+  const department      = document.getElementById('editDepartment').value;
+  const startDate       = document.getElementById('editStartDate').value;
+  const recurrenceValue = document.getElementById('editRecurrenceValue').value;
+  const recurrenceUnit  = document.getElementById('editRecurrenceUnit').value;
+  const offsetValue     = document.getElementById('editOffsetValue').value;
+  const offsetUnit      = document.getElementById('editOffsetUnit').value;
+
+  if (!taskName)   { toast('Task name is required.', 'error'); return; }
+  if (!department) { toast('Department is required.', 'error'); return; }
+  if (!startDate)  { toast('Start date is required.', 'error'); return; }
+
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner"></div> Saving…';
+
+  google.script.run
+    .withSuccessHandler(function(result) {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+      if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+      toast('Schedule updated.', 'success');
+      document.getElementById('editModalBackdrop').classList.remove('open');
+      loadSchedules();
+    })
+    .withFailureHandler(function(e) {
+      btn.disabled = false; btn.textContent = 'Save Changes';
+      toast('Update failed: ' + e.message, 'error');
+    })
+    .updateSchedule({ id, nextDue, taskName, department, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+}
+
+
+// ── History Drawer ───────────────────────────────────────────
+function openDrawer(schedule) {
+  document.getElementById('drawerTitle').textContent = schedule.taskName;
+  document.getElementById('drawerSub').textContent   = `${schedule.department} · Every ${schedule.recurrenceValue} ${schedule.recurrenceUnit}`;
+  document.getElementById('drawerBody').innerHTML    = '<div class="drawer-loading"><div class="spinner"></div></div>';
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('historyDrawer').classList.add('open');
+
+  google.script.run
+    .withSuccessHandler(function(logs) {
+      if (logs && logs.error) {
+        document.getElementById('drawerBody').innerHTML = `<p style="color:var(--danger);padding:20px">Error: ${logs.error}</p>`;
+        return;
+      }
+
+      if (!logs || !logs.length) {
+        document.getElementById('drawerBody').innerHTML = `
+          <div class="drawer-empty">
+            <div class="icon">📭</div>
+            <p style="font-size:14px">No tasks created yet</p>
+            <small style="font-size:12px;color:var(--border2);display:block;margin-top:4px">Tasks will appear here once the daily trigger runs.</small>
+          </div>`;
+        return;
+      }
+
+      // Sort newest first
+      logs.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+      document.getElementById('drawerBody').innerHTML = logs.map(function(log) {
+        return `
+          <div class="log-entry">
+            <div>
+              <a class="log-issue-key" href="${escHtml(log.issueUrl)}" target="_blank">${escHtml(log.issueKey)}</a>
+              <span class="log-trigger">${escHtml(log.triggeredBy)}</span>
+              <div class="log-meta">${escHtml(log.taskName)} · <span style="color:var(--muted)">${escHtml(log.department)}</span></div>
+            </div>
+            <div class="log-due">
+              <div style="color:var(--text);font-weight:500">Due ${formatDate(log.dueDate)}</div>
+            </div>
+            <div class="log-timestamp">Created ${formatDateTime(log.timestamp)}</div>
+          </div>`;
+      }).join('');
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('drawerBody').innerHTML = `<p style="color:var(--danger);padding:20px">Failed to load history: ${e.message}</p>`;
+    })
+    .getScheduleLogs(schedule.id);
+}
+
+function closeDrawer() {
+  document.getElementById('drawerBackdrop').classList.remove('open');
+  document.getElementById('historyDrawer').classList.remove('open');
+}
+
+// Close drawer on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    closeDrawer();
+    document.getElementById('editModalBackdrop').classList.remove('open');
+  }
+});
+
+
+// ── Trigger Status ───────────────────────────────────────────
+function loadTriggerStatus() {
+  google.script.run
+    .withSuccessHandler(function(status) {
+      const dot = document.getElementById('triggerDot');
+      const txt = document.getElementById('triggerText');
+      if (status.active) { dot.classList.add('active'); txt.textContent = 'Trigger: ' + status.description; }
+      else { txt.textContent = 'Trigger not installed'; }
+    })
+    .withFailureHandler(function() {})
+    .getTriggerStatus();
+}
+
+
+// ── Init ─────────────────────────────────────────────────────
+document.getElementById('startDate').valueAsDate = new Date();
+loadSchedules();
+loadDepartments();
+loadTriggerStatus();
+</script>
+</body>
+</html>
