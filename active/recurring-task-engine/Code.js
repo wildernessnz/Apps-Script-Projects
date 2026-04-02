@@ -199,6 +199,133 @@ function deleteSchedule(id) {
 
 
 // ============================================================
+// PAUSE / RESUME
+// ============================================================
+
+/**
+ * Pauses a schedule by setting Active = 'PAUSED'.
+ */
+function pauseSchedule(id) {
+  Logger.log('[pauseSchedule] Pausing schedule ID: %s', id);
+  try {
+    const sheet = getSheet_();
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === id) {
+        sheet.getRange(i + 1, 11).setValue('PAUSED');
+        Logger.log('[pauseSchedule] Schedule "%s" paused at row %s', data[i][1], i + 1);
+        return { success: true };
+      }
+    }
+    Logger.log('[pauseSchedule] WARNING: No schedule found with ID: %s', id);
+    return { error: 'Schedule not found.' };
+  } catch (e) {
+    Logger.log('[pauseSchedule] ERROR: %s', e.message);
+    return { error: e.message };
+  }
+}
+
+/**
+ * Resumes a paused schedule by setting Active = 'TRUE'.
+ */
+function resumeSchedule(id) {
+  Logger.log('[resumeSchedule] Resuming schedule ID: %s', id);
+  try {
+    const sheet = getSheet_();
+    const data = sheet.getDataRange().getValues();
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === id) {
+        sheet.getRange(i + 1, 11).setValue('TRUE');
+        Logger.log('[resumeSchedule] Schedule "%s" resumed at row %s', data[i][1], i + 1);
+        return { success: true };
+      }
+    }
+    Logger.log('[resumeSchedule] WARNING: No schedule found with ID: %s', id);
+    return { error: 'Schedule not found.' };
+  } catch (e) {
+    Logger.log('[resumeSchedule] ERROR: %s', e.message);
+    return { error: e.message };
+  }
+}
+
+
+// ============================================================
+// RUN NOW
+// ============================================================
+
+/**
+ * Immediately creates a Jira issue for the given schedule ID,
+ * then advances the next due date by the recurrence interval.
+ */
+function runScheduleNow(id) {
+  Logger.log('[runScheduleNow] Manual run triggered for schedule ID: %s', id);
+  try {
+    const sheet = getSheet_();
+    const data = sheet.getDataRange().getValues();
+    const tz = Session.getScriptTimeZone();
+    const today = stripTime_(new Date());
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] !== id) continue;
+
+      const schedule = rowToObject_(data[i]);
+      Logger.log('[runScheduleNow] Found schedule: "%s" — creating Jira issue now', schedule.taskName);
+
+      const issue = createJiraIssue_(schedule);
+      const newNextDue = calculateNextDue_(today, schedule.recurrenceValue, schedule.recurrenceUnit);
+
+      sheet.getRange(i + 1, 9).setValue(Utilities.formatDate(today, tz, 'yyyy-MM-dd'));
+      sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd'));
+
+      logIssueCreated_(issue, schedule, 'Manual Run');
+
+      Logger.log('[runScheduleNow] ✅ Created %s | Next due advanced to: %s',
+        issue.key, Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd'));
+
+      return { success: true, issueKey: issue.key, nextDue: Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd') };
+    }
+
+    Logger.log('[runScheduleNow] WARNING: No schedule found with ID: %s', id);
+    return { error: 'Schedule not found.' };
+  } catch (e) {
+    Logger.log('[runScheduleNow] ERROR: %s', e.message);
+    return { error: e.message };
+  }
+}
+
+
+// ============================================================
+// NEXT RUN DATE OVERRIDE
+// ============================================================
+
+/**
+ * Manually overrides the next due date for a schedule.
+ */
+function updateNextDue(id, nextDue) {
+  Logger.log('[updateNextDue] Overriding next due for schedule ID: %s to %s', id, nextDue);
+  try {
+    const sheet = getSheet_();
+    const data = sheet.getDataRange().getValues();
+    const tz = Session.getScriptTimeZone();
+
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] !== id) continue;
+      const d = new Date(nextDue);
+      sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(d, tz, 'yyyy-MM-dd'));
+      Logger.log('[updateNextDue] Next due updated to %s for "%s"', nextDue, data[i][1]);
+      return { success: true };
+    }
+
+    Logger.log('[updateNextDue] WARNING: No schedule found with ID: %s', id);
+    return { error: 'Schedule not found.' };
+  } catch (e) {
+    Logger.log('[updateNextDue] ERROR: %s', e.message);
+    return { error: e.message };
+  }
+}
+
+
+// ============================================================
 // SCHEDULE UPDATE
 // ============================================================
 
@@ -413,7 +540,8 @@ function runDailyCheck() {
     }
 
     if (row[10] !== 'TRUE' && row[10] !== true) {
-      Logger.log('[runDailyCheck] Row %s: "%s" is inactive — skipping', i + 1, row[1]);
+      const status = row[10] === 'PAUSED' ? 'paused' : 'inactive';
+      Logger.log('[runDailyCheck] Row %s: "%s" is %s — skipping', i + 1, row[1], status);
       skipped++;
       continue;
     }
@@ -566,6 +694,7 @@ function rowToObject_(row) {
     lastCreated:     toStr(row[8]),
     nextDue:         toStr(row[9]),
     active:          row[10] === 'TRUE' || row[10] === true,
+    paused:          row[10] === 'PAUSED',
     createdAt:       toStr(row[11])
   };
 }
