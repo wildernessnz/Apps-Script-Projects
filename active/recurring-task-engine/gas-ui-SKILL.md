@@ -10,11 +10,11 @@ description: >
   rules that must be consistent across all projects.
 ---
 
-# GAS UI Design System
+# GAS UI Design System — Wilderness Brand
 
 This skill defines the standard UI, backend patterns, and data-passing rules used across
-all Google Apps Script web app projects. Follow every section exactly unless the user
-explicitly overrides a specific item.
+all Google Apps Script web app projects for Wilderness Motorhomes. Follow every section
+exactly unless the user explicitly overrides a specific item.
 
 ---
 
@@ -22,50 +22,66 @@ explicitly overrides a specific item.
 
 ### Fonts
 ```html
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 ```
-- **Body / UI:** `IBM Plex Sans` — weights 300, 400, 500, 600
-- **Code / labels / badges / monospaced data:** `IBM Plex Mono` — weights 400, 500, 600
+- **Body / UI:** `Nunito Sans` — weights 300, 400, 600, 700 (closest match to brand's custom Averta font)
+- **Code / labels / badges / monospaced data:** `IBM Plex Mono` — weights 400, 500
 
 ### Colour Palette (CSS variables — always declare in `:root`)
 ```css
 :root {
-  --bg:        #0d0f12;   /* page background */
-  --surface:   #151820;   /* cards, sidebar, topbar */
-  --surface2:  #1c2030;   /* table headers, hover states, nested surfaces */
-  --border:    #272d3d;   /* primary borders */
-  --border2:   #333b52;   /* secondary/input borders */
-  --accent:    #4f7fff;   /* primary interactive colour */
-  --accent2:   #7ba3ff;   /* hover / lighter accent */
-  --danger:    #ff4d4d;
-  --danger2:   #ff7070;   /* danger hover */
-  --success:   #2ecc71;
-  --warn:      #f0a500;
-  --paused:    #9b6dff;   /* paused/suspended state */
-  --text:      #dce3f0;   /* primary text */
-  --muted:     #6b7896;   /* secondary text, labels */
+  /* Wilderness exact brand palette */
+  --bg:        #faf7f2;   /* warm off-white — their exact page background */
+  --surface:   #ffffff;
+  --surface2:  #f0ede8;   /* hover/table rows */
+  --border:    #ddd9d0;   /* primary borders */
+  --border2:   #ccc8be;   /* secondary/input borders */
+  --accent:    #006388;   /* primary brand blue */
+  --accent2:   #0088bb;   /* accent hover */
+  --accent3:   #e8f3f7;   /* light blue tint for badges/backgrounds */
+  --green:     #67b65b;   /* CTA green — used for primary buttons */
+  --green2:    #509a44;   /* green hover */
+  --navy:      #263450;   /* dark navy — sidebar, modal headers, table headers */
+  --danger:    #c0392b;
+  --danger2:   #e74c3c;
+  --success:   #67b65b;   /* same as --green */
+  --warn:      #d68910;
+  --paused:    #7d6ca0;
+  --text:      #323232;   /* their exact body text colour */
+  --muted:     #5b5b5b;   /* secondary text */
+  --light:     #909090;   /* tertiary text, timestamps */
   --mono:      'IBM Plex Mono', monospace;
-  --sans:      'IBM Plex Sans', sans-serif;
+  --sans:      'Nunito Sans', sans-serif;
 }
 ```
 
+### Key Colour Rules
+- **`--accent` (`#006388`)** — links, focus rings, badges, form section titles, log issue keys
+- **`--green` (`#67b65b`)** — ALL primary action buttons (`btn-primary`), success toasts, active status chips, trigger dot
+- **`--navy` (`#263450`)** — sidebar background, table `thead`, modal headers, drawer headers
+- **`--bg` (`#faf7f2`)** — page background, form inputs, log entry cards
+- Never use the dark theme palette from previous projects
+
 ### Layout
-- Two-column shell: `260px sidebar | 1fr main`
-- Sidebar is sticky, full viewport height, `overflow: hidden`
-- Main has a sticky topbar + scrollable content area with `padding: 32px`
-- Grid: `display: grid; grid-template-columns: 260px 1fr; min-height: 100vh`
+- Two-column shell: `270px sidebar | 1fr main`
+- Sidebar is sticky, full viewport height, `overflow: hidden`, background `var(--navy)`
+- Main has a sticky topbar + scrollable content area with `padding: 32px 36px`
+- Grid: `display: grid; grid-template-columns: 270px 1fr; min-height: 100vh`
 
 ### Sidebar Structure
 ```
-Brand block (logo label + title)
+Brand block (label + icon + title + sub)
 Nav items (icon + label buttons)
 Footer (trigger/status badge)
 ```
-Nav items use `rgba(79,127,255,.12)` background + `var(--accent2)` text when active.
+- Sidebar background: `var(--navy)`
+- Nav item active state: `background: var(--accent)` with white text
+- Nav item hover: `rgba(255,255,255,.08)` background
+- All sidebar text: white or `rgba(255,255,255,.6)` for inactive items
 
 ### Topbar
-Sticky, `background: var(--surface)`, `border-bottom: 1px solid var(--border)`.
-Contains page title on the left, primary action button on the right.
+Sticky, `background: var(--surface)`, `border-bottom: 1px solid var(--border)`, `box-shadow: 0 1px 4px rgba(0,0,0,.06)`.
+Contains page title (left) and primary action button (right).
 
 ---
 
@@ -74,35 +90,46 @@ Contains page title on the left, primary action button on the right.
 ### Buttons
 | Class | Use |
 |---|---|
-| `.btn.btn-primary` | Primary action — accent background |
-| `.btn.btn-ghost` | Secondary / cancel — transparent with border |
-| `.btn-icon` | Icon-only table actions — transparent, hover shows background |
-| `.btn-icon.danger` | Destructive icon action — red on hover |
-| `.btn-icon.warn` | Warning action (e.g. pause) — amber on hover |
-| `.btn-icon.success` | Positive action (e.g. resume, run now) — green on hover |
+| `.btn.btn-primary` | Primary action — `var(--green)` background, `2px solid var(--green)` border, white text, uppercase |
+| `.btn.btn-ghost` | Secondary — transparent, `var(--accent)` text and border; hover fills accent |
+| `.btn-icon` | Icon-only table actions — transparent, hover shows surface2 |
+| `.btn-icon.danger` | Destructive — red on hover |
+| `.btn-icon.warn` | Warning (e.g. pause) — amber on hover |
+| `.btn-icon.success` | Positive (e.g. resume, run now) — green on hover |
 
-All `.btn` share: `display:inline-flex; align-items:center; gap:7px; border-radius:6px; font-family:var(--sans); font-weight:500; transition:all .15s`
+All `.btn` share:
+```css
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 20px; border-radius: 4px; border: none;
+  font-family: var(--sans); font-size: 13px; font-weight: 700;
+  cursor: pointer; transition: all .15s;
+  text-transform: uppercase; letter-spacing: .25px;
+}
+```
+
+Primary button hover: `background: var(--green2)`, `transform: translateY(-1px)`, green box shadow.
 
 ### Forms
-- `.form-card`: surface background, 1px border, 10px radius, `padding: 28px 32px`, `max-width: 680px`
-- `.form-section-title`: mono font, 10px, uppercase, accent colour, border-bottom separator
-- `.field`: flex column with 7px gap; label is 12px muted
-- Inputs/selects: `background: var(--bg)`, border2 border, 6px radius, focus shows accent border + shadow
+- `.form-card`: white surface, 1px border, 6px radius, `padding: 30px 34px`, `max-width: 680px`, subtle box-shadow
+- `.form-section-title`: mono font, 10px, uppercase, `var(--accent)` colour, border-bottom separator
+- `.field label`: 12px, 700 weight, uppercase, `var(--muted)` colour
+- Inputs/selects: `background: var(--bg)`, `border: 2px solid #ccc`, 4px radius; focus shows `border-color: var(--green)`
 - `.inline-pair`: `grid-template-columns: 100px 1fr` for number + unit combos
 
 ### Tables
-- Wrapped in `.table-wrap`: surface bg, 1px border, 10px radius, `overflow:hidden`
-- `thead` uses `var(--surface2)` background
-- `th`: mono font, 10px, uppercase, letter-spacing, muted colour
+- Wrapped in `.table-wrap`: white surface, 1px border, 6px radius, `overflow:hidden`, box-shadow
+- `thead` uses `var(--navy)` background with `rgba(255,255,255,.65)` text
+- `th`: mono font, 10px, uppercase, letter-spacing
 - `td`: 13-14px sans, `border-bottom: 1px solid var(--border)`, last row has no border
-- Row hover: `rgba(255,255,255,.018)` background on `td`
+- Row hover: `rgba(0,99,136,.03)` background on `td`
 - Paused/inactive rows: `opacity: 0.55` via `.paused-row` class on `<tr>`
 
 ### Badges & Chips
-- `.badge`: pill shape, mono 11px, `rgba(79,127,255,.1)` bg, accent2 text — for counts
-- `.dept-chip`: inline-block, surface2 bg, border2 border, mono 11px, muted text — for category tags
-- `.status-chip.active`: green pill — `rgba(46,204,113,.1)` bg, success text
-- `.status-chip.paused`: purple pill — `rgba(155,109,255,.1)` bg, paused text
+- `.badge`: pill, mono 11px, `var(--accent3)` bg, `var(--accent)` text, accent border — for counts
+- `.dept-chip`: inline-block, surface2 bg, border, mono 11px, muted text — for category tags
+- `.status-chip.active`: green pill — `rgba(103,182,91,.1)` bg, `var(--green2)` text
+- `.status-chip.paused`: purple pill — `rgba(125,108,160,.1)` bg, `var(--paused)` text
 
 ### Status indicators
 ```javascript
@@ -111,15 +138,16 @@ function nextDueClass(val, paused) {
   if (!val) return '';
   const today = new Date(); today.setHours(0,0,0,0);
   const diff = (new Date(val) - today) / 86400000;
-  if (diff < 0)  return 'overdue';      // --danger2
+  if (diff < 0)  return 'overdue';      // --danger
   if (diff <= 7) return 'soon';         // --warn
-  return 'ok';                          // --success
+  return 'ok';                          // --green
 }
 ```
 
 ### Toast Notifications
-Fixed bottom-right, stacked, `z-index: 9999`. Types: default (accent left border), `success`, `error`.
+Fixed bottom-right, stacked, `z-index: 9999`. Types: default (`var(--accent)` left border), `success` (green), `error` (red).
 Auto-dismiss after 4.5 seconds. Animate in with `slideIn` keyframe.
+Background: `var(--surface)`, border: `1px solid var(--border)`.
 
 ### Confirm Modal (ALWAYS use instead of browser alert/confirm)
 Never use `window.confirm()` or `alert()`. Always use the custom confirm modal.
@@ -136,34 +164,40 @@ showConfirm({
 ```
 
 Types map to colours:
-- `danger` — red icon + button (deletes, irreversible actions)
-- `warn` — amber icon + button (pause, caution actions)
-- `success` — green icon + button (run now, positive actions)
+- `danger` — red icon + button
+- `warn` — amber icon + button
+- `success` — green (`var(--green)`) icon + button
 
-Modal structure: centred icon → title → message → Cancel + Confirm buttons.
-Closes on Cancel, Escape key, or Confirm. Confirm button is auto-focused.
+Modal footer background: `var(--surface2)`. Confirm button is auto-focused.
 
-### Edit Modal (for editing records)
-- `.modal-backdrop`: fixed inset, `rgba(0,0,0,.65)` overlay, flex centre, `z-index: 100`
-- `.modal`: surface bg, 12px radius, max 560px wide, scrollable, `modalIn` animation
-- Structure: `.modal-header` | `.modal-body` | `.modal-footer`
-- Close on backdrop click (check `e.target === backdrop`), × button, and Escape key
+### Edit Modal
+- `.modal-backdrop`: fixed inset, `rgba(38,52,80,.55)` overlay (navy-tinted), flex centre
+- `.modal`: white surface, 6px radius, max 560px wide, navy modal header
+- `.modal-header`: `background: var(--navy)`, white title text, white × close button
+- `.modal-footer`: `background: var(--surface2)`
+- Close on backdrop click, × button, and Escape key
 
 ### Drawer (for history/detail side panels)
 - Slides in from the right: `position:fixed; right:-640px` → `right:0` on `.open`
 - `width: 620px`, full viewport height, `transition: right .25s cubic-bezier(.4,0,.2,1)`
-- Separate `.drawer-backdrop` div handles the overlay click-to-close
-- Structure: `.drawer-header` (title + sub + close) | `.drawer-body` (scrollable)
-- Log entries use `.log-entry` cards with grid layout: content left, date right, timestamp full-width below
+- `.drawer-header`: `background: var(--navy)`, white text, navy-tinted backdrop
+- `.drawer-body`: scrollable, `padding: 20px 24px`
+- Log entries: `.log-entry` cards, `background: var(--bg)` (warm off-white), 5px radius
+- Log issue keys: `var(--accent)` colour, bold, linked to Jira
 
 ### Loading States
 ```html
 <div class="spinner"></div>
 ```
 ```css
-.spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .7s linear infinite; }
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(0,99,136,.2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
 ```
-Use inline in buttons when saving, and in table `<td>` while fetching data.
 
 ### Empty States
 ```html
@@ -173,14 +207,13 @@ Use inline in buttons when saving, and in table `<td>` while fetching data.
   <small>Helper hint.</small>
 </div>
 ```
-Centred, muted text, emoji icon, padding 60px.
+Centred, `var(--light)` text, emoji icon, padding 64px.
 
 ### Inline Editing
-For fields that can be edited in-place (e.g. a date field in a table row):
-- Show the value with a small ✎ icon button next to it
-- Clicking toggles a `.next-run-edit` div with `display:none` → `display:flex`
-- Contains: date input + Save link + Cancel link
-- Save calls the server function, Cancel hides the editor
+For fields that can be edited in-place (e.g. next run date):
+- Show value with small ✎ button next to it
+- Clicking toggles `.next-run-edit` div `display:none` → `display:flex`
+- Contains: date input (accent border on focus) + Save link + Cancel link
 - Never open a full modal for single-field overrides
 
 ---
@@ -259,7 +292,6 @@ Errors always log the full message:
 ```javascript
 Logger.log('[functionName] ERROR: %s', e.message);
 ```
-Private/internal functions (trailing `_`) also log but can be terser.
 
 ### Time-Based Triggers
 Install/uninstall via named functions (`installDailyTrigger`, `uninstallDailyTrigger`).
@@ -310,7 +342,7 @@ google.script.run
 
 ### Confirm Before Destructive Actions
 Always wrap destructive or significant actions in `showConfirm()` before calling the server.
-Disable the triggering button immediately (before the confirm) so it can't be double-clicked.
+Disable the triggering button immediately so it can't be double-clicked.
 
 ```javascript
 function deleteItem(id, btn) {
@@ -382,14 +414,15 @@ document.addEventListener('keydown', function(e) {
 ## What to Reuse vs What to Adapt
 
 **Always reuse exactly:**
-- CSS variables / colour palette (including `--paused`)
-- Font choices (IBM Plex Sans + Mono)
-- Button classes and styles
-- Form field styles
-- Table structure and styles
+- CSS variables / full colour palette
+- Font choices (Nunito Sans + IBM Plex Mono)
+- Button classes, styles and uppercase convention
+- Form field styles (2px borders, green focus, warm bg)
+- Table structure with navy thead
+- Navy sidebar and navy modal/drawer headers
 - Toast system
 - Confirm modal (never use browser `confirm()`)
-- Spinner
+- Spinner (accent-coloured border-top)
 - `escHtml`, `formatDate`, `formatDateTime`, `nextDueClass` utilities
 - `google.script.run` async pattern
 - `toStr()` / Date serialisation pattern
