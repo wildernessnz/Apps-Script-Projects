@@ -166,7 +166,12 @@
   /* ── Edit Modal ── */
   .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(38,52,80,.55); z-index:100; align-items:center; justify-content:center; }
   .modal-backdrop.open { display:flex; }
-  .modal { background:var(--surface); border:1px solid var(--border); border-radius:6px; width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 60px); overflow-y:auto; animation:modalIn .2s ease; box-shadow:0 8px 40px rgba(38,52,80,.2); }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:6px; width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 40px); overflow-y:auto; animation:modalIn .2s ease; box-shadow:0 8px 40px rgba(38,52,80,.2); }
+  .modal-body { padding:18px 24px; }
+  .modal-body .form-grid { gap:12px; }
+  .modal-body .field { gap:4px; }
+  .modal-body .separator { margin:12px 0 !important; }
+  .modal-body .form-section-title { margin-bottom:0; padding-bottom:8px; }
   @keyframes modalIn { from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none} }
   .modal-header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--navy); }
   .modal-title { font-size:15px; font-weight:700; color:#fff; }
@@ -226,7 +231,7 @@
         <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v1h1a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V7a2 2 0 012-2h1V4zm8 0H7v1h6V4zm-6 7a1 1 0 100 2h6a1 1 0 100-2H7zm0-3a1 1 0 100 2h6a1 1 0 100-2H7z"/></svg>
         Active Schedules
       </button>
-      <button class="nav-item" onclick="showPanel('new')" id="nav-new">
+      <button class="nav-item" onclick="openNewModal()" id="nav-new">
         <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
         New Schedule
       </button>
@@ -246,7 +251,7 @@
         <div class="topbar-title" id="topbarTitle">Active Schedules</div>
         <div class="topbar-sub">Jira · Company Work Items</div>
       </div>
-      <button class="btn btn-primary" onclick="showPanel('new')" id="topbarAction">
+      <button class="btn btn-primary" onclick="openNewModal()" id="topbarAction">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
         New Schedule
       </button>
@@ -281,56 +286,64 @@
         </div>
       </div>
 
-      <!-- New Schedule Panel -->
-      <div class="panel" id="panel-new">
-        <div class="form-card">
-          <div class="form-section-title">Task Definition</div>
-          <div class="form-grid">
-            <div class="field"><label>Task Name</label><input type="text" id="taskName" placeholder="e.g. Monthly Finance Reconciliation"></div>
-            <div class="field"><label>Department</label><select id="department"><option value="">Loading departments…</option></select></div>
-            <div class="field"><label>Start Date</label><input type="date" id="startDate"></div>
-          </div>
-          <div class="separator" style="margin:24px 0 20px"></div>
-          <div class="form-section-title">Recurrence</div>
-          <div class="form-grid">
-            <div class="field">
-              <label>Repeat Every</label>
-              <div class="inline-pair">
-                <input type="number" id="recurrenceValue" min="1" value="1">
-                <select id="recurrenceUnit">
-                  <option value="days">Days</option>
-                  <option value="weeks">Weeks</option>
-                  <option value="months" selected>Months</option>
-                  <option value="years">Years</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="separator" style="margin:24px 0 20px"></div>
-          <div class="form-section-title">Due Date Offset</div>
-          <p style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.65">
-            The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
-          </p>
-          <div class="form-grid">
-            <div class="field">
-              <label>Offset Amount</label>
-              <div class="inline-pair">
-                <input type="number" id="offsetValue" min="1" value="2">
-                <select id="offsetUnit">
-                  <option value="days">Days</option>
-                  <option value="weeks" selected>Weeks</option>
-                  <option value="months">Months</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="form-actions">
-            <button class="btn btn-primary" id="saveBtn" onclick="saveSchedule()">Save Schedule</button>
-            <button class="btn btn-ghost" onclick="showPanel('schedules')">Cancel</button>
+
+
+    </div>
+  </div>
+</div>
+
+<!-- New Schedule Modal -->
+<div class="modal-backdrop" id="newModalBackdrop" onclick="closeNewModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">New Schedule</div>
+      <button class="modal-close" onclick="closeNewModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Task Definition</div>
+        <div class="field"><label>Task Name</label><input type="text" id="taskName" placeholder="e.g. Monthly Finance Reconciliation"></div>
+        <div class="field"><label>Department</label><select id="department"><option value="">Loading departments…</option></select></div>
+        <div class="field"><label>Start Date</label><input type="date" id="startDate"></div>
+      </div>
+      <div class="separator" style="margin:20px 0 16px"></div>
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Recurrence</div>
+        <div class="field">
+          <label>Repeat Every</label>
+          <div class="inline-pair">
+            <input type="number" id="recurrenceValue" min="1" value="1">
+            <select id="recurrenceUnit">
+              <option value="days">Days</option>
+              <option value="weeks">Weeks</option>
+              <option value="months" selected>Months</option>
+              <option value="years">Years</option>
+            </select>
           </div>
         </div>
       </div>
-
+      <div class="separator" style="margin:20px 0 16px"></div>
+      <div class="form-grid">
+        <div class="form-section-title" style="margin-bottom:0">Due Date Offset</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:0;line-height:1.5">
+          The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
+        </p>
+        <div class="field">
+          <label>Offset Amount</label>
+          <div class="inline-pair">
+            <input type="number" id="offsetValue" min="1" value="2">
+            <select id="offsetUnit">
+              <option value="days">Days</option>
+              <option value="weeks" selected>Weeks</option>
+              <option value="months">Months</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeNewModal()">Cancel</button>
+      <button class="btn btn-primary" id="saveBtn" onclick="saveSchedule()">Save Schedule</button>
     </div>
   </div>
 </div>
@@ -384,6 +397,9 @@
       <div class="separator" style="margin:20px 0 16px"></div>
       <div class="form-grid">
         <div class="form-section-title" style="margin-bottom:0">Due Date Offset</div>
+        <p style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:0;line-height:1.5">
+          The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
+        </p>
         <div class="field">
           <label>Offset Amount</label>
           <div class="inline-pair">
@@ -466,7 +482,6 @@ function showPanel(name) {
   document.getElementById('nav-' + name).classList.add('active');
   const titles = { schedules:'Active Schedules', new:'New Schedule' };
   document.getElementById('topbarTitle').textContent = titles[name] || '';
-  document.getElementById('topbarAction').style.display = name === 'new' ? 'none' : '';
 }
 
 function formatDate(val) {
@@ -575,6 +590,24 @@ function loadSchedules() {
     .getSchedules();
 }
 
+function openNewModal() {
+  document.getElementById('startDate').valueAsDate = new Date();
+  document.getElementById('taskName').value = '';
+  document.getElementById('recurrenceValue').value = 1;
+  document.getElementById('offsetValue').value = 2;
+  setSelectValue('recurrenceUnit', 'months');
+  setSelectValue('offsetUnit', 'weeks');
+  // Reset department if already loaded
+  if (_departments.length) populateDeptSelect('department');
+  document.getElementById('newModalBackdrop').classList.add('open');
+  setTimeout(() => document.getElementById('taskName').focus(), 50);
+}
+
+function closeNewModal(e) {
+  if (e && e.target !== document.getElementById('newModalBackdrop')) return;
+  document.getElementById('newModalBackdrop').classList.remove('open');
+}
+
 function saveSchedule() {
   const taskName=document.getElementById('taskName').value.trim(), department=document.getElementById('department').value,
         startDate=document.getElementById('startDate').value, recurrenceValue=document.getElementById('recurrenceValue').value,
@@ -590,10 +623,8 @@ function saveSchedule() {
       btn.disabled=false; btn.textContent='Save Schedule';
       if (result.error) { toast('Error: '+result.error,'error'); return; }
       toast('Schedule saved successfully.','success');
-      document.getElementById('taskName').value=''; document.getElementById('department').value='';
-      document.getElementById('startDate').valueAsDate=new Date();
-      document.getElementById('recurrenceValue').value=1; document.getElementById('offsetValue').value=2;
-      showPanel('schedules'); loadSchedules();
+      document.getElementById('newModalBackdrop').classList.remove('open');
+      loadSchedules();
     })
     .withFailureHandler(function(e) { btn.disabled=false; btn.textContent='Save Schedule'; toast('Save failed: '+e.message,'error'); })
     .saveSchedule({ taskName, department, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
@@ -725,7 +756,7 @@ function openDrawer(schedule) {
 function closeDrawer() { document.getElementById('drawerBackdrop').classList.remove('open'); document.getElementById('historyDrawer').classList.remove('open'); }
 
 document.addEventListener('keydown', function(e) {
-  if (e.key === 'Escape') { closeDrawer(); closeConfirm(); document.getElementById('editModalBackdrop').classList.remove('open'); }
+  if (e.key === 'Escape') { closeDrawer(); closeConfirm(); document.getElementById('editModalBackdrop').classList.remove('open'); document.getElementById('newModalBackdrop').classList.remove('open'); }
 });
 
 function loadTriggerStatus() {
@@ -739,7 +770,6 @@ function loadTriggerStatus() {
     .getTriggerStatus();
 }
 
-document.getElementById('startDate').valueAsDate = new Date();
 loadSchedules();
 loadDepartments();
 loadTriggerStatus();
