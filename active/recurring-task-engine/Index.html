@@ -8,85 +8,68 @@
 <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
   :root {
-    /* Wilderness exact brand palette */
-    --bg:        #faf7f2;   /* their warm off-white page bg */
-    --surface:   #ffffff;
-    --surface2:  #f0ede8;   /* hover/header rows — slightly warmer */
-    --border:    #ddd9d0;
-    --border2:   #ccc8be;
-    --accent:    #006388;   /* primary brand blue */
-    --accent2:   #0088bb;   /* hover state */
-    --accent3:   #e8f3f7;   /* light blue tint */
-    --green:     #67b65b;   /* CTA green */
-    --green2:    #509a44;   /* green hover */
-    --navy:      #263450;   /* dark nav/footer */
-    --danger:    #c0392b;
-    --danger2:   #e74c3c;
-    --success:   #67b65b;
-    --warn:      #d68910;
-    --paused:    #7d6ca0;
-    --text:      #323232;
-    --muted:     #5b5b5b;
-    --light:     #909090;
-    --mono:      'IBM Plex Mono', monospace;
-    --sans:      'Nunito Sans', sans-serif;
+    --bg:#faf7f2; --surface:#ffffff; --surface2:#f0ede8;
+    --border:#ddd9d0; --border2:#ccc8be;
+    --accent:#006388; --accent2:#0088bb; --accent3:#e8f3f7;
+    --green:#67b65b; --green2:#509a44;
+    --navy:#263450;
+    --danger:#c0392b; --danger2:#e74c3c;
+    --success:#67b65b; --warn:#d68910; --paused:#7d6ca0;
+    --text:#323232; --muted:#5b5b5b; --light:#909090;
+    --mono:'IBM Plex Mono',monospace; --sans:'Nunito Sans',sans-serif;
   }
-
   body { font-family:var(--sans); background:var(--bg); color:var(--text); min-height:100vh; line-height:1.5; -webkit-font-smoothing:antialiased; }
 
-  /* ── Layout ── */
+  /* Layout */
   .shell { display:grid; grid-template-columns:270px 1fr; min-height:100vh; }
 
-  /* ── Sidebar ── */
+  /* Sidebar */
   .sidebar { background:var(--navy); display:flex; flex-direction:column; position:sticky; top:0; height:100vh; overflow:hidden; }
-
-  .brand { padding:28px 24px; border-bottom:1px solid rgba(255,255,255,.1); }
+  .brand { padding:24px; border-bottom:1px solid rgba(255,255,255,.1); }
   .brand-label { font-family:var(--mono); font-size:9px; font-weight:500; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.45); margin-bottom:8px; }
-  .brand-logo { display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .brand-logo { display:flex; align-items:center; gap:10px; margin-bottom:4px; }
   .brand-icon { width:32px; height:32px; background:var(--accent); border-radius:6px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .brand-icon svg { width:18px; height:18px; }
   .brand-title { font-size:15px; font-weight:700; color:#fff; line-height:1.3; }
   .brand-sub { font-size:11px; color:rgba(255,255,255,.4); font-family:var(--mono); letter-spacing:.04em; }
 
-  .nav { padding:16px 12px; flex:1; display:flex; flex-direction:column; gap:3px; }
-  .nav-item { display:flex; align-items:center; gap:11px; padding:10px 12px; border-radius:4px; cursor:pointer; font-size:13.5px; font-weight:600; color:rgba(255,255,255,.6); border:none; background:none; width:100%; text-align:left; transition:all .15s; letter-spacing:.01em; }
+  /* Nav */
+  .nav { padding:12px; flex:1; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
+  .nav-section-label { font-family:var(--mono); font-size:9px; letter-spacing:.15em; text-transform:uppercase; color:rgba(255,255,255,.3); padding:10px 12px 4px; }
+  .nav-item { display:flex; align-items:center; gap:11px; padding:9px 12px; border-radius:4px; cursor:pointer; font-size:13px; font-weight:600; color:rgba(255,255,255,.6); border:none; background:none; width:100%; text-align:left; transition:all .15s; }
   .nav-item:hover { background:rgba(255,255,255,.08); color:#fff; }
   .nav-item.active { background:var(--accent); color:#fff; }
-  .nav-item .icon { width:17px; height:17px; flex-shrink:0; opacity:.8; }
+  .nav-item .icon { width:16px; height:16px; flex-shrink:0; opacity:.8; }
   .nav-item.active .icon { opacity:1; }
+  .nav-count { margin-left:auto; font-family:var(--mono); font-size:10px; background:rgba(255,255,255,.15); color:rgba(255,255,255,.7); padding:1px 7px; border-radius:99px; font-weight:500; }
+  .nav-item.active .nav-count { background:rgba(255,255,255,.2); color:#fff; }
 
-  .sidebar-footer { padding:16px 24px; border-top:1px solid rgba(255,255,255,.08); }
+  /* Dept filter chips in sidebar */
+  .dept-filter-list { padding:4px 12px 8px; display:flex; flex-direction:column; gap:2px; }
+  .dept-filter-btn { display:flex; align-items:center; justify-content:space-between; padding:6px 10px; border-radius:3px; cursor:pointer; font-size:12px; font-weight:600; color:rgba(255,255,255,.5); border:none; background:none; width:100%; text-align:left; transition:all .15s; }
+  .dept-filter-btn:hover { color:rgba(255,255,255,.85); background:rgba(255,255,255,.05); }
+  .dept-filter-btn.active { color:#fff; background:rgba(255,255,255,.1); }
+  .dept-filter-btn .dept-count { font-family:var(--mono); font-size:10px; color:rgba(255,255,255,.35); }
+  .dept-filter-btn.active .dept-count { color:rgba(255,255,255,.6); }
+
+  .sidebar-footer { padding:14px 24px; border-top:1px solid rgba(255,255,255,.08); flex-shrink:0; }
   .trigger-badge { display:flex; align-items:center; gap:8px; font-family:var(--mono); font-size:10px; color:rgba(255,255,255,.4); }
   .trigger-dot { width:7px; height:7px; border-radius:50%; background:rgba(255,255,255,.25); flex-shrink:0; }
   .trigger-dot.active { background:var(--green); box-shadow:0 0 6px var(--green); }
 
-  /* ── Main ── */
+  /* Main */
   .main { display:flex; flex-direction:column; min-height:100vh; }
-  .topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:18px 36px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .topbar { background:var(--surface); border-bottom:1px solid var(--border); padding:16px 36px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:10; box-shadow:0 1px 4px rgba(0,0,0,.06); }
   .topbar-title { font-size:18px; font-weight:700; color:var(--text); letter-spacing:-.25px; }
   .topbar-sub { font-size:11px; color:var(--light); font-family:var(--mono); margin-top:2px; letter-spacing:.04em; }
-  .content { padding:32px 36px; flex:1; }
+  .content { padding:28px 36px; flex:1; }
 
-  /* ── Panels ── */
+  /* Panels */
   .panel { display:none; }
   .panel.active { display:block; }
 
-  /* ── Form ── */
-  .form-card { background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:30px 34px; max-width:680px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
-  .form-section-title { font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.15em; text-transform:uppercase; color:var(--accent); margin-bottom:18px; padding-bottom:10px; border-bottom:1px solid var(--border); }
-  .form-grid { display:grid; gap:18px; }
-  .field { display:flex; flex-direction:column; gap:6px; }
-  .field label { font-size:12px; font-weight:700; color:var(--muted); letter-spacing:.03em; text-transform:uppercase; }
-  .field input, .field select { background:var(--bg); border:2px solid #ccc; border-radius:4px; padding:10px 13px; color:var(--text); font-family:var(--sans); font-size:13.5px; outline:none; transition:border-color .15s; width:100%; appearance:none; }
-  .field select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235b5b5b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
-  .field input:focus, .field select:focus { border-color:var(--green); background:#fff; outline:none; }
-  .field input::placeholder { color:#bbb; }
-  .inline-pair { display:grid; grid-template-columns:100px 1fr; gap:8px; align-items:end; }
-  .separator { height:1px; background:var(--border); margin:8px 0; }
-
-  /* ── Buttons ── */
+  /* Buttons */
   .btn { display:inline-flex; align-items:center; gap:7px; padding:10px 20px; border-radius:4px; border:none; font-family:var(--sans); font-size:13px; font-weight:700; cursor:pointer; transition:all .15s; text-transform:uppercase; letter-spacing:.25px; }
   .btn-primary { background:var(--green); color:#fff; border:2px solid var(--green); }
   .btn-primary:hover { background:var(--green2); border-color:var(--green2); transform:translateY(-1px); box-shadow:0 3px 10px rgba(103,182,91,.3); }
@@ -99,28 +82,29 @@
   .btn-icon.danger:hover { background:rgba(192,57,43,.08); color:var(--danger); border-color:rgba(192,57,43,.2); }
   .btn-icon.warn:hover { background:rgba(214,137,16,.08); color:var(--warn); border-color:rgba(214,137,16,.2); }
   .btn-icon.success:hover { background:rgba(103,182,91,.08); color:var(--green); border-color:rgba(103,182,91,.2); }
-  .form-actions { display:flex; gap:10px; margin-top:26px; padding-top:22px; border-top:1px solid var(--border); }
 
-  /* ── Toast ── */
+  /* Toast */
   .toast-container { position:fixed; bottom:24px; right:24px; display:flex; flex-direction:column; gap:8px; z-index:9999; }
   .toast { background:var(--surface); border:1px solid var(--border); border-left:4px solid var(--accent); border-radius:4px; padding:12px 16px; font-size:13px; max-width:320px; animation:slideIn .2s ease; box-shadow:0 4px 16px rgba(0,0,0,.12); color:var(--text); }
   .toast.error { border-left-color:var(--danger); }
   .toast.success { border-left-color:var(--green); }
   @keyframes slideIn { from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)} }
 
-  /* ── Table ── */
-  .list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  /* Table */
+  .list-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; }
   .list-title { font-size:18px; font-weight:700; letter-spacing:-.25px; }
+  .list-meta { font-size:12px; color:var(--light); font-family:var(--mono); margin-top:2px; }
   .badge { display:inline-flex; align-items:center; padding:3px 12px; border-radius:99px; font-family:var(--mono); font-size:11px; background:var(--accent3); color:var(--accent); border:1px solid rgba(0,99,136,.2); font-weight:500; }
   .table-wrap { background:var(--surface); border:1px solid var(--border); border-radius:6px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,.06); }
   table { width:100%; border-collapse:collapse; font-size:13px; }
-  thead { background:var(--navy); border-bottom:1px solid var(--border); }
+  thead { background:var(--navy); }
   th { padding:11px 16px; text-align:left; font-family:var(--mono); font-size:10px; font-weight:500; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.65); white-space:nowrap; }
-  td { padding:14px 16px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text); }
+  td { padding:13px 16px; border-bottom:1px solid var(--border); vertical-align:middle; color:var(--text); }
   tr:last-child td { border-bottom:none; }
   tr:hover td { background:rgba(0,99,136,.03); }
   tr.paused-row td { opacity:.55; }
   .task-name { font-weight:700; }
+  .task-desc { font-size:11.5px; color:var(--light); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:200px; }
   .dept-chip { display:inline-block; padding:2px 9px; border-radius:3px; background:var(--surface2); border:1px solid var(--border); font-size:11px; font-family:var(--mono); color:var(--muted); }
   .recurrence-text { font-family:var(--mono); font-size:11.5px; color:var(--muted); }
   .next-due { font-family:var(--mono); font-size:12px; }
@@ -137,20 +121,12 @@
   .empty-state p { font-size:14px; font-weight:600; }
   .empty-state small { font-size:12px; color:var(--border2); display:block; margin-top:5px; font-weight:400; }
 
-  /* ── Spinner ── */
+  /* Spinner */
   .spinner { width:16px; height:16px; border:2px solid rgba(0,99,136,.2); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; display:inline-block; }
   @keyframes spin { to{transform:rotate(360deg)} }
   .loading-row td { text-align:center; padding:48px; color:var(--light); }
 
-  /* ── Inline next-run edit ── */
-  .next-run-edit { display:none; align-items:center; gap:6px; margin-top:6px; }
-  .next-run-edit.open { display:flex; }
-  .next-run-edit input[type=date] { background:var(--bg); border:1px solid var(--accent); border-radius:3px; padding:4px 8px; color:var(--text); font-family:var(--mono); font-size:11px; outline:none; }
-  .next-run-edit .save-link { font-size:11px; color:var(--accent); cursor:pointer; font-family:var(--mono); border:none; background:none; padding:0; font-weight:600; }
-  .next-run-edit .save-link:hover { text-decoration:underline; }
-  .next-run-edit .cancel-link { font-size:11px; color:var(--light); cursor:pointer; font-family:var(--mono); border:none; background:none; padding:0; }
-
-  /* ── Confirm Modal ── */
+  /* Confirm Modal */
   .confirm-backdrop { display:none; position:fixed; inset:0; background:rgba(38,52,80,.55); z-index:200; align-items:center; justify-content:center; }
   .confirm-backdrop.open { display:flex; }
   .confirm-modal { background:var(--surface); border:1px solid var(--border); border-radius:6px; width:400px; max-width:calc(100vw - 40px); animation:modalIn .18s ease; overflow:hidden; box-shadow:0 8px 40px rgba(38,52,80,.2); }
@@ -163,29 +139,36 @@
   .confirm-message { font-size:13px; color:var(--muted); line-height:1.6; }
   .confirm-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:var(--surface2); }
 
-  /* ── Edit Modal ── */
+  /* Modals */
   .modal-backdrop { display:none; position:fixed; inset:0; background:rgba(38,52,80,.55); z-index:100; align-items:center; justify-content:center; }
   .modal-backdrop.open { display:flex; }
-  .modal { background:var(--surface); border:1px solid var(--border); border-radius:6px; width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 40px); overflow-y:auto; animation:modalIn .2s ease; box-shadow:0 8px 40px rgba(38,52,80,.2); }
-  .modal-body { padding:18px 24px; }
-  .modal-body .form-grid { gap:12px; }
-  .modal-body .field { gap:4px; }
-  .modal-body .separator { margin:12px 0 !important; }
-  .modal-body .form-section-title { margin-bottom:0; padding-bottom:8px; }
   @keyframes modalIn { from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:none} }
-  .modal-header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--navy); }
+  .modal { background:var(--surface); border:1px solid var(--border); border-radius:6px; width:560px; max-width:calc(100vw - 40px); max-height:calc(100vh - 40px); overflow-y:auto; animation:modalIn .2s ease; box-shadow:0 8px 40px rgba(38,52,80,.2); }
+  .modal-header { padding:18px 24px; border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; background:var(--navy); }
   .modal-title { font-size:15px; font-weight:700; color:#fff; }
   .modal-close { background:none; border:none; color:rgba(255,255,255,.6); font-size:22px; cursor:pointer; line-height:1; padding:2px 6px; border-radius:3px; }
   .modal-close:hover { color:#fff; background:rgba(255,255,255,.1); }
-  .modal-body { padding:24px; }
-  .modal-footer { padding:16px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:var(--surface2); }
+  .modal-body { padding:18px 24px; }
+  .modal-body .form-grid { display:grid; gap:12px; }
+  .modal-body .field { display:flex; flex-direction:column; gap:4px; }
+  .modal-body .field label { font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.04em; text-transform:uppercase; }
+  .modal-body .field input, .modal-body .field select, .modal-body .field textarea { background:var(--bg); border:2px solid #ccc; border-radius:4px; padding:8px 12px; color:var(--text); font-family:var(--sans); font-size:13px; outline:none; transition:border-color .15s; width:100%; appearance:none; }
+  .modal-body .field textarea { resize:vertical; min-height:70px; font-size:13px; line-height:1.5; }
+  .modal-body .field select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235b5b5b' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding-right:32px; }
+  .modal-body .field input:focus, .modal-body .field select:focus, .modal-body .field textarea:focus { border-color:var(--green); background:#fff; }
+  .modal-body .field input::placeholder, .modal-body .field textarea::placeholder { color:#bbb; }
+  .modal-body .inline-pair { display:grid; grid-template-columns:100px 1fr; gap:8px; align-items:end; }
+  .modal-body .separator { height:1px; background:var(--border); margin:10px 0; }
+  .modal-body .form-section-title { font-family:var(--mono); font-size:9px; font-weight:500; letter-spacing:.15em; text-transform:uppercase; color:var(--accent); margin-bottom:0; padding-bottom:6px; border-bottom:1px solid var(--border); }
+  .modal-body .hint { font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:2px; }
+  .modal-footer { padding:14px 24px; border-top:1px solid var(--border); display:flex; gap:10px; justify-content:flex-end; background:var(--surface2); }
 
-  /* ── Drawer ── */
+  /* Drawer */
   .drawer-backdrop { display:none; position:fixed; inset:0; background:rgba(38,52,80,.4); z-index:100; }
   .drawer-backdrop.open { display:block; }
   .drawer { position:fixed; top:0; right:-640px; width:620px; max-width:100vw; height:100vh; background:var(--surface); border-left:1px solid var(--border); z-index:101; display:flex; flex-direction:column; transition:right .25s cubic-bezier(.4,0,.2,1); box-shadow:-4px 0 24px rgba(38,52,80,.12); }
   .drawer.open { right:0; }
-  .drawer-header { padding:20px 24px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0; background:var(--navy); }
+  .drawer-header { padding:18px 24px; border-bottom:1px solid var(--border); display:flex; align-items:flex-start; justify-content:space-between; flex-shrink:0; background:var(--navy); }
   .drawer-title { font-size:15px; font-weight:700; color:#fff; }
   .drawer-sub { font-size:12px; color:rgba(255,255,255,.5); font-family:var(--mono); margin-top:3px; }
   .drawer-close { background:none; border:none; color:rgba(255,255,255,.6); font-size:22px; cursor:pointer; padding:2px 6px; border-radius:3px; flex-shrink:0; }
@@ -227,14 +210,18 @@
       <div class="brand-sub">wilderness.co.nz</div>
     </div>
     <nav class="nav">
-      <button class="nav-item active" onclick="showPanel('schedules')" id="nav-schedules">
+      <button class="nav-item active" onclick="setView('active', null)" id="nav-active">
         <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v1h1a2 2 0 012 2v9a2 2 0 01-2 2H4a2 2 0 01-2-2V7a2 2 0 012-2h1V4zm8 0H7v1h6V4zm-6 7a1 1 0 100 2h6a1 1 0 100-2H7zm0-3a1 1 0 100 2h6a1 1 0 100-2H7z"/></svg>
         Active Schedules
+        <span class="nav-count" id="navCountActive"></span>
       </button>
-      <button class="nav-item" onclick="openNewModal()" id="nav-new">
-        <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
-        New Schedule
+      <button class="nav-item" onclick="setView('paused', null)" id="nav-paused">
+        <svg class="icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+        Paused Schedules
+        <span class="nav-count" id="navCountPaused"></span>
       </button>
+      <div class="nav-section-label" id="deptFilterLabel">Filter by Department</div>
+      <div class="dept-filter-list" id="deptFilterList"></div>
     </nav>
     <div class="sidebar-footer">
       <div class="trigger-badge">
@@ -248,24 +235,24 @@
   <div class="main">
     <div class="topbar">
       <div>
-        <div class="topbar-title" id="topbarTitle">Active Schedules</div>
-        <div class="topbar-sub">Jira · Company Work Items</div>
+        <div class="topbar-title" id="topbarTitle">All Schedules</div>
+        <div class="topbar-sub" id="topbarSub">Jira · Company Work Items</div>
       </div>
-      <button class="btn btn-primary" onclick="openNewModal()" id="topbarAction">
+      <button class="btn btn-primary" onclick="openNewModal()">
         <svg width="13" height="13" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
         New Schedule
       </button>
     </div>
 
     <div class="content">
-
-      <!-- Schedules Panel -->
       <div class="panel active" id="panel-schedules">
         <div class="list-header">
-          <div class="list-title">All Recurring Schedules</div>
-          <div class="badge" id="scheduleCount">— schedules</div>
+          <div class="list-title" id="listTitle" style="display:none"></div>
+          <div class="badge" id="scheduleCount" style="margin-left:auto">— schedules</div>
         </div>
-        <div class="table-wrap">
+
+        <!-- Active schedules table -->
+        <div class="table-wrap" id="activeTableWrap">
           <table>
             <thead>
               <tr>
@@ -273,21 +260,19 @@
                 <th>Department</th>
                 <th>Recurs Every</th>
                 <th>Due Offset</th>
-                <th>Status</th>
                 <th>Next Run</th>
                 <th>Last Created</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="scheduleBody">
-              <tr class="loading-row"><td colspan="8"><div class="spinner"></div>&nbsp; Loading schedules…</td></tr>
+              <tr class="loading-row"><td colspan="7"><div class="spinner"></div>&nbsp; Loading schedules…</td></tr>
             </tbody>
           </table>
         </div>
+
+
       </div>
-
-
-
     </div>
   </div>
 </div>
@@ -301,14 +286,15 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Task Definition</div>
+        <div class="form-section-title">Task Definition</div>
         <div class="field"><label>Task Name</label><input type="text" id="taskName" placeholder="e.g. Monthly Finance Reconciliation"></div>
         <div class="field"><label>Department</label><select id="department"><option value="">Loading departments…</option></select></div>
-        <div class="field"><label>Start Date</label><input type="date" id="startDate"></div>
+        <div class="field"><label>Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--light)">(optional — appears on the Jira issue)</span></label><textarea id="description" placeholder="Describe what this task involves…"></textarea></div>
+        <div class="field"><label>First Run Date</label><input type="date" id="startDate"><small style="font-size:11px;color:var(--light);margin-top:2px">The first Jira task will be created on this date.</small></div>
       </div>
-      <div class="separator" style="margin:20px 0 16px"></div>
+      <div class="separator"></div>
       <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Recurrence</div>
+        <div class="form-section-title">Recurrence</div>
         <div class="field">
           <label>Repeat Every</label>
           <div class="inline-pair">
@@ -322,12 +308,10 @@
           </div>
         </div>
       </div>
-      <div class="separator" style="margin:20px 0 16px"></div>
+      <div class="separator"></div>
       <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Due Date Offset</div>
-        <p style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:0;line-height:1.5">
-          The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
-        </p>
+        <div class="form-section-title">Due Date Offset</div>
+        <p class="hint">The Jira due date will be set this far <strong>ahead</strong> of the date each task is created.</p>
         <div class="field">
           <label>Offset Amount</label>
           <div class="inline-pair">
@@ -344,6 +328,58 @@
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeNewModal()">Cancel</button>
       <button class="btn btn-primary" id="saveBtn" onclick="saveSchedule()">Save Schedule</button>
+    </div>
+  </div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-backdrop" id="editModalBackdrop" onclick="closeEditModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Edit Schedule</div>
+      <button class="modal-close" onclick="closeEditModal()">×</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="editId">
+      <div class="form-grid">
+        <div class="form-section-title">Task Definition</div>
+        <div class="field"><label>Task Name</label><input type="text" id="editTaskName"></div>
+        <div class="field"><label>Department</label><select id="editDepartment"></select></div>
+        <div class="field"><label>Description <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--light)">(optional)</span></label><textarea id="editDescription" placeholder="Describe what this task involves…"></textarea></div>
+        <div class="field"><label>Next Run Date</label><input type="date" id="editStartDate"><small style="font-size:11px;color:var(--light);margin-top:2px">When the next Jira task should be created.</small></div>
+      </div>
+      <div class="separator"></div>
+      <div class="form-grid">
+        <div class="form-section-title">Recurrence</div>
+        <div class="field">
+          <label>Repeat Every</label>
+          <div class="inline-pair">
+            <input type="number" id="editRecurrenceValue" min="1">
+            <select id="editRecurrenceUnit">
+              <option value="days">Days</option><option value="weeks">Weeks</option>
+              <option value="months">Months</option><option value="years">Years</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="separator"></div>
+      <div class="form-grid">
+        <div class="form-section-title">Due Date Offset</div>
+        <p class="hint">The Jira due date will be set this far <strong>ahead</strong> of the date each task is created.</p>
+        <div class="field">
+          <label>Offset Amount</label>
+          <div class="inline-pair">
+            <input type="number" id="editOffsetValue" min="1">
+            <select id="editOffsetUnit">
+              <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
+      <button class="btn btn-primary" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -365,59 +401,6 @@
   </div>
 </div>
 
-<!-- Edit Modal -->
-<div class="modal-backdrop" id="editModalBackdrop" onclick="closeEditModal(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Edit Schedule</div>
-      <button class="modal-close" onclick="closeEditModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <input type="hidden" id="editId">
-      <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Task Definition</div>
-        <div class="field"><label>Task Name</label><input type="text" id="editTaskName"></div>
-        <div class="field"><label>Department</label><select id="editDepartment"></select></div>
-        <div class="field"><label>Start Date</label><input type="date" id="editStartDate"></div>
-      </div>
-      <div class="separator" style="margin:20px 0 16px"></div>
-      <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Recurrence</div>
-        <div class="field">
-          <label>Repeat Every</label>
-          <div class="inline-pair">
-            <input type="number" id="editRecurrenceValue" min="1">
-            <select id="editRecurrenceUnit">
-              <option value="days">Days</option><option value="weeks">Weeks</option>
-              <option value="months">Months</option><option value="years">Years</option>
-            </select>
-          </div>
-        </div>
-      </div>
-      <div class="separator" style="margin:20px 0 16px"></div>
-      <div class="form-grid">
-        <div class="form-section-title" style="margin-bottom:0">Due Date Offset</div>
-        <p style="font-size:12px;color:var(--muted);margin-top:4px;margin-bottom:0;line-height:1.5">
-          The Jira due date will be set this far <strong style="color:var(--text)">ahead</strong> of the date each task is created.
-        </p>
-        <div class="field">
-          <label>Offset Amount</label>
-          <div class="inline-pair">
-            <input type="number" id="editOffsetValue" min="1">
-            <select id="editOffsetUnit">
-              <option value="days">Days</option><option value="weeks">Weeks</option><option value="months">Months</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-ghost" onclick="closeEditModal()">Cancel</button>
-      <button class="btn btn-primary" id="editSaveBtn" onclick="saveEdit()">Save Changes</button>
-    </div>
-  </div>
-</div>
-
 <!-- History Drawer -->
 <div class="drawer-backdrop" id="drawerBackdrop" onclick="closeDrawer()"></div>
 <div class="drawer" id="historyDrawer">
@@ -434,23 +417,28 @@
 <div class="toast-container" id="toastContainer"></div>
 
 <script>
+// ── State ─────────────────────────────────────────────────────
 let _departments = [];
+let _allSchedules = [];
+let _currentView = 'active';   // 'active' | 'paused'
+let _activeDeptFilter = null;
 let _confirmCallback = null;
 
+// ── Confirm Modal ─────────────────────────────────────────────
 const CONFIRM_ICONS = {
-  danger:  '<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>',
-  warn:    '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>',
-  success: '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'
+  danger: '<path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/>',
+  warn:   '<path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/>',
+  success:'<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/>'
 };
 const CONFIRM_COLORS = { danger:'var(--danger)', warn:'var(--warn)', success:'var(--green)' };
 const CONFIRM_BTN_BG = { danger:'var(--danger)', warn:'var(--warn)', success:'var(--green)' };
 
 function showConfirm(options, callback) {
   const type = options.type || 'danger';
-  document.getElementById('confirmTitle').textContent   = options.title || 'Are you sure?';
+  document.getElementById('confirmTitle').textContent = options.title || 'Are you sure?';
   document.getElementById('confirmMessage').textContent = options.message || '';
-  document.getElementById('confirmIcon').className      = 'confirm-icon ' + type;
-  document.getElementById('confirmIconSvg').innerHTML   = CONFIRM_ICONS[type];
+  document.getElementById('confirmIcon').className = 'confirm-icon ' + type;
+  document.getElementById('confirmIconSvg').innerHTML = CONFIRM_ICONS[type];
   document.getElementById('confirmIconSvg').style.color = CONFIRM_COLORS[type];
   const okBtn = document.getElementById('confirmOkBtn');
   okBtn.textContent = options.okLabel || 'Confirm';
@@ -467,21 +455,13 @@ function confirmOk() {
   if (_confirmCallback) { const cb = _confirmCallback; _confirmCallback = null; cb(); }
 }
 
+// ── Helpers ───────────────────────────────────────────────────
 function toast(msg, type) {
   const el = document.createElement('div');
   el.className = 'toast' + (type ? ' ' + type : '');
   el.textContent = msg;
   document.getElementById('toastContainer').appendChild(el);
   setTimeout(() => el.remove(), 4500);
-}
-
-function showPanel(name) {
-  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  document.getElementById('panel-' + name).classList.add('active');
-  document.getElementById('nav-' + name).classList.add('active');
-  const titles = { schedules:'Active Schedules', new:'New Schedule' };
-  document.getElementById('topbarTitle').textContent = titles[name] || '';
 }
 
 function formatDate(val) {
@@ -519,13 +499,137 @@ function setSelectValue(id, value) {
   }
 }
 
+// ── View & Department Filter ──────────────────────────────────
+function setView(view, dept) {
+  _currentView = view;
+  _activeDeptFilter = dept;
+  document.getElementById('nav-active').classList.toggle('active', view === 'active');
+  document.getElementById('nav-paused').classList.toggle('active', view === 'paused');
+  document.querySelectorAll('.dept-filter-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.dept === dept);
+  });
+  renderSchedules();
+}
+
+function setDeptFilter(dept) {
+  setView(_currentView, dept);
+}
+
+function buildDeptFilter(schedules) {
+  const viewItems = schedules.filter(s => _currentView === 'active' ? s.active : s.paused);
+  const counts = {};
+  viewItems.forEach(s => { counts[s.department] = (counts[s.department] || 0) + 1; });
+  const depts = Object.keys(counts).sort();
+  const list = document.getElementById('deptFilterList');
+  const label = document.getElementById('deptFilterLabel');
+  if (!depts.length) { list.innerHTML = ''; label.style.display = 'none'; return; }
+  label.style.display = '';
+  list.innerHTML = depts.map(dept => `
+    <button class="dept-filter-btn ${_activeDeptFilter === dept ? 'active' : ''}" data-dept="${escHtml(dept)}" onclick="setDeptFilter('${escHtml(dept)}')">
+      <span>${escHtml(dept)}</span>
+      <span class="dept-count">${counts[dept]}</span>
+    </button>`).join('');
+}
+
+// ── Load & Render Schedules ───────────────────────────────────
+function loadSchedules() {
+  document.getElementById('scheduleBody').innerHTML = '<tr class="loading-row"><td colspan="7"><div class="spinner"></div>&nbsp; Loading…</td></tr>';
+  google.script.run
+    .withSuccessHandler(function(schedules) {
+      if (schedules && schedules.error) {
+        document.getElementById('scheduleBody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:40px">Error: ${schedules.error}</td></tr>`;
+        return;
+      }
+      _allSchedules = schedules || [];
+      updateNavCounts();
+      buildDeptFilter(_allSchedules);
+      renderSchedules();
+    })
+    .withFailureHandler(function(e) {
+      document.getElementById('scheduleBody').innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--danger);padding:40px">Failed to load: ${e.message}</td></tr>`;
+    })
+    .getSchedules();
+}
+
+function updateNavCounts() {
+  const activeCount = _allSchedules.filter(s => s.active).length;
+  const pausedCount = _allSchedules.filter(s => s.paused).length;
+  const ac = document.getElementById('navCountActive');
+  const pc = document.getElementById('navCountPaused');
+  if (ac) ac.textContent = activeCount || '';
+  if (pc) pc.textContent = pausedCount || '';
+}
+
+function renderSchedules() {
+  // Reset dept filter if switching views (dept may not exist in new view)
+  const viewItems = _allSchedules.filter(s => _currentView === 'active' ? s.active : s.paused);
+  const deptExists = !_activeDeptFilter || viewItems.some(s => s.department === _activeDeptFilter);
+  if (!deptExists) _activeDeptFilter = null;
+
+  buildDeptFilter(_allSchedules);
+
+  const filtered = viewItems.filter(s => !_activeDeptFilter || s.department === _activeDeptFilter);
+
+  const isActive = _currentView === 'active';
+  document.getElementById('topbarTitle').textContent = isActive ? 'Active Schedules' : 'Paused Schedules';
+  document.getElementById('topbarSub').textContent = _activeDeptFilter ? `Filtered · ${_activeDeptFilter}` : 'Jira · Company Work Items';
+  document.getElementById('scheduleCount').textContent = `${filtered.length} schedule${filtered.length !== 1 ? 's' : ''}`;
+  const listTitle = document.getElementById('listTitle');
+  if (_activeDeptFilter) {
+    listTitle.textContent = `${_activeDeptFilter} — ${isActive ? 'Active' : 'Paused'}`;
+    listTitle.style.display = '';
+  } else {
+    listTitle.style.display = 'none';
+  }
+
+
+  const emptyMsg = isActive
+    ? `<div class="empty-state"><div class="icon">📋</div><p>No active schedules${_activeDeptFilter ? ' for this department' : ''}</p><small>Click "New Schedule" to get started.</small></div>`
+    : `<div class="empty-state"><div class="icon">⏸</div><p>No paused schedules${_activeDeptFilter ? ' for this department' : ''}</p><small>Paused schedules appear here.</small></div>`;
+
+  document.getElementById('scheduleBody').innerHTML = filtered.length
+    ? filtered.map(s => renderRow(s)).join('')
+    : `<tr><td colspan="7">${emptyMsg}</td></tr>`;
+}
+
+function renderRow(s) {
+  const sid = escHtml(s.id);
+  const isPaused = s.paused;
+  const cls = nextDueClass(s.nextDue, isPaused);
+  const nextRunCell = `<span class="next-due ${cls}">${isPaused ? 'Paused' : formatDate(s.nextDue)}</span>`;
+  const pauseBtn = isPaused
+    ? `<button class="btn-icon success" title="Resume" onclick="togglePause('${sid}', false, this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg></button>`
+    : `<button class="btn-icon warn" title="Pause" onclick="togglePause('${sid}', true, this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></button>`;
+  return `
+    <tr>
+      <td>
+        <div class="task-name">${escHtml(s.taskName)}</div>
+        ${s.description ? `<div class="task-desc" title="${escHtml(s.description)}">${escHtml(s.description)}</div>` : ''}
+      </td>
+      <td><span class="dept-chip">${escHtml(s.department)}</span></td>
+      <td class="recurrence-text">Every ${s.recurrenceValue} ${escHtml(s.recurrenceUnit)}</td>
+      <td class="recurrence-text">+${s.offsetValue} ${escHtml(s.offsetUnit)}</td>
+      <td>${nextRunCell}</td>
+      <td style="color:var(--light);font-size:12px;font-family:var(--mono)">${formatDate(s.lastCreated)}</td>
+      <td><div class="actions-cell">
+        <button class="btn-icon" title="View history" onclick='openDrawer(${JSON.stringify(s)})'><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg></button>
+        <button class="btn-icon" title="Edit" onclick='openEditModal(${JSON.stringify(s)})'><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg></button>
+        ${pauseBtn}
+        <button class="btn-icon success" title="Run now" onclick="runNow('${sid}', this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg></button>
+        <button class="btn-icon danger" title="Delete" onclick="deleteSchedule('${sid}', this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></button>
+      </div></td>
+    </tr>`;
+}
+
+// ── Departments ───────────────────────────────────────────────
 function loadDepartments() {
   google.script.run
     .withSuccessHandler(function(data) {
       _departments = data.departments || [];
       populateDeptSelect('department');
+      populateDeptSelect('editDepartment');
     })
-    .withFailureHandler(function() { toast('Could not load departments from Jira.', 'error'); })
+    .withFailureHandler(function() { toast('Could not load departments.', 'error'); })
     .getJiraFieldOptions();
 }
 
@@ -540,111 +644,69 @@ function populateDeptSelect(id, selectedValue) {
   });
 }
 
-function loadSchedules() {
-  const tbody = document.getElementById('scheduleBody');
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="8"><div class="spinner"></div>&nbsp; Loading…</td></tr>';
-  google.script.run
-    .withSuccessHandler(function(schedules) {
-      if (schedules && schedules.error) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:40px">Error: ${schedules.error}</td></tr>`; return; }
-      const visible = (schedules || []).filter(s => s.active || s.paused);
-      document.getElementById('scheduleCount').textContent = `${visible.length} schedule${visible.length !== 1 ? 's' : ''}`;
-      if (!visible.length) { tbody.innerHTML = `<tr><td colspan="8"><div class="empty-state"><div class="icon">📋</div><p>No active schedules yet</p><small>Click "New Schedule" to get started.</small></div></td></tr>`; return; }
-      tbody.innerHTML = visible.map(function(s) {
-        const sid = escHtml(s.id);
-        const isPaused = s.paused;
-        const cls = nextDueClass(s.nextDue, isPaused);
-        const statusChip = isPaused ? `<span class="status-chip paused">Paused</span>` : `<span class="status-chip active">Active</span>`;
-        const nextRunCell = `
-          <div>
-            <span class="next-due ${cls}">${isPaused ? 'Paused' : formatDate(s.nextDue)}</span>
-            ${!isPaused ? `<button class="btn-icon" style="padding:2px 4px;font-size:10px" title="Override next run date" onclick="toggleNextRunEdit('${sid}')">✎</button>` : ''}
-          </div>
-          <div class="next-run-edit" id="nre-${sid}">
-            <input type="date" id="nre-date-${sid}" value="${s.nextDue ? s.nextDue.substring(0,10) : ''}">
-            <button class="save-link" onclick="saveNextDue('${sid}')">Save</button>
-            <button class="cancel-link" onclick="toggleNextRunEdit('${sid}')">Cancel</button>
-          </div>`;
-        const pauseBtn = isPaused
-          ? `<button class="btn-icon success" title="Resume" onclick="togglePause('${sid}', false, this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg></button>`
-          : `<button class="btn-icon warn" title="Pause" onclick="togglePause('${sid}', true, this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></button>`;
-        return `
-          <tr class="${isPaused ? 'paused-row' : ''}">
-            <td class="task-name">${escHtml(s.taskName)}</td>
-            <td><span class="dept-chip">${escHtml(s.department)}</span></td>
-            <td class="recurrence-text">Every ${s.recurrenceValue} ${escHtml(s.recurrenceUnit)}</td>
-            <td class="recurrence-text">+${s.offsetValue} ${escHtml(s.offsetUnit)}</td>
-            <td>${statusChip}</td>
-            <td>${nextRunCell}</td>
-            <td style="color:var(--light);font-size:12px;font-family:var(--mono)">${formatDate(s.lastCreated)}</td>
-            <td><div class="actions-cell">
-              <button class="btn-icon" title="View history" onclick='openDrawer(${JSON.stringify(s)})'><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg></button>
-              <button class="btn-icon" title="Edit" onclick='openEditModal(${JSON.stringify(s)})'><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg></button>
-              ${pauseBtn}
-              <button class="btn-icon success" title="Run now" onclick="runNow('${sid}', this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg></button>
-              <button class="btn-icon danger" title="Delete" onclick="deleteSchedule('${sid}', this)"><svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></button>
-            </div></td>
-          </tr>`;
-      }).join('');
-    })
-    .withFailureHandler(function(e) { tbody.innerHTML = `<tr><td colspan="8" style="text-align:center;color:var(--danger);padding:40px">Failed to load: ${e.message}</td></tr>`; })
-    .getSchedules();
-}
-
+// ── Save New Schedule ─────────────────────────────────────────
 function openNewModal() {
   document.getElementById('startDate').valueAsDate = new Date();
   document.getElementById('taskName').value = '';
+  document.getElementById('description').value = '';
   document.getElementById('recurrenceValue').value = 1;
   document.getElementById('offsetValue').value = 2;
   setSelectValue('recurrenceUnit', 'months');
   setSelectValue('offsetUnit', 'weeks');
-  // Reset department if already loaded
-  if (_departments.length) populateDeptSelect('department');
+  populateDeptSelect('department');
   document.getElementById('newModalBackdrop').classList.add('open');
   setTimeout(() => document.getElementById('taskName').focus(), 50);
 }
-
 function closeNewModal(e) {
   if (e && e.target !== document.getElementById('newModalBackdrop')) return;
   document.getElementById('newModalBackdrop').classList.remove('open');
 }
 
 function saveSchedule() {
-  const taskName=document.getElementById('taskName').value.trim(), department=document.getElementById('department').value,
-        startDate=document.getElementById('startDate').value, recurrenceValue=document.getElementById('recurrenceValue').value,
-        recurrenceUnit=document.getElementById('recurrenceUnit').value, offsetValue=document.getElementById('offsetValue').value,
-        offsetUnit=document.getElementById('offsetUnit').value;
-  if (!taskName) { toast('Please enter a task name.','error'); return; }
-  if (!department) { toast('Please select a department.','error'); return; }
-  if (!startDate) { toast('Please select a start date.','error'); return; }
+  const taskName = document.getElementById('taskName').value.trim();
+  const department = document.getElementById('department').value;
+  const description = document.getElementById('description').value.trim();
+  const startDate = document.getElementById('startDate').value;
+  const recurrenceValue = parseInt(document.getElementById('recurrenceValue').value, 10);
+  const recurrenceUnit = document.getElementById('recurrenceUnit').value;
+  const offsetValue = parseInt(document.getElementById('offsetValue').value, 10);
+  const offsetUnit = document.getElementById('offsetUnit').value;
+  if (!taskName) { toast('Please enter a task name.', 'error'); return; }
+  if (!department) { toast('Please select a department.', 'error'); return; }
+  if (!startDate) { toast('Please select a start date.', 'error'); return; }
+  if (!recurrenceValue || recurrenceValue < 1) { toast('Recurrence must be at least 1.', 'error'); return; }
+  if (!offsetValue || offsetValue < 1) { toast('Due date offset must be at least 1.', 'error'); return; }
   const btn = document.getElementById('saveBtn');
-  btn.disabled=true; btn.innerHTML='<div class="spinner"></div> Saving…';
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Saving…';
   google.script.run
     .withSuccessHandler(function(result) {
-      btn.disabled=false; btn.textContent='Save Schedule';
-      if (result.error) { toast('Error: '+result.error,'error'); return; }
-      toast('Schedule saved successfully.','success');
+      btn.disabled = false; btn.textContent = 'Save Schedule';
+      if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+      toast('Schedule saved successfully.', 'success');
       document.getElementById('newModalBackdrop').classList.remove('open');
       loadSchedules();
     })
-    .withFailureHandler(function(e) { btn.disabled=false; btn.textContent='Save Schedule'; toast('Save failed: '+e.message,'error'); })
-    .saveSchedule({ taskName, department, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+    .withFailureHandler(function(e) { btn.disabled = false; btn.textContent = 'Save Schedule'; toast('Save failed: ' + e.message, 'error'); })
+    .saveSchedule({ taskName, department, description, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
 }
 
+// ── Delete ────────────────────────────────────────────────────
 function deleteSchedule(id, btn) {
-  btn.disabled=true;
   showConfirm({ title:'Delete Schedule', message:'Future tasks will no longer be created. This cannot be undone.', okLabel:'Delete', type:'danger' }, function() {
+    btn.disabled = true;
     google.script.run
       .withSuccessHandler(function(result) {
-        if (result.error) { toast('Error: '+result.error,'error'); btn.disabled=false; return; }
-        toast('Schedule deleted.','success'); loadSchedules();
+        btn.disabled = false;
+        if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+        toast('Schedule deleted.', 'success'); loadSchedules();
       })
-      .withFailureHandler(function(e) { toast('Delete failed: '+e.message,'error'); btn.disabled=false; })
+      .withFailureHandler(function(e) { btn.disabled = false; toast('Delete failed: ' + e.message, 'error'); })
       .deleteSchedule(id);
   });
 }
 
+// ── Pause / Resume ────────────────────────────────────────────
 function togglePause(id, pause, btn) {
-  btn.disabled=true;
   showConfirm({
     title: pause ? 'Pause Schedule' : 'Resume Schedule',
     message: pause ? 'No tasks will be created until the schedule is resumed.' : 'The schedule will resume on the next due date.',
@@ -652,54 +714,55 @@ function togglePause(id, pause, btn) {
   }, function() {
     google.script.run
       .withSuccessHandler(function(result) {
-        if (result.error) { toast('Error: '+result.error,'error'); btn.disabled=false; return; }
-        toast('Schedule '+(pause?'paused.':'resumed.'),'success'); loadSchedules();
+        if (result.error) { toast('Error: ' + result.error, 'error'); btn.disabled = false; return; }
+        toast('Schedule ' + (pause ? 'paused.' : 'resumed.'), 'success'); loadSchedules();
       })
-      .withFailureHandler(function(e) { toast('Failed: '+e.message,'error'); btn.disabled=false; })
-      [pause?'pauseSchedule':'resumeSchedule'](id);
+      .withFailureHandler(function(e) { toast('Failed: ' + e.message, 'error'); btn.disabled = false; })
+      [pause ? 'pauseSchedule' : 'resumeSchedule'](id);
   });
 }
 
+// ── Run Now ───────────────────────────────────────────────────
 function runNow(id, btn) {
-  btn.disabled=true;
   showConfirm({ title:'Run Now', message:'A Jira task will be created immediately and the next run date will advance.', okLabel:'Run Now', type:'success' }, function() {
-    btn.innerHTML='<div class="spinner"></div>';
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div>';
     google.script.run
       .withSuccessHandler(function(result) {
-        btn.disabled=false; btn.innerHTML='<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>';
-        if (result.error) { toast('Error: '+result.error,'error'); return; }
-        toast('Created '+result.issueKey+' — next run: '+formatDate(result.nextDue),'success'); loadSchedules();
+        btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>';
+        if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+        // Show clickable toast linking to the new Jira issue
+        const toastEl = document.createElement('div');
+        toastEl.className = 'toast success';
+        toastEl.innerHTML = 'Created <a href="' + escHtml(result.issueUrl) + '" target="_blank" style="color:var(--green2);font-weight:700">' + escHtml(result.issueKey) + '</a> — next run: ' + formatDate(result.nextDue);
+        document.getElementById('toastContainer').appendChild(toastEl);
+        setTimeout(() => toastEl.remove(), 6000);
+        loadSchedules();
       })
       .withFailureHandler(function(e) {
-        btn.disabled=false; btn.innerHTML='<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd"/></svg>';
-        toast('Run failed: '+e.message,'error');
+        btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>';
+        toast('Run failed: ' + e.message, 'error');
       })
       .runScheduleNow(id);
   });
 }
 
-function toggleNextRunEdit(id) { document.getElementById('nre-'+id).classList.toggle('open'); }
-function saveNextDue(id) {
-  const val = document.getElementById('nre-date-'+id).value;
-  if (!val) { toast('Please select a date.','error'); return; }
-  google.script.run
-    .withSuccessHandler(function(result) {
-      if (result.error) { toast('Error: '+result.error,'error'); return; }
-      toast('Next run date updated.','success'); document.getElementById('nre-'+id).classList.remove('open'); loadSchedules();
-    })
-    .withFailureHandler(function(e) { toast('Failed: '+e.message,'error'); })
-    .updateNextDue(id, val);
-}
 
+// ── Edit Modal ────────────────────────────────────────────────
 function openEditModal(schedule) {
-  populateDeptSelect('editDepartment', schedule.department);
-  document.getElementById('editId').value=schedule.id;
-  document.getElementById('editTaskName').value=schedule.taskName;
-  document.getElementById('editStartDate').value=schedule.startDate?schedule.startDate.substring(0,10):'';
-  document.getElementById('editRecurrenceValue').value=schedule.recurrenceValue;
-  document.getElementById('editOffsetValue').value=schedule.offsetValue;
+  // Populate fields first
+  document.getElementById('editId').value = schedule.id;
+  document.getElementById('editTaskName').value = schedule.taskName;
+  document.getElementById('editDescription').value = schedule.description || '';
+  document.getElementById('editStartDate').value = schedule.nextDue ? schedule.nextDue.substring(0,10) : '';
+  document.getElementById('editRecurrenceValue').value = schedule.recurrenceValue;
+  document.getElementById('editOffsetValue').value = schedule.offsetValue;
   setSelectValue('editRecurrenceUnit', schedule.recurrenceUnit);
   setSelectValue('editOffsetUnit', schedule.offsetUnit);
+
+  // _departments is always populated on init — populate select directly
+  populateDeptSelect('editDepartment', schedule.department);
+
   document.getElementById('editModalBackdrop').classList.add('open');
 }
 function closeEditModal(e) {
@@ -707,50 +770,61 @@ function closeEditModal(e) {
   document.getElementById('editModalBackdrop').classList.remove('open');
 }
 function saveEdit() {
-  const id=document.getElementById('editId').value, taskName=document.getElementById('editTaskName').value.trim(),
-        department=document.getElementById('editDepartment').value, startDate=document.getElementById('editStartDate').value,
-        recurrenceValue=document.getElementById('editRecurrenceValue').value, recurrenceUnit=document.getElementById('editRecurrenceUnit').value,
-        offsetValue=document.getElementById('editOffsetValue').value, offsetUnit=document.getElementById('editOffsetUnit').value;
-  if (!taskName) { toast('Task name is required.','error'); return; }
-  if (!department) { toast('Department is required.','error'); return; }
-  if (!startDate) { toast('Start date is required.','error'); return; }
-  const btn=document.getElementById('editSaveBtn');
-  btn.disabled=true; btn.innerHTML='<div class="spinner"></div> Saving…';
+  const id = document.getElementById('editId').value;
+  const taskName = document.getElementById('editTaskName').value.trim();
+  const department = document.getElementById('editDepartment').value;
+  const description = document.getElementById('editDescription').value.trim();
+  const startDate = document.getElementById('editStartDate').value;
+  const recurrenceValue = parseInt(document.getElementById('editRecurrenceValue').value, 10);
+  const recurrenceUnit = document.getElementById('editRecurrenceUnit').value;
+  const offsetValue = parseInt(document.getElementById('editOffsetValue').value, 10);
+  const offsetUnit = document.getElementById('editOffsetUnit').value;
+  if (!taskName) { toast('Task name is required.', 'error'); return; }
+  if (!department) { toast('Department is required.', 'error'); return; }
+  if (!startDate) { toast('Start date is required.', 'error'); return; }
+  if (!recurrenceValue || recurrenceValue < 1) { toast('Recurrence must be at least 1.', 'error'); return; }
+  if (!offsetValue || offsetValue < 1) { toast('Due date offset must be at least 1.', 'error'); return; }
+  const btn = document.getElementById('editSaveBtn');
+  btn.disabled = true; btn.innerHTML = '<div class="spinner"></div> Saving…';
   google.script.run
     .withSuccessHandler(function(result) {
-      btn.disabled=false; btn.textContent='Save Changes';
-      if (result.error) { toast('Error: '+result.error,'error'); return; }
-      toast('Schedule updated.','success'); document.getElementById('editModalBackdrop').classList.remove('open'); loadSchedules();
+      btn.disabled = false; btn.textContent = 'Save Changes';
+      if (result.error) { toast('Error: ' + result.error, 'error'); return; }
+      toast('Schedule updated.', 'success'); document.getElementById('editModalBackdrop').classList.remove('open'); loadSchedules();
     })
-    .withFailureHandler(function(e) { btn.disabled=false; btn.textContent='Save Changes'; toast('Update failed: '+e.message,'error'); })
-    .updateSchedule({ id, taskName, department, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+    .withFailureHandler(function(e) { btn.disabled = false; btn.textContent = 'Save Changes'; toast('Update failed: ' + e.message, 'error'); })
+    .updateSchedule({ id, taskName, department, description, startDate, nextDue: startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
 }
 
+// ── History Drawer ────────────────────────────────────────────
 function openDrawer(schedule) {
-  document.getElementById('drawerTitle').textContent=schedule.taskName;
-  document.getElementById('drawerSub').textContent=`${schedule.department} · Every ${schedule.recurrenceValue} ${schedule.recurrenceUnit}`;
-  document.getElementById('drawerBody').innerHTML='<div class="drawer-loading"><div class="spinner"></div></div>';
+  document.getElementById('drawerTitle').textContent = schedule.taskName;
+  document.getElementById('drawerSub').textContent = `${schedule.department} · Every ${schedule.recurrenceValue} ${schedule.recurrenceUnit}`;
+  document.getElementById('drawerBody').innerHTML = '<div class="drawer-loading"><div class="spinner"></div></div>';
   document.getElementById('drawerBackdrop').classList.add('open');
   document.getElementById('historyDrawer').classList.add('open');
   google.script.run
     .withSuccessHandler(function(logs) {
-      if (logs && logs.error) { document.getElementById('drawerBody').innerHTML=`<p style="color:var(--danger);padding:20px">Error: ${logs.error}</p>`; return; }
-      if (!logs || !logs.length) { document.getElementById('drawerBody').innerHTML=`<div class="drawer-empty"><div class="icon">📭</div><p style="font-size:14px;font-weight:600">No tasks created yet</p><small style="font-size:12px;color:var(--border2);display:block;margin-top:4px">Tasks appear here after the daily trigger or a manual run.</small></div>`; return; }
-      logs.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp));
-      document.getElementById('drawerBody').innerHTML=logs.map(function(log) {
-        const isManual=log.triggeredBy==='Manual Run';
+      if (logs && logs.error) { document.getElementById('drawerBody').innerHTML = `<p style="color:var(--danger);padding:20px">Error: ${logs.error}</p>`; return; }
+      if (!logs || !logs.length) { document.getElementById('drawerBody').innerHTML = `<div class="drawer-empty"><div class="icon">📭</div><p style="font-size:14px;font-weight:600">No tasks created yet</p><small style="font-size:12px;color:var(--border2);display:block;margin-top:4px">Tasks appear here after the daily trigger or a manual run.</small></div>`; return; }
+      logs.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+      document.getElementById('drawerBody').innerHTML = logs.map(function(log) {
+        const isManual = log.triggeredBy === 'Manual Run';
+        const createdByText = log.createdBy && log.createdBy !== 'Daily Trigger'
+          ? `by ${escHtml(log.createdBy)}`
+          : '';
         return `<div class="log-entry">
           <div>
             <a class="log-issue-key" href="${escHtml(log.issueUrl)}" target="_blank">${escHtml(log.issueKey)}</a>
-            <span class="log-trigger ${isManual?'manual':''}">${escHtml(log.triggeredBy)}</span>
+            <span class="log-trigger ${isManual ? 'manual' : ''}">${escHtml(log.triggeredBy)}</span>
             <div class="log-meta">${escHtml(log.taskName)} · <span style="color:var(--light)">${escHtml(log.department)}</span></div>
           </div>
           <div class="log-due"><div style="font-weight:700;color:var(--text)">Due ${formatDate(log.dueDate)}</div></div>
-          <div class="log-timestamp">Created ${formatDateTime(log.timestamp)}</div>
+          <div class="log-timestamp">Created ${formatDateTime(log.timestamp)}${createdByText ? ' · ' + createdByText : ''}</div>
         </div>`;
       }).join('');
     })
-    .withFailureHandler(function(e) { document.getElementById('drawerBody').innerHTML=`<p style="color:var(--danger);padding:20px">Failed to load history: ${e.message}</p>`; })
+    .withFailureHandler(function(e) { document.getElementById('drawerBody').innerHTML = `<p style="color:var(--danger);padding:20px">Failed to load history: ${e.message}</p>`; })
     .getScheduleLogs(schedule.id);
 }
 function closeDrawer() { document.getElementById('drawerBackdrop').classList.remove('open'); document.getElementById('historyDrawer').classList.remove('open'); }
@@ -759,17 +833,19 @@ document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') { closeDrawer(); closeConfirm(); document.getElementById('editModalBackdrop').classList.remove('open'); document.getElementById('newModalBackdrop').classList.remove('open'); }
 });
 
+// ── Trigger Status ────────────────────────────────────────────
 function loadTriggerStatus() {
   google.script.run
     .withSuccessHandler(function(status) {
-      const dot=document.getElementById('triggerDot'), txt=document.getElementById('triggerText');
-      if (status.active) { dot.classList.add('active'); txt.textContent='Trigger: '+status.description; }
-      else { txt.textContent='Trigger not installed'; }
+      const dot = document.getElementById('triggerDot'), txt = document.getElementById('triggerText');
+      if (status.active) { dot.classList.add('active'); txt.textContent = 'Trigger: ' + status.description; }
+      else { txt.textContent = 'Trigger not installed'; }
     })
     .withFailureHandler(function(){})
     .getTriggerStatus();
 }
 
+// ── Init ──────────────────────────────────────────────────────
 loadSchedules();
 loadDepartments();
 loadTriggerStatus();

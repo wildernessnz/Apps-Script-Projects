@@ -35,10 +35,10 @@ function getSheet_() {
       'ID', 'Task Name', 'Department', 'Start Date',
       'Recurrence Value', 'Recurrence Unit',
       'Due Date Offset Value', 'Due Date Offset Unit',
-      'Last Created', 'Next Due', 'Active', 'Created At'
+      'Last Created', 'Next Due', 'Active', 'Created At', 'Description'
     ]);
     sheet.setFrozenRows(1);
-    sheet.getRange(1, 1, 1, 12).setFontWeight('bold');
+    sheet.getRange(1, 1, 1, 13).setFontWeight('bold');
     Logger.log('[getSheet_] Sheet created and headers written');
   } else {
     Logger.log('[getSheet_] "Schedules" sheet found');
@@ -61,10 +61,10 @@ function getLogSheet_() {
     sheet.appendRow([
       'Timestamp', 'Jira Issue Key', 'Jira Issue URL',
       'Task Name', 'Department', 'Due Date',
-      'Schedule ID', 'Recurs Every', 'Triggered By'
+      'Schedule ID', 'Recurs Every', 'Triggered By', 'Created By'
     ]);
     sheet.setFrozenRows(1);
-    const header = sheet.getRange(1, 1, 1, 9);
+    const header = sheet.getRange(1, 1, 1, 10);
     header.setFontWeight('bold');
     header.setBackground('#1c2030');
     header.setFontColor('#ffffff');
@@ -77,6 +77,7 @@ function getLogSheet_() {
     sheet.setColumnWidth(7, 280);
     sheet.setColumnWidth(8, 120);
     sheet.setColumnWidth(9, 120);
+    sheet.setColumnWidth(10, 200);
     Logger.log('[getLogSheet_] Sheet created and headers written');
   } else {
     Logger.log('[getLogSheet_] "Creation Log" sheet found');
@@ -88,8 +89,9 @@ function getLogSheet_() {
 /**
  * Writes a row to the Creation Log sheet after a Jira issue is created.
  */
-function logIssueCreated_(issue, schedule, triggeredBy) {
-  Logger.log('[logIssueCreated_] Logging issue %s for schedule "%s"', issue.key, schedule.taskName);
+function logIssueCreated_(issue, schedule, triggeredBy, createdBy) {
+  Logger.log('[logIssueCreated_] Logging issue %s for schedule "%s" | triggered by: %s | user: %s',
+    issue.key, schedule.taskName, triggeredBy, createdBy || 'system');
   try {
     const logSheet = getLogSheet_();
     const tz = Session.getScriptTimeZone();
@@ -106,7 +108,8 @@ function logIssueCreated_(issue, schedule, triggeredBy) {
       Utilities.formatDate(dueDate, tz, 'yyyy-MM-dd'),
       schedule.id,
       `Every ${schedule.recurrenceValue} ${schedule.recurrenceUnit}`,
-      triggeredBy
+      triggeredBy,
+      createdBy || 'Daily Trigger'
     ]);
     Logger.log('[logIssueCreated_] Log row written for %s', issue.key);
   } catch (e) {
@@ -145,7 +148,9 @@ function saveSchedule(form) {
     const sheet = getSheet_();
     const id = Utilities.getUuid();
     const now = new Date();
-    const startDate = new Date(form.startDate);
+    // Parse date string parts directly — avoids timezone offset shifting date by 1 day
+    const parts = form.startDate.split('-');
+    const startDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
     // Use the start date as the first run date — the daily check will advance it
     // to startDate + interval once the first issue is created
     const nextDue = startDate;
@@ -156,17 +161,19 @@ function saveSchedule(form) {
       form.taskName,
       form.department,
       Utilities.formatDate(startDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-      form.recurrenceValue,
+      parseInt(form.recurrenceValue, 10),
       form.recurrenceUnit,
-      form.offsetValue,
+      parseInt(form.offsetValue, 10),
       form.offsetUnit,
       '',  // Last Created
       Utilities.formatDate(nextDue, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
       'TRUE',
-      Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss')
+      Utilities.formatDate(now, Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss'),
+      form.description || ''  // Description (col 13)
     ]);
 
     Logger.log('[saveSchedule] Row written successfully. ID: %s', id);
+    logAudit_('Created', id, form.taskName, `Dept: ${form.department} | Recurs every ${form.recurrenceValue} ${form.recurrenceUnit}`);
     return { success: true, id };
   } catch (e) {
     Logger.log('[saveSchedule] ERROR: %s', e.message);
@@ -186,6 +193,7 @@ function deleteSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('FALSE');
         Logger.log('[deleteSchedule] Schedule "%s" marked inactive at row %s', data[i][1], i + 1);
+        logAudit_('Deleted', data[i][0], data[i][1], 'Soft-deleted (Active = FALSE)');
         return { success: true };
       }
     }
@@ -214,6 +222,7 @@ function pauseSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('PAUSED');
         Logger.log('[pauseSchedule] Schedule "%s" paused at row %s', data[i][1], i + 1);
+        logAudit_('Paused', data[i][0], data[i][1], '');
         return { success: true };
       }
     }
@@ -237,6 +246,7 @@ function resumeSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('TRUE');
         Logger.log('[resumeSchedule] Schedule "%s" resumed at row %s', data[i][1], i + 1);
+        logAudit_('Resumed', data[i][0], data[i][1], '');
         return { success: true };
       }
     }
@@ -277,12 +287,14 @@ function runScheduleNow(id) {
       sheet.getRange(i + 1, 9).setValue(Utilities.formatDate(today, tz, 'yyyy-MM-dd'));
       sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd'));
 
-      logIssueCreated_(issue, schedule, 'Manual Run');
+      const userEmail = Session.getActiveUser().getEmail();
+      logIssueCreated_(issue, schedule, 'Manual Run', userEmail);
 
       Logger.log('[runScheduleNow] ✅ Created %s | Next due advanced to: %s',
         issue.key, Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd'));
 
-      return { success: true, issueKey: issue.key, nextDue: Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd') };
+      logAudit_('Run Now', schedule.id, schedule.taskName, `Created ${issue.key} | Next due: ${Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd')}`);
+      return { success: true, issueKey: issue.key, issueUrl: `${CONFIG.JIRA_BASE_URL}/browse/${issue.key}`, nextDue: Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd') };
     }
 
     Logger.log('[runScheduleNow] WARNING: No schedule found with ID: %s', id);
@@ -310,7 +322,9 @@ function updateNextDue(id, nextDue) {
 
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] !== id) continue;
-      const d = new Date(nextDue);
+      // Parse date string directly to avoid timezone offset shifting the date
+      const parts = nextDue.split('-');
+      const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(d, tz, 'yyyy-MM-dd'));
       Logger.log('[updateNextDue] Next due updated to %s for "%s"', nextDue, data[i][1]);
       return { success: true };
@@ -342,23 +356,23 @@ function updateSchedule(form) {
     for (let i = 1; i < data.length; i++) {
       if (data[i][0] !== form.id) continue;
 
-      const startDate = new Date(form.startDate);
-
-      // Use start date directly as the next run date — the interval is only applied
-      // after the first task is created, consistent with how saveSchedule works.
-      const nextDue = startDate;
-      Logger.log('[updateSchedule] Next-due date set to start date: %s', nextDue);
+      // Parse next run date — this is what the user explicitly set in the edit modal
+      const ndParts = form.nextDue.split('-');
+      const nextDue = new Date(Number(ndParts[0]), Number(ndParts[1]) - 1, Number(ndParts[2]));
 
       sheet.getRange(i + 1, 2).setValue(form.taskName);
       sheet.getRange(i + 1, 3).setValue(form.department);
-      sheet.getRange(i + 1, 4).setValue(Utilities.formatDate(startDate, tz, 'yyyy-MM-dd'));
-      sheet.getRange(i + 1, 5).setValue(form.recurrenceValue);
+      // Col 4 (Start Date) is left as-is — it's historical, not editable
+      sheet.getRange(i + 1, 5).setValue(parseInt(form.recurrenceValue, 10));
       sheet.getRange(i + 1, 6).setValue(form.recurrenceUnit);
-      sheet.getRange(i + 1, 7).setValue(form.offsetValue);
+      sheet.getRange(i + 1, 7).setValue(parseInt(form.offsetValue, 10));
       sheet.getRange(i + 1, 8).setValue(form.offsetUnit);
       sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(nextDue, tz, 'yyyy-MM-dd'));
+      sheet.getRange(i + 1, 13).setValue(form.description || '');
+      Logger.log('[updateSchedule] Next due set to: %s', Utilities.formatDate(nextDue, tz, 'yyyy-MM-dd'));
 
       Logger.log('[updateSchedule] Schedule updated at row %s', i + 1);
+      logAudit_('Updated', form.id, form.taskName, `Dept: ${form.department} | Recurs every ${form.recurrenceValue} ${form.recurrenceUnit} | Offset: ${form.offsetValue} ${form.offsetUnit}`);
       return { success: true };
     }
 
@@ -402,7 +416,8 @@ function getScheduleLogs(scheduleId) {
         dueDate:     toStr(r[5]),
         scheduleId:  toStr(r[6]),
         recurrence:  toStr(r[7]),
-        triggeredBy: toStr(r[8])
+        triggeredBy: toStr(r[8]),
+        createdBy:   toStr(r[9])
       }));
 
     Logger.log('[getScheduleLogs] Found %s log entries for schedule %s', matches.length, scheduleId);
@@ -419,35 +434,14 @@ function getScheduleLogs(scheduleId) {
 // ============================================================
 
 /**
- * Fetches Jira field list and returns department options.
- * Called once on page load to populate the Department dropdown.
+ * Returns department options from CONFIG.
  */
 function getJiraFieldOptions() {
-  Logger.log('[getJiraFieldOptions] Fetching field list from Jira: %s', CONFIG.JIRA_BASE_URL);
-  try {
-    const url = `${CONFIG.JIRA_BASE_URL}/rest/api/3/field`;
-    const response = callJira_('GET', url);
-    const fields = JSON.parse(response);
-    Logger.log('[getJiraFieldOptions] Received %s fields from Jira', fields.length);
-
-    const deptField = fields.find(f =>
-      f.name.toLowerCase() === CONFIG.DEPARTMENT_FIELD_NAME.toLowerCase()
-    );
-
-    if (!deptField) {
-      Logger.log('[getJiraFieldOptions] WARNING: Department field "%s" not found in Jira field list', CONFIG.DEPARTMENT_FIELD_NAME);
-      return { departments: [], fieldId: null };
-    }
-
-    Logger.log('[getJiraFieldOptions] Found department field. ID: %s | Name: %s', deptField.id, deptField.name);
-    return {
-      departments: CONFIG.DEPARTMENT_OPTIONS,
-      fieldId: deptField.id
-    };
-  } catch (e) {
-    Logger.log('[getJiraFieldOptions] ERROR — falling back to config defaults. Reason: %s', e.message);
-    return { departments: CONFIG.DEPARTMENT_OPTIONS, fieldId: CONFIG.DEPARTMENT_FIELD_ID };
-  }
+  Logger.log('[getJiraFieldOptions] Returning department options from CONFIG (%s items)', CONFIG.DEPARTMENT_OPTIONS.length);
+  return {
+    departments: CONFIG.DEPARTMENT_OPTIONS,
+    fieldId: CONFIG.DEPARTMENT_FIELD_ID
+  };
 }
 
 /**
@@ -458,15 +452,20 @@ function createJiraIssue_(schedule) {
   const dueDate = calculateDueDate_(new Date(), schedule.offsetValue, schedule.offsetUnit);
   Logger.log('[createJiraIssue_] Calculated due date: %s', dueDate);
 
-  const payload = {
-    fields: {
-      project: { key: CONFIG.JIRA_PROJECT_KEY },
-      summary: schedule.taskName,
-      issuetype: { name: CONFIG.ISSUE_TYPE },
-      duedate: Utilities.formatDate(dueDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
-      [CONFIG.DEPARTMENT_FIELD_ID]: { value: schedule.department }
-    }
+  const fields = {
+    project: { key: CONFIG.JIRA_PROJECT_KEY },
+    summary: schedule.taskName,
+    issuetype: { name: CONFIG.ISSUE_TYPE },
+    duedate: Utilities.formatDate(dueDate, Session.getScriptTimeZone(), 'yyyy-MM-dd'),
+    [CONFIG.DEPARTMENT_FIELD_ID]: { value: schedule.department }
   };
+  if (schedule.description) {
+    fields.description = {
+      type: 'doc', version: 1,
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: schedule.description }] }]
+    };
+  }
+  const payload = { fields };
 
   Logger.log('[createJiraIssue_] Payload — project: %s | type: %s | department: %s | due: %s',
     CONFIG.JIRA_PROJECT_KEY, CONFIG.ISSUE_TYPE, schedule.department,
@@ -481,15 +480,20 @@ function createJiraIssue_(schedule) {
 }
 
 /**
- * Generic Jira REST caller using Basic Auth (email:token).
+ * Generic Jira REST caller — uses OAuth 2.0 Bearer token.
+ * Access tokens are refreshed automatically using the stored refresh token.
  */
 function callJira_(method, url, body) {
+  // OAuth 2.0 (3LO) requires api.atlassian.com/ex/jira/{cloudId} base URL.
+  // Replace the configured JIRA_BASE_URL with the correct OAuth URL.
+  const oauthBase = `https://api.atlassian.com/ex/jira/${CONFIG.JIRA_CLOUD_ID}`;
+  url = url.replace(CONFIG.JIRA_BASE_URL, oauthBase);
   Logger.log('[callJira_] %s %s', method, url);
-  const credentials = Utilities.base64Encode(`${CONFIG.JIRA_EMAIL}:${CONFIG.JIRA_API_TOKEN}`);
+  const token = getOAuthAccessToken_();
   const options = {
     method,
     headers: {
-      Authorization: `Basic ${credentials}`,
+      Authorization: `Bearer ${token}`,
       'Content-Type': 'application/json',
       Accept: 'application/json'
     },
@@ -511,6 +515,195 @@ function callJira_(method, url, body) {
 }
 
 
+// ============================================================
+// OAUTH 2.0 — Atlassian token management
+// ============================================================
+
+/**
+ * Returns a valid OAuth access token, refreshing it if necessary.
+ * Access tokens expire after 1 hour — this is called before every Jira request.
+ */
+function getOAuthAccessToken_() {
+  const props = PropertiesService.getScriptProperties();
+  const refreshToken = props.getProperty('JIRA_REFRESH_TOKEN');
+
+  if (!refreshToken) {
+    throw new Error(
+      'No OAuth refresh token found. Run authoriseJira() from the Apps Script editor first, ' +
+      'then run exchangeCodeForTokens() with the code from the redirect URL.'
+    );
+  }
+
+  Logger.log('[getOAuthAccessToken_] Refreshing access token...');
+  const response = UrlFetchApp.fetch('https://auth.atlassian.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    payload: JSON.stringify({
+      grant_type:    'refresh_token',
+      client_id:     CONFIG.JIRA_CLIENT_ID,
+      client_secret: CONFIG.JIRA_CLIENT_SECRET,
+      refresh_token: refreshToken
+    }),
+    muteHttpExceptions: true
+  });
+
+  const data = JSON.parse(response.getContentText());
+
+  if (!data.access_token) {
+    Logger.log('[getOAuthAccessToken_] ERROR: %s', response.getContentText());
+    throw new Error('Failed to refresh OAuth access token. Run authoriseJira() again to re-authenticate.');
+  }
+
+  // Atlassian rotates refresh tokens on each use — store the new one
+  if (data.refresh_token) {
+    props.setProperty('JIRA_REFRESH_TOKEN', data.refresh_token);
+    Logger.log('[getOAuthAccessToken_] ✅ Access token refreshed, refresh token rotated');
+  } else {
+    Logger.log('[getOAuthAccessToken_] ✅ Access token refreshed');
+  }
+
+  return data.access_token;
+}
+
+/**
+ * STEP 1 of OAuth setup — run this manually from the Apps Script editor.
+ * Copy the URL from the logs and open it in your browser.
+ * After approving, you'll be redirected — copy the ?code= value from the URL.
+ */
+function authoriseJira() {
+  const scopes = [
+    'read:field:jira',
+    'read:issue-meta:jira',
+    'write:issue:jira',
+    'offline_access'   // required to get a refresh token
+  ].join(' ');
+
+  const authUrl = 'https://auth.atlassian.com/authorize?' + [
+    'audience=api.atlassian.com',
+    'client_id='    + CONFIG.JIRA_CLIENT_ID,
+    'scope='        + encodeURIComponent(scopes),
+    'redirect_uri=' + encodeURIComponent(CONFIG.JIRA_REDIRECT_URI),
+    'response_type=code',
+    'prompt=consent'
+  ].join('&');
+
+  Logger.log('═══════════════════════════════════════════════════════');
+  Logger.log('STEP 1: Open this URL in your browser and approve access');
+  Logger.log('═══════════════════════════════════════════════════════');
+  Logger.log(authUrl);
+  Logger.log('═══════════════════════════════════════════════════════');
+  Logger.log('STEP 2: After approving, copy the "code" value from the');
+  Logger.log('redirect URL and run: exchangeCodeForTokens("paste-code-here")');
+  Logger.log('═══════════════════════════════════════════════════════');
+}
+
+/**
+ * STEP 2 of OAuth setup — run this manually after completing the browser auth flow.
+ * Pass in the code value from the redirect URL query string.
+ *
+ * Example: exchangeCodeForTokens('eyJhbGc...')
+ */
+function exchangeCodeForTokens(code) {
+  Logger.log('[exchangeCodeForTokens] Exchanging auth code for tokens...');
+
+  const response = UrlFetchApp.fetch('https://auth.atlassian.com/oauth/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    payload: JSON.stringify({
+      grant_type:    'authorization_code',
+      client_id:     CONFIG.JIRA_CLIENT_ID,
+      client_secret: CONFIG.JIRA_CLIENT_SECRET,
+      code:          code,
+      redirect_uri:  CONFIG.JIRA_REDIRECT_URI
+    }),
+    muteHttpExceptions: true
+  });
+
+  const data = JSON.parse(response.getContentText());
+
+  if (data.refresh_token) {
+    PropertiesService.getScriptProperties().setProperty('JIRA_REFRESH_TOKEN', data.refresh_token);
+    Logger.log('[exchangeCodeForTokens] ✅ Refresh token stored successfully.');
+    Logger.log('[exchangeCodeForTokens] OAuth setup complete — run diagTestJira() to verify.');
+  } else {
+    Logger.log('[exchangeCodeForTokens] ❌ No refresh token in response: %s', response.getContentText());
+    Logger.log('[exchangeCodeForTokens] Make sure offline_access scope is included and prompt=consent was set.');
+  }
+}
+
+/**
+ * Clears the stored refresh token. Run this to force re-authentication.
+ */
+function revokeOAuthToken() {
+  PropertiesService.getScriptProperties().deleteProperty('JIRA_REFRESH_TOKEN');
+  Logger.log('[revokeOAuthToken] Refresh token cleared. Run authoriseJira() to re-authenticate.');
+}
+
+/**
+ * Shows current OAuth status — useful for debugging.
+ */
+function checkOAuthStatus() {
+  const token = PropertiesService.getScriptProperties().getProperty('JIRA_REFRESH_TOKEN');
+  if (token) {
+    Logger.log('[checkOAuthStatus] ✅ Refresh token is stored (length: %s)', token.length);
+    Logger.log('[checkOAuthStatus] Run diagTestJira() to verify it still works.');
+  } else {
+    Logger.log('[checkOAuthStatus] ❌ No refresh token found. Run authoriseJira() to set up OAuth.');
+  }
+}
+
+// ============================================================
+// AUDIT LOG
+// ============================================================
+
+/**
+ * Returns the Audit Log sheet, creating it on first run.
+ */
+function getAuditSheet_() {
+  const ss = SpreadsheetApp.openById(CONFIG.SHEET_ID);
+  let sheet = ss.getSheetByName('Audit Log');
+  if (!sheet) {
+    Logger.log('[getAuditSheet_] Creating Audit Log sheet');
+    sheet = ss.insertSheet('Audit Log');
+    sheet.appendRow(['Timestamp', 'User', 'Action', 'Schedule ID', 'Task Name', 'Detail']);
+    sheet.setFrozenRows(1);
+    const header = sheet.getRange(1, 1, 1, 6);
+    header.setFontWeight('bold');
+    header.setBackground('#263450');
+    header.setFontColor('#ffffff');
+    sheet.setColumnWidth(1, 160);
+    sheet.setColumnWidth(2, 200);
+    sheet.setColumnWidth(3, 130);
+    sheet.setColumnWidth(4, 280);
+    sheet.setColumnWidth(5, 220);
+    sheet.setColumnWidth(6, 340);
+  }
+  return sheet;
+}
+
+/**
+ * Writes a row to the Audit Log.
+ * action: 'Created' | 'Updated' | 'Deleted' | 'Paused' | 'Resumed' | 'Run Now'
+ */
+function logAudit_(action, scheduleId, taskName, detail) {
+  try {
+    const sheet = getAuditSheet_();
+    const tz = Session.getScriptTimeZone();
+    const user = Session.getActiveUser().getEmail() || 'unknown';
+    sheet.appendRow([
+      Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm:ss'),
+      user,
+      action,
+      scheduleId,
+      taskName,
+      detail || ''
+    ]);
+    Logger.log('[logAudit_] %s | %s | %s | %s', action, user, taskName, detail || '');
+  } catch (e) {
+    Logger.log('[logAudit_] WARNING: Failed to write audit row: %s', e.message);
+    // Non-fatal
+  }
+}
 // ============================================================
 // DAILY TRIGGER — checks for schedules due today
 // ============================================================
@@ -546,7 +739,13 @@ function runDailyCheck() {
       continue;
     }
 
-    const nextDue = stripTime_(new Date(row[9]));
+    const nextDueRaw = new Date(row[9]);
+    if (isNaN(nextDueRaw)) {
+      Logger.log('[runDailyCheck] Row %s: "%s" has invalid next-due date "%s" — skipping', i + 1, row[1], row[9]);
+      skipped++;
+      continue;
+    }
+    const nextDue = stripTime_(nextDueRaw);
     Logger.log('[runDailyCheck] Row %s: "%s" | Next due: %s',
       i + 1, row[1], Utilities.formatDate(nextDue, tz, 'yyyy-MM-dd'));
 
@@ -569,7 +768,7 @@ function runDailyCheck() {
 
       Logger.log('[runDailyCheck] ✅ Created %s | Next due advanced to: %s',
         issue.key, Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd'));
-      logIssueCreated_(issue, schedule, 'Daily Trigger');
+      logIssueCreated_(issue, schedule, 'Daily Trigger', 'Daily Trigger');
       log.push(`✅ Created ${issue.key} for "${schedule.taskName}"`);
     } catch (e) {
       Logger.log('[runDailyCheck] ❌ Failed for "%s": %s', schedule.taskName, e.message);
@@ -579,15 +778,27 @@ function runDailyCheck() {
 
   Logger.log('[runDailyCheck] ── Run complete. Issues created/attempted: %s | Skipped: %s ──', processed, skipped);
 
+  const failures = log.filter(l => l.startsWith('❌'));
+  const successes = log.filter(l => l.startsWith('✅'));
+
   if (log.length > 0) {
     Logger.log('[runDailyCheck] Summary:\n%s', log.join('\n'));
     if (CONFIG.NOTIFY_EMAIL) {
-      Logger.log('[runDailyCheck] Sending summary email to: %s', CONFIG.NOTIFY_EMAIL);
-      GmailApp.sendEmail(
-        CONFIG.NOTIFY_EMAIL,
-        `[Recurring Tasks] Daily Run — ${Utilities.formatDate(today, tz, 'yyyy-MM-dd')}`,
-        log.join('\n')
-      );
+      const hasFailures = failures.length > 0;
+      const subject = hasFailures
+        ? `[Recurring Tasks] ⚠️ ${failures.length} failure(s) — ${Utilities.formatDate(today, tz, 'yyyy-MM-dd')}`
+        : `[Recurring Tasks] ✅ Daily Run — ${Utilities.formatDate(today, tz, 'yyyy-MM-dd')}`;
+      const body = [
+        `Daily trigger run: ${Utilities.formatDate(today, tz, 'yyyy-MM-dd')}`,
+        `Issues created: ${successes.length}`,
+        `Failures: ${failures.length}`,
+        '',
+        ...log,
+        '',
+        hasFailures ? 'Please check the Apps Script logs for more detail.' : ''
+      ].join('\n');
+      Logger.log('[runDailyCheck] Sending summary email to: %s (failures: %s)', CONFIG.NOTIFY_EMAIL, failures.length);
+      GmailApp.sendEmail(CONFIG.NOTIFY_EMAIL, subject, body);
     }
   } else {
     Logger.log('[runDailyCheck] No issues were due today — nothing created');
@@ -667,7 +878,6 @@ function stripTime_(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
 
-
 // ============================================================
 // UTILITY
 // ============================================================
@@ -695,6 +905,7 @@ function rowToObject_(row) {
     nextDue:         toStr(row[9]),
     active:          row[10] === 'TRUE' || row[10] === true,
     paused:          row[10] === 'PAUSED',
-    createdAt:       toStr(row[11])
+    createdAt:       toStr(row[11]),
+    description:     toStr(row[12])
   };
 }
