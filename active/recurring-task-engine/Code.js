@@ -652,6 +652,7 @@ function checkOAuthStatus() {
   }
 }
 
+
 // ============================================================
 // AUDIT LOG
 // ============================================================
@@ -877,6 +878,8 @@ function calculateDueDate_(fromDate, value, unit) {
 function stripTime_(date) {
   return new Date(date.getFullYear(), date.getMonth(), date.getDate());
 }
+
+
 
 // ============================================================
 // UTILITY
