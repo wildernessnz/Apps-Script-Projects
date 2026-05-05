@@ -1,0 +1,14 @@
+{
+  "name": "wilderness-browser-calling",
+  "description": "WebRTC browser calling — Twilio Functions, GAS, HubSpot",
+  "version": "1.0.0",
+  "private": true,
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "deploy": "twilio serverless:deploy",
+    "deploy:prod": "twilio serverless:deploy --environment=production"
+  },
+  "devDependencies": {
+    "twilio-run": "^3.0.0"
+  }
+}

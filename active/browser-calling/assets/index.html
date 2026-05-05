@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+  <title>Call Wilderness Support</title>
+  <script src="/twilio.min.js"></script>
+  <style>
+    @font-face { font-family:'Averta'; font-weight:300; font-display:swap; src:url("f2e1a2df-5c18-4f90-b8ed-083688e71ea7") format('opentype'); }
+    @font-face { font-family:'Averta'; font-weight:400; font-display:swap; src:url("537643e2-feb4-4eb9-a8b1-d23967578f7d") format('opentype'); }
+    @font-face { font-family:'Averta'; font-weight:600; font-display:swap; src:url("bc8eddd8-f64e-40d1-8321-58cab47cc2ea") format('opentype'); }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green:   #67B65B;
+      --green-dk:#5AA34F;
+      --blue:    #006388;
+      --dusk:    #263450;
+      --red:     #FB504E;
+      --beige:   #FBF7EF;
+      --paper:   #FFFFFF;
+      --line:    #E2DCC9;
+      --ink:     #1A2238;
+      --ink-s:   #4A556B;
+      --ink-m:   #8A93A6;
+      --warn:    #E89A2D;
+      --font:    'Averta', system-ui, -apple-system, sans-serif;
+    }
+
+    html, body {
+      min-height: 100dvh;
+      background: var(--beige);
+      font-family: var(--font);
+      -webkit-font-smoothing: antialiased;
+      color: var(--ink);
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 20px 32px;
+      gap: 0;
+    }
+
+    /* ── Big heading above card ── */
+    .page-title {
+      font-size: clamp(28px, 7vw, 38px);
+      font-weight: 600;
+      color: var(--dusk);
+      letter-spacing: -0.02em;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    /* ── Main card ── */
+    .card {
+      width: 100%;
+      max-width: 500px;
+      background: var(--paper);
+      border-radius: 16px;
+      padding: 40px 36px 32px;
+      box-shadow: 0 2px 6px rgba(38,52,80,0.06), 0 8px 24px rgba(38,52,80,0.08);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ── Status pill ── */
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 14px 5px 10px;
+      border-radius: 999px;
+      border: 1.5px solid var(--line);
+      background: var(--beige);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--ink-m);
+      margin-bottom: 32px;
+      transition: all 0.25s ease;
+    }
+    .status-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--ink-m);
+      flex-shrink: 0;
+    }
+    .status-pill.ready  { color: var(--green); border-color: rgba(103,182,91,0.5); background: rgba(103,182,91,0.07); }
+    .status-pill.ready .status-dot  { background: var(--green); animation: dot-pulse 2s infinite; }
+    .status-pill.calling { color: var(--blue); border-color: rgba(0,99,136,0.3); background: rgba(0,99,136,0.06); }
+    .status-pill.calling .status-dot { background: var(--blue); animation: dot-pulse 1s infinite; }
+    .status-pill.connected { color: var(--green); border-color: rgba(103,182,91,0.5); background: rgba(103,182,91,0.07); }
+    .status-pill.connected .status-dot { background: var(--green); animation: dot-pulse 1.4s infinite; }
+    .status-pill.error { color: var(--red); border-color: rgba(251,80,78,0.35); background: rgba(251,80,78,0.05); }
+    .status-pill.error .status-dot { background: var(--red); }
+
+    @keyframes dot-pulse {
+      0%,100% { opacity:1; transform:scale(1); }
+      50%      { opacity:0.4; transform:scale(0.8); }
+    }
+
+    /* ── Call button ── */
+    .btn-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 36px;
+    }
+
+    .btn-wrap {
+      position: relative;
+      width: 120px; height: 120px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Expanding ring animation */
+    .btn-ring {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      pointer-events: none;
+      opacity: 0;
+    }
+    .btn-ring.active {
+      animation: btn-ring 1.8s ease-out infinite;
+      background: var(--green);
+    }
+    .btn-ring.end { background: var(--red); }
+    @keyframes btn-ring {
+      0%   { transform: scale(0.92); opacity: 0.28; }
+      100% { transform: scale(1.6);  opacity: 0; }
+    }
+
+    .call-btn {
+      position: relative; z-index: 1;
+      width: 96px; height: 96px;
+      border-radius: 50%;
+      border: none;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--green);
+      box-shadow: 0 4px 16px rgba(103,182,91,0.45);
+      transition: transform 0.13s ease, background 0.15s ease, box-shadow 0.15s ease;
+    }
+    .call-btn svg { width: 38px; height: 38px; }
+    .call-btn:hover:not(:disabled)  { transform: scale(1.04); background: var(--green-dk); }
+    .call-btn:active:not(:disabled) { transform: scale(0.96); }
+    .call-btn:disabled { opacity: 0.35; cursor: not-allowed; box-shadow: none; }
+    .call-btn.end-state { background: var(--red); box-shadow: 0 4px 16px rgba(251,80,78,0.4); }
+    .call-btn.end-state:hover:not(:disabled) { background: #E03D3B; }
+    .call-btn.connecting-state { background: var(--blue); box-shadow: 0 4px 16px rgba(0,99,136,0.35); cursor: default; }
+
+    .btn-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-s);
+    }
+
+    /* ── Timer (shown during active call, replaces label) ── */
+    .timer {
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      color: var(--dusk);
+      font-variant-numeric: tabular-nums;
+      display: none;
+    }
+    .timer.visible { display: block; }
+    .btn-label.hidden { display: none; }
+
+    /* ── Divider ── */
+    .card-rule {
+      width: 100%;
+      border: none;
+      border-top: 1px solid var(--line);
+      margin: 0 0 20px;
+    }
+
+    /* ── Sub-label above WhatsApp ── */
+    .wa-label {
+      font-size: 13px;
+      color: var(--ink-m);
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    /* ── WhatsApp button ── */
+    .wa-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 11px 22px;
+      border: 1.5px solid rgba(37,211,102,0.45);
+      border-radius: 999px;
+      background: transparent;
+      color: #128C7E;
+      font-family: var(--font);
+      font-size: 14px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease;
+      width: 100%;
+      justify-content: center;
+    }
+    .wa-btn:hover { background: rgba(37,211,102,0.07); border-color: #25D366; }
+    .wa-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    /* ── Mic prompt ── */
+    .mic-prompt {
+      display: none;
+      font-size: 13px;
+      color: var(--ink-s);
+      text-align: center;
+      line-height: 1.5;
+      padding: 10px 14px;
+      background: rgba(232,154,45,0.08);
+      border: 1px solid rgba(232,154,45,0.3);
+      border-radius: 8px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .mic-prompt.visible { display: block; }
+    .mic-prompt strong { color: var(--warn); }
+
+    /* ── Info banner (below card) ── */
+    .info-banner {
+      width: 100%;
+      max-width: 500px;
+      margin-top: 10px;
+      background: #FFFFFF;
+      border: 1px solid #E8E4DA;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .info-banner-icon { flex-shrink: 0; margin-top: 1px; }
+    .info-banner-icon svg { width: 20px; height: 20px; }
+    .info-banner-body { font-size: 13px; color: var(--ink-s); line-height: 1.55; }
+    .info-banner-body strong { display: block; color: var(--ink); font-weight: 600; font-size: 14px; margin-bottom: 3px; }
+
+    /* ── Page footer ── */
+    .page-footer {
+      margin-top: 28px;
+      font-size: 12px;
+      color: var(--ink-m);
+      text-align: center;
+      line-height: 1.7;
+    }
+    .page-footer span { margin: 0 6px; }
+  </style>
+</head>
+<body>
+
+  <h1 class="page-title">Get in touch with us.</h1>
+
+  <div class="card">
+
+    <!-- Status pill -->
+    <div class="status-pill" id="statusBadge">
+      <div class="status-dot"></div>
+      <span id="statusText">Initialising…</span>
+    </div>
+
+    <!-- Mic permission prompt (shown briefly when call is placed) -->
+    <div class="mic-prompt" id="micPrompt">
+      <strong>Microphone access needed</strong>
+      Tap Allow when your browser asks for permission.
+    </div>
+
+    <!-- Call button + label -->
+    <div class="btn-area">
+      <div class="btn-wrap">
+        <div class="btn-ring" id="btnRing"></div>
+        <button class="call-btn" id="callBtn" disabled>
+          <svg id="callIcon" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.32-.56-3.56 0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>
+          </svg>
+        </button>
+      </div>
+      <span class="btn-label" id="btnLabel">CALL NOW</span>
+      <span class="timer" id="timer">0:00</span>
+    </div>
+
+    <hr class="card-rule" />
+
+    <p class="wa-label">Prefer to text? Replies 8am – 5pm NZT</p>
+
+    <a class="wa-btn" id="waBtn" href="https://wa.me/6492555300" target="_blank" rel="noopener">
+      <!-- WhatsApp logo -->
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path fill="#25D366" d="M12 2C6.48 2 2 6.48 2 12c0 1.85.51 3.58 1.38 5.07L2 22l5.07-1.35A9.94 9.94 0 0012 22c5.52 0 10-4.48 10-10S17.52 2 12 2z"/>
+        <path fill="#fff" d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15s-.77.97-.94 1.16c-.17.2-.35.22-.65.07-1.75-.87-2.9-1.56-4.05-3.53-.31-.52.31-.48.88-1.6.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51-.17-.01-.37-.01-.57-.01-.2 0-.52.07-.79.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.21 3.07c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.62.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.13-.27-.2-.57-.35z"/>
+      </svg>
+      Message us on WhatsApp
+    </a>
+
+  </div>
+
+  <!-- Info banners below card — two separate boxes -->
+  <div class="info-banner">
+    <div class="info-banner-icon">
+      <div style="width:40px;height:40px;border-radius:50%;background:#E6F3E4;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3D8A35" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+          <path d="M5 12.55a11 11 0 0114.08 0"/><path d="M1.42 9a16 16 0 0121.16 0"/><path d="M8.53 16.11a6 6 0 016.95 0"/><circle cx="12" cy="20" r="1" fill="#3D8A35" stroke="none"/>
+        </svg>
+      </div>
+    </div>
+    <div class="info-banner-body">
+      <strong>Free to call</strong>
+      Uses your internet connection. No SIM card or phone credit needed.
+    </div>
+  </div>
+  <div class="info-banner">
+    <div class="info-banner-icon">
+      <!-- One-way call icon: phone with outgoing arrow -->
+      <div style="width:40px;height:40px;border-radius:50%;background:#F3E8DF;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8B5A2B" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" style="display:block;">
+          <path d="M15.05 5A5 5 0 0119 8.95M15.05 1A9 9 0 0123 8.94"/>
+          <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 10.8a19.79 19.79 0 01-3.07-8.67A2 2 0 012 0h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 14.92z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="info-banner-body">
+      <strong>One-way calling only</strong>
+      We can't call you back on this number. Message us if you'd prefer a written reply.
+    </div>
+  </div>
+
+  <p class="page-footer">
+    Calls are recorded for training &amp; quality
+    <span>·</span>
+    Powered by Twilio
+  </p>
+
+<script>
+// ─────────────────────────────────────────
+//  CONFIGURATION
+// ─────────────────────────────────────────
+const TOKEN_URL      = 'https://browser-calling-5194.twil.io/generate-token';
+const TOKEN_TTL_MS   = 3600 * 1000;
+const TOKEN_RENEW_MS = TOKEN_TTL_MS - (3 * 60 * 1000); // renew at 57 min
+const TOKEN_SECRET   = '64190f9fdce0bbd5c85db8565b86ed5e';
+// ─────────────────────────────────────────
+
+const params       = new URLSearchParams(window.location.search);
+const bookingRef   = params.get('ref')  || '';
+const customerName = params.get('name') || ''; // intentionally empty — whisper-handler and GAS resolve name from HubSpot if missing
+
+// ── State
+let device         = null;
+let activeCall     = null;
+let timerInterval  = null;
+let renewalTimer   = null;
+let secondsElapsed = 0;
+let isCallActive   = false;
+let isCallPending  = false; // true while ringing/connecting, before accept
+
+// ── UI helpers
+function setStatus(state, text) {
+  const badge = document.getElementById('statusBadge');
+  badge.className = 'status-pill ' + state;
+  document.getElementById('statusText').textContent = text;
+}
+
+function setCallBtn(state) {
+  const btn   = document.getElementById('callBtn');
+  const icon  = document.getElementById('callIcon');
+  const ring  = document.getElementById('btnRing');
+  const label = document.getElementById('btnLabel');
+  const timer = document.getElementById('timer');
+
+  const phoneIcon = '<path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56-.35-.12-.74-.03-1.01.24l-1.57 1.97c-2.83-1.35-5.48-3.9-6.89-6.83l1.95-1.66c.27-.28.35-.67.24-1.02-.37-1.12-.56-2.32-.56-3.56 0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/>';
+  const endIcon   = '<line x1="18" y1="6" x2="6" y2="18" stroke="white" stroke-width="2.5" stroke-linecap="round"/><line x1="6" y1="6" x2="18" y2="18" stroke="white" stroke-width="2.5" stroke-linecap="round"/>';
+
+  btn.className  = 'call-btn';
+  ring.className = 'btn-ring';
+
+  if (state === 'ready') {
+    btn.disabled = false; icon.innerHTML = phoneIcon;
+    label.textContent = 'CALL NOW'; label.classList.remove('hidden'); timer.classList.remove('visible');
+  } else if (state === 'connecting') {
+    btn.className += ' connecting-state'; btn.disabled = false; icon.innerHTML = phoneIcon;
+    ring.className += ' active';
+    label.textContent = 'CONNECTING…';
+  } else if (state === 'active') {
+    btn.className += ' end-state'; btn.disabled = false; icon.innerHTML = endIcon;
+    ring.className += ' active end';
+    label.classList.add('hidden'); timer.classList.add('visible');
+  } else { // disabled
+    btn.disabled = true; icon.innerHTML = phoneIcon;
+    label.textContent = 'CALL NOW'; label.classList.remove('hidden'); timer.classList.remove('visible');
+  }
+}
+
+function startTimer() {
+  secondsElapsed = 0;
+  const el = document.getElementById('timer');
+  timerInterval = setInterval(() => {
+    secondsElapsed++;
+    el.textContent = `${Math.floor(secondsElapsed/60)}:${String(secondsElapsed%60).padStart(2,'0')}`;
+  }, 1000);
+}
+function stopTimer() {
+  clearInterval(timerInterval);
+  timerInterval = null;
+  secondsElapsed = 0;
+  document.getElementById('timer').textContent = '0:00';
+}
+
+// ── Token fetch
+async function fetchToken() {
+  const resp = await fetch(`${TOKEN_URL}?bookingRef=${encodeURIComponent(bookingRef)}&customerName=${encodeURIComponent(customerName)}&secret=${encodeURIComponent(TOKEN_SECRET)}`);
+  const raw  = await resp.text();
+  if (!resp.ok) throw new Error(`Token request failed ${resp.status}: ${raw}`);
+  let data;
+  try { data = JSON.parse(raw); } catch(e) { throw new Error('Token not valid JSON: ' + raw); }
+  if (!data.token || typeof data.token !== 'string') throw new Error('Token field missing: ' + JSON.stringify(data));
+  return data.token;
+}
+
+// ── Silent token renewal
+function scheduleRenewal() {
+  clearTimeout(renewalTimer);
+  renewalTimer = setTimeout(async () => {
+    try {
+      const t = await fetchToken();
+      if (device) device.updateToken(t);
+      console.log('[Token] Renewed OK.');
+      scheduleRenewal();
+    } catch (err) {
+      console.warn('[Token] Renewal failed, retrying in 60s:', err);
+      renewalTimer = setTimeout(scheduleRenewal, 60000);
+    }
+  }, TOKEN_RENEW_MS);
+}
+
+// ── Init
+async function init() {
+  setStatus('', 'Initialising…');
+  setCallBtn('disabled');
+
+  try {
+    const token = await fetchToken();
+
+    device = new Twilio.Device(token, {
+      logLevel: 1,
+      codecPreferences: ['opus', 'pcmu'],
+      fakeLocalDTMF: true,
+      enableRingingState: true
+    });
+
+    device.on('registered', () => {
+      setStatus('ready', 'Line open');
+      setCallBtn('ready');
+      scheduleRenewal();
+    });
+
+    device.on('tokenWillExpire', () => {
+      clearTimeout(renewalTimer);
+      fetchToken().then(t => { device.updateToken(t); scheduleRenewal(); }).catch(console.warn);
+    });
+
+    device.on('error', (err) => {
+      console.error('[Device] error:', err.code, err.message);
+      const isTokenErr = err.code === 31205 || (err.message && err.message.toLowerCase().includes('token'));
+      if (isTokenErr) {
+        clearTimeout(renewalTimer);
+        fetchToken()
+          .then(t => { device.updateToken(t); scheduleRenewal(); })
+          .catch(e => { if (!isCallActive) setStatus('error', 'Connection lost — please refresh'); });
+      } else if (!isCallActive) {
+        setStatus('error', 'Connection error — please refresh');
+        setCallBtn('disabled');
+      }
+    });
+
+    await device.register();
+
+  } catch (err) {
+    console.error('[Init] error:', err);
+    setStatus('error', 'Could not connect — check Wi-Fi');
+    setCallBtn('disabled');
+  }
+}
+
+// ── Call handling
+async function handleCallButton() {
+  if (isCallActive || isCallPending) {
+    hangUp();
+  } else {
+    placeCall();
+  }
+}
+
+async function placeCall() {
+  if (!device) return;
+  if (isCallActive) return; // Guard against double-tap
+  // Immediately disable button to prevent double-tap before SDK confirms state
+  isCallPending = true;
+  document.getElementById('micPrompt').classList.add('visible');
+  setStatus('calling', 'Connecting…');
+  setCallBtn('connecting');
+
+  try {
+    activeCall = await device.connect({ params: { bookingRef, customerName } });
+    document.getElementById('micPrompt').classList.remove('visible');
+
+    activeCall.on('ringing',    () => setStatus('calling', 'Ringing…'));
+    activeCall.on('accept',     () => { isCallActive = true; isCallPending = false; setStatus('connected', 'Connected'); setCallBtn('active'); startTimer(); });
+    activeCall.on('disconnect', () => onCallEnded());
+    activeCall.on('cancel',     () => onCallEnded());
+    activeCall.on('reject',     () => { setStatus('error', 'Call unavailable'); onCallEnded(); });
+
+    // Enable hang up immediately once we have the call object
+    setCallBtn('active');
+  } catch (err) {
+    console.error('[Call] error:', err);
+    isCallPending = false;
+    setStatus('error', 'Failed to connect');
+    setCallBtn('ready');
+    document.getElementById('micPrompt').classList.remove('visible');
+  }
+}
+
+function hangUp() {
+  if (activeCall) activeCall.disconnect();
+  onCallEnded();
+}
+
+function onCallEnded() {
+  isCallActive  = false;
+  isCallPending = false;
+  activeCall    = null;
+  stopTimer();
+  setStatus('ready', 'Line open');
+  setCallBtn('ready');
+  document.getElementById('micPrompt').classList.remove('visible');
+  // Re-register device so next call starts completely fresh
+  if (device) {
+    try { device.unregister(); } catch(e) {}
+    setTimeout(() => {
+      if (device) device.register();
+    }, 500);
+  }
+}
+
+// ── Attach click handler to button wrapper so it fires even during connecting
+document.getElementById('callBtn').addEventListener('click', handleCallButton);
+
+// ── Boot
+if (typeof Twilio === 'undefined') {
+  setStatus('error', 'SDK failed to load');
+  document.getElementById('callBtn').disabled = true;
+  console.error('[Boot] Upload /twilio.min.js as a Twilio Asset and Deploy All.');
+} else {
+  init();
+}
+</script>
+</body>
+</html>

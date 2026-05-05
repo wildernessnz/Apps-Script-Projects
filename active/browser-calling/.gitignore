@@ -1,0 +1,6 @@
+.env
+.env.local
+node_modules/
+.twilio-functions/
+.DS_Store
+gas/.clasprc.json

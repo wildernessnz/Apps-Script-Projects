@@ -1,0 +1,43 @@
+name: Deploy Browser Calling to Twilio
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'active/browser-calling/functions/**'
+      - 'active/browser-calling/assets/**'
+
+jobs:
+  deploy:
+    name: Deploy Twilio Functions
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: active/browser-calling
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install Twilio CLI
+        run: npm install -g twilio-cli @twilio-labs/plugin-serverless
+
+      - name: Deploy
+        env:
+          TWILIO_ACCOUNT_SID:      ${{ secrets.TWILIO_ACCOUNT_SID }}
+          TWILIO_AUTH_TOKEN:       ${{ secrets.TWILIO_AUTH_TOKEN }}
+          API_KEY_SID:             ${{ secrets.BROWSER_CALLING_API_KEY_SID }}
+          API_KEY_SECRET:          ${{ secrets.BROWSER_CALLING_API_KEY_SECRET }}
+          TWIML_APP_SID:           ${{ secrets.BROWSER_CALLING_TWIML_APP_SID }}
+          TOKEN_SECRET:            ${{ secrets.BROWSER_CALLING_TOKEN_SECRET }}
+          AIRCALL_NUMBER:          ${{ secrets.BROWSER_CALLING_AIRCALL_NUMBER }}
+          TWILIO_NUMBER:           ${{ secrets.BROWSER_CALLING_TWILIO_NUMBER }}
+          GAS_WEBHOOK_URL:         ${{ secrets.BROWSER_CALLING_GAS_WEBHOOK_URL }}
+          WHISPER_HANDLER_URL:     ${{ secrets.BROWSER_CALLING_WHISPER_HANDLER_URL }}
+          TRANSCRIPT_HANDLER_URL:  ${{ secrets.BROWSER_CALLING_TRANSCRIPT_HANDLER_URL }}
+          SYNC_SERVICE_SID:        ${{ secrets.BROWSER_CALLING_SYNC_SERVICE_SID }}
+        run: twilio serverless:deploy --override-existing-project
