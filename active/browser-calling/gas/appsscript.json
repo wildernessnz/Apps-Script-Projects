@@ -1,8 +1,17 @@
 {
   "timeZone": "Pacific/Auckland",
-  "dependencies": {},
   "exceptionLogging": "STACKDRIVER",
   "runtimeVersion": "V8",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "WildernessAppScriptLibrary",
+        "libraryId": "1qv1tezMhtuE_YyaIEhj4G1q-bjEYM43an4XH1qCgzllPKEHeQEggpUOS",
+        "version": "0",
+        "developmentMode": true
+      }
+    ]
+  },
   "webapp": {
     "executeAs": "USER_DEPLOYING",
     "access": "ANYONE_ANONYMOUS"
