@@ -509,9 +509,10 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
 
     // Step 2 — confirmed, fire the send
     function confirmSend() {
-      const subject = document.getElementById('subject').value.trim();
-      const body    = document.getElementById('body').value.trim();
-      const sendWA  = document.getElementById('ch-whatsapp').checked;
+      const subject  = document.getElementById('subject').value.trim();
+      const body     = document.getElementById('body').value.trim();
+      const sendEmail = document.getElementById('ch-email').checked;
+      const sendWA   = document.getElementById('ch-whatsapp').checked;
 
       document.getElementById('confirm-panel').style.display = 'none';
       document.getElementById('confirm-btn').disabled        = true;
@@ -520,7 +521,7 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
       google.script.run
         .withSuccessHandler(onSuccess)
         .withFailureHandler(onError)
-        .triggerWeatherAlert(subject, body, sendWA);
+        .triggerWeatherAlert(subject, body, sendWA ? 1 : 0, sendEmail ? 1 : 0);
     }
 
     function onSuccess(r) {
@@ -530,10 +531,11 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
 
       if (!r.success) { showStatus('error', r.message); return; }
 
-      const modeTag = r.testMode ? ' <em>(test mode)</em>' : '';
+      const modeTag    = r.testMode ? ' <em>(test mode)</em>' : '';
+      const emailLabel = r.sendEmail ? `${r.emailsSent} / ${r.totalContacts}` : 'Not selected';
       let msg = `<strong>Alert sent${modeTag}</strong><br>`;
       msg += `Triggered by: ${r.triggeredBy}<br>`;
-      msg += `Emails sent: ${r.emailsSent} / ${r.totalContacts}<br>`;
+      msg += `Emails sent: ${emailLabel}<br>`;
 
       if (r.emailErrors?.length) {
         msg += `<br><strong>Errors:</strong><br>`;

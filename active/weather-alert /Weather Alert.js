@@ -271,13 +271,21 @@ const WeatherAlert = function () {
     const cfg         = getConfig();
     const triggeredBy = getTriggeredBy();
 
+    // Coerce to boolean — client passes 1/0 to work around google.script.run
+    // silently dropping false boolean arguments (a known Apps Script quirk).
+    const doEmail    = !!sendEmail;
+    const doWhatsApp = !!sendWhatsApp;
+
+    // Log received values for debugging the email checkbox issue
+    console.log(`[triggerWeatherAlert] sendWhatsApp=${sendWhatsApp} (${typeof sendWhatsApp}) sendEmail=${sendEmail} (${typeof sendEmail}) → doEmail=${doEmail} doWhatsApp=${doWhatsApp}`);
+
     // Server-side approved sender guard — Session.getActiveUser() correctly returns
     // the visiting user's email when deployed as "Execute as: User accessing the web app"
     if (!cfg.APPROVED_SENDERS.includes(triggeredBy)) {
       return { success: false, message: 'Your account is not authorised to send weather alerts.' };
     }
 
-    if (!sendEmail && !sendWhatsApp) {
+    if (!doEmail && !doWhatsApp) {
       return { success: false, message: 'No channel selected — nothing to send.' };
     }
 
@@ -303,7 +311,7 @@ const WeatherAlert = function () {
     const emailsSent = [];
     const errors     = [];
 
-    if (sendEmail) {
+    if (doEmail) {
       for (const contact of contacts) {
         try {
           sendTransactionalEmail(cfg, contact, subject, body);
@@ -315,7 +323,7 @@ const WeatherAlert = function () {
     }
 
     let whatsAppResult = null;
-    if (sendWhatsApp) {
+    if (doWhatsApp) {
       try {
         const { enrolled, errors: waErrors } = enrollInWorkflow(cfg, contacts);
         whatsAppResult = `Enrolled ${enrolled.length} of ${contacts.length} contact(s)`;
@@ -329,16 +337,16 @@ const WeatherAlert = function () {
 
     recordSend(triggeredBy);
     logSend({ subject, body, triggeredBy, testMode: cfg.TEST_MODE,
-              totalContacts: contacts.length, emailsSent, errors, whatsAppResult, sendEmail });
+              totalContacts: contacts.length, emailsSent, errors, whatsAppResult, sendEmail: doEmail });
     sendConfirmationEmail({ triggeredBy, cc: cfg.CONFIRMATION_CC, testMode: cfg.TEST_MODE,
-                            subject, contacts, emailsSent, errors, whatsAppResult, sendEmail,
+                            subject, contacts, emailsSent, errors, whatsAppResult, sendEmail: doEmail,
                             timestamp: new Date().toISOString() });
 
     return {
       success:       true,
       testMode:      cfg.TEST_MODE,
       triggeredBy,
-      sendEmail,
+      sendEmail:     doEmail,
       totalContacts: contacts.length,
       emailsSent:    emailsSent.length,
       emailErrors:   errors,

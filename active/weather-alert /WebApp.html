@@ -566,7 +566,10 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
   function confirmSend() {
     const subject = document.getElementById('subject').value.trim();
     const body    = document.getElementById('body').value.trim();
+    const email   = document.getElementById('ch-email').checked;
     const wa      = document.getElementById('ch-whatsapp').checked;
+
+    console.log('[confirmSend] ch-email.checked=' + email + ' ch-whatsapp.checked=' + wa);
 
     document.getElementById('confirmBackdrop').classList.remove('open');
     document.getElementById('confirmBtn').disabled = true;
@@ -575,10 +578,12 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
     btn.disabled = true;
     btn.innerHTML = '<div class="spinner"></div> Sending…';
 
+    // Pass as 1/0 — google.script.run can silently drop false boolean args,
+    // causing the server-side default (= true) to override the unchecked state.
     google.script.run
       .withSuccessHandler(onSuccess)
       .withFailureHandler(onError)
-      .triggerWeatherAlert(subject, body, wa);
+      .triggerWeatherAlert(subject, body, wa ? 1 : 0, email ? 1 : 0);
   }
 
   function onSuccess(r) {
@@ -592,11 +597,12 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
       return;
     }
 
-    const modeLabel = r.testMode ? 'TEST MODE — @wilderness.co.nz only' : 'LIVE';
+    const modeLabel  = r.testMode ? 'TEST MODE — @wilderness.co.nz only' : 'LIVE';
+    const emailLabel = r.sendEmail ? `${r.emailsSent} of ${r.totalContacts}` : 'Not selected';
     const rows = [
       ['Mode',         modeLabel],
       ['Triggered by', r.triggeredBy],
-      ['Emails sent',  `${r.emailsSent} of ${r.totalContacts}`],
+      ['Emails sent',  emailLabel],
     ];
     if (r.whatsApp) rows.push(['WhatsApp', r.whatsApp]);
     if (r.emailErrors?.length) {
