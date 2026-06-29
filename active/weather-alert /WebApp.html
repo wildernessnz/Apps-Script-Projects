@@ -1,0 +1,710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Weather Alert — Wilderness</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@300;400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #faf7f2; --surface: #ffffff; --surface2: #f0ede8;
+    --border: #ddd9d0; --border2: #ccc8be;
+    --accent: #006388; --accent2: #0088bb; --accent3: #e8f3f7;
+    --green: #67b65b; --green2: #509a44;
+    --navy: #263450;
+    --danger: #c0392b; --danger2: #e74c3c;
+    --warn: #d68910;
+    --text: #323232; --muted: #5b5b5b; --light: #909090;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'Nunito Sans', sans-serif;
+  }
+  body { font-family: var(--sans); background: var(--bg); color: var(--text); min-height: 100vh; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+
+  /* ── Layout ── */
+  .shell { display: grid; grid-template-columns: 260px 1fr; min-height: 100vh; }
+
+  /* ── Sidebar ── */
+  .sidebar { background: var(--navy); display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow: hidden; }
+  .brand { padding: 24px; border-bottom: 1px solid rgba(255,255,255,.1); }
+  .brand-label { font-family: var(--mono); font-size: 9px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: rgba(255,255,255,.45); margin-bottom: 8px; }
+  .brand-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
+  .brand-icon { width: 32px; height: 32px; background: var(--accent); border-radius: 6px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
+  .brand-title { font-size: 15px; font-weight: 700; color: #fff; line-height: 1.3; }
+  .brand-sub { font-size: 11px; color: rgba(255,255,255,.4); font-family: var(--mono); letter-spacing: .04em; }
+
+  .sidebar-body { flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
+  .sidebar-section-label { font-family: var(--mono); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; color: rgba(255,255,255,.3); padding: 10px 8px 4px; }
+
+  .info-card { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); border-radius: 6px; padding: 12px 14px; }
+  .info-card-label { font-family: var(--mono); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.35); margin-bottom: 6px; }
+  .info-card-value { font-size: 13px; font-weight: 600; color: #fff; line-height: 1.4; }
+  .info-card-value.muted { font-size: 12px; font-weight: 400; color: rgba(255,255,255,.55); font-family: var(--mono); }
+  .info-card-value.ok    { color: var(--green); }
+  .info-card-value.warn  { color: #f0c040; }
+  .info-card-value.danger{ color: #e07070; }
+
+  .guest-list-sidebar { margin-top: 4px; display: flex; flex-direction: column; gap: 3px; }
+  .guest-list-inner { display: flex; flex-direction: column; gap: 3px; max-height: 180px; overflow-y: auto; }
+  .guest-item { display: flex; flex-direction: column; padding: 6px 10px; border-radius: 4px; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06); }
+  .guest-name { font-size: 11.5px; font-weight: 600; color: rgba(255,255,255,.85); }
+  .guest-meta { font-size: 10px; font-family: var(--mono); color: rgba(255,255,255,.35); margin-top: 1px; }
+  .guest-show-more { background: none; border: none; color: rgba(255,255,255,.35); font-family: var(--mono); font-size: 10px; padding: 6px 10px; cursor: pointer; text-align: left; letter-spacing: .04em; transition: color .15s; }
+  .guest-show-more:hover { color: rgba(255,255,255,.65); }
+
+  .lock-reset-btn { margin-top: 8px; width: 100%; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); border-radius: 4px; color: rgba(255,255,255,.6); font-family: var(--mono); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; padding: 7px 10px; cursor: pointer; text-align: left; transition: all .15s; display: none; }
+  .lock-reset-btn:hover { background: rgba(255,255,255,.12); color: #fff; border-color: rgba(255,255,255,.2); }
+  .lock-reset-btn.visible { display: block; }
+
+  .sidebar-footer { padding: 14px 20px; border-top: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
+  .user-badge { display: flex; align-items: center; gap: 8px; font-size: 12px; color: rgba(255,255,255,.45); font-family: var(--mono); word-break: break-all; }
+  .user-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--green); box-shadow: 0 0 6px var(--green); flex-shrink: 0; }
+
+  /* ── Main ── */
+  .main { display: flex; flex-direction: column; min-height: 100vh; }
+  .content { padding: 28px 36px; flex: 1; max-width: 760px; }
+
+  /* ── Banners ── */
+  .banner { border-radius: 6px; padding: 12px 16px; font-size: 13px; line-height: 1.6; margin-bottom: 16px; display: none; }
+  .banner.show { display: block; }
+  .banner.test    { background: #fff7e0; border: 1px solid #f5c842; color: #7a5800; }
+  .banner.blocked { background: #fcecea; border: 1px solid #f0b4ae; color: #7a1a15; }
+
+  /* ── Form ── */
+  .section { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,.05); margin-bottom: 20px; }
+  .section-header { background: var(--navy); padding: 12px 20px; }
+  .section-title { font-family: var(--mono); font-size: 10px; font-weight: 500; letter-spacing: .15em; text-transform: uppercase; color: rgba(255,255,255,.65); }
+  .section-body { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 11px; font-weight: 700; color: var(--muted); letter-spacing: .04em; text-transform: uppercase; }
+  .field input[type="text"],
+  .field textarea { background: var(--bg); border: 2px solid var(--border2); border-radius: 4px; padding: 9px 12px; color: var(--text); font-family: var(--sans); font-size: 14px; outline: none; transition: border-color .15s; width: 100%; }
+  .field textarea { resize: vertical; min-height: 160px; line-height: 1.6; }
+  .field input:focus, .field textarea:focus { border-color: var(--green); background: #fff; }
+  .field input::placeholder, .field textarea::placeholder { color: #bbb; }
+
+  /* ── Channels ── */
+  .channels { display: flex; gap: 12px; }
+  .channel-card { flex: 1; border: 2px solid var(--border); border-radius: 6px; padding: 14px 16px; cursor: pointer; display: flex; align-items: flex-start; gap: 12px; transition: border-color .15s, background .15s; }
+  .channel-card.active { border-color: var(--green); background: rgba(103,182,91,.04); }
+  .channel-card input[type="checkbox"] { accent-color: var(--green); margin-top: 2px; flex-shrink: 0; width: 16px; height: 16px; }
+  .channel-card-body { display: flex; flex-direction: column; gap: 2px; }
+  .channel-label { font-size: 14px; font-weight: 700; }
+  .channel-desc { font-size: 12px; color: var(--light); line-height: 1.4; }
+
+  /* ── Confirm panel ── */
+
+
+  /* ── Buttons ── */
+  .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 20px; border-radius: 4px; border: none; font-family: var(--sans); font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; text-transform: uppercase; letter-spacing: .25px; }
+  .btn-primary { background: var(--green); color: #fff; border: 2px solid var(--green); }
+  .btn-primary:hover:not(:disabled) { background: var(--green2); border-color: var(--green2); transform: translateY(-1px); box-shadow: 0 3px 10px rgba(103,182,91,.3); }
+  .btn-primary:active:not(:disabled) { transform: none; box-shadow: none; }
+  .btn-primary:disabled { background: var(--border2); border-color: var(--border2); color: var(--light); cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--accent); border: 2px solid var(--accent); }
+  .btn-ghost:hover { background: var(--accent); color: #fff; }
+  .btn-full { width: 100%; justify-content: center; }
+
+
+
+  /* ── Spinner ── */
+  .spinner { width: 16px; height: 16px; border: 2px solid rgba(103,182,91,.25); border-top-color: var(--green); border-radius: 50%; animation: spin .7s linear infinite; display: inline-block; flex-shrink: 0; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Toast ── */
+  .toast-container { position: fixed; bottom: 24px; right: 24px; display: flex; flex-direction: column; gap: 8px; z-index: 9999; }
+  .toast { background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--accent); border-radius: 4px; padding: 12px 16px; font-size: 13px; max-width: 320px; animation: slideIn .2s ease; box-shadow: 0 4px 16px rgba(0,0,0,.12); color: var(--text); }
+  .toast.success { border-left-color: var(--green); }
+  .toast.error   { border-left-color: var(--danger); }
+  @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+  /* ── Result Modal ── */
+  .result-backdrop { display: none; position: fixed; inset: 0; background: rgba(38,52,80,.55); z-index: 200; align-items: center; justify-content: center; }
+  .result-backdrop.open { display: flex; }
+  .result-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 460px; max-width: calc(100vw - 40px); animation: modalIn .18s ease; overflow: hidden; box-shadow: 0 8px 40px rgba(38,52,80,.2); }
+  .result-modal-header { padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  .result-modal-header.success { background: var(--green2); }
+  .result-modal-header.error   { background: var(--danger); }
+  .result-modal-header-icon { font-size: 20px; }
+  .result-modal-title { font-size: 15px; font-weight: 700; color: #fff; }
+  .result-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 0; }
+  .result-row { display: flex; gap: 8px; font-size: 13px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+  .result-row:last-child { border-bottom: none; }
+  .result-row-label { font-weight: 700; color: var(--text); min-width: 120px; flex-shrink: 0; }
+  .result-row-value { color: var(--muted); line-height: 1.5; }
+  .result-row-value.error { color: var(--danger); }
+  .result-modal-note { padding: 12px 24px; background: var(--surface2); border-top: 1px solid var(--border); font-size: 12px; color: var(--light); }
+  .result-modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: var(--surface2); }
+
+  /* ── Preview Modal ── */
+  .preview-backdrop { display: none; position: fixed; inset: 0; background: rgba(38,52,80,.55); z-index: 200; align-items: center; justify-content: center; padding: 20px; }
+  .preview-backdrop.open { display: flex; }
+  .preview-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 640px; max-width: 100%; max-height: calc(100vh - 40px); animation: modalIn .18s ease; overflow: hidden; box-shadow: 0 8px 40px rgba(38,52,80,.2); display: flex; flex-direction: column; }
+  .preview-modal-header { background: var(--navy); padding: 16px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-shrink: 0; }
+  .preview-modal-title { font-size: 15px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 10px; }
+  .preview-modal-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 20px; cursor: pointer; line-height: 1; padding: 2px 6px; }
+  .preview-modal-close:hover { color: #fff; }
+  .preview-modal-body { padding: 0; flex: 1; overflow-y: auto; background: var(--surface2); }
+  .preview-frame-wrap { background: #fff; margin: 16px; border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .preview-iframe { width: 100%; min-height: 360px; border: none; display: block; }
+  .preview-modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; background: var(--surface2); flex-shrink: 0; }
+  .preview-loading { padding: 60px 24px; text-align: center; color: var(--light); font-size: 13px; }
+  .preview-error { padding: 24px; color: var(--danger); font-size: 13px; line-height: 1.6; }
+
+  /* ── Confirm Modal ── */
+  .confirm-backdrop { display: none; position: fixed; inset: 0; background: rgba(38,52,80,.55); z-index: 200; align-items: center; justify-content: center; }
+  .confirm-backdrop.open { display: flex; }
+  .confirm-modal { background: var(--surface); border: 1px solid var(--border); border-radius: 6px; width: 420px; max-width: calc(100vw - 40px); animation: modalIn .18s ease; overflow: hidden; box-shadow: 0 8px 40px rgba(38,52,80,.2); }
+  @keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: none; } }
+  .confirm-modal-header { background: var(--navy); padding: 16px 24px; display: flex; align-items: center; gap: 12px; }
+  .confirm-modal-header-icon { font-size: 20px; }
+  .confirm-modal-title { font-size: 15px; font-weight: 700; color: #fff; }
+  .confirm-modal-body { padding: 24px; }
+  .confirm-detail-row { display: flex; gap: 8px; font-size: 13px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+  .confirm-detail-row:last-child { border-bottom: none; }
+  .confirm-detail-label { font-weight: 700; color: var(--text); min-width: 100px; }
+  .confirm-detail-value { color: var(--muted); }
+  .confirm-modal-footer { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 10px; justify-content: flex-end; background: var(--surface2); }
+
+  @media (max-width: 700px) {
+    .shell { grid-template-columns: 1fr; }
+    .sidebar { display: none; }
+    .content { padding: 20px 16px; }
+    .channels { flex-direction: column; }
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-logo">
+        <div class="brand-icon">⚠️</div>
+        <div class="brand-title">Weather Alert</div>
+      </div>
+    </div>
+
+    <div class="sidebar-body">
+
+      <div class="sidebar-section-label">Status</div>
+
+      <div class="info-card" id="modeCard">
+        <div class="info-card-label">Mode</div>
+        <div class="info-card-value muted" id="modeValue">Loading…</div>
+      </div>
+
+      <div class="info-card" id="lockCard">
+        <div class="info-card-label">Daily Lock</div>
+        <div class="info-card-value muted" id="lockValue">Loading…</div>
+        <button class="lock-reset-btn" id="lockResetBtn" onclick="requestLockReset()">🔓 Reset today's lock</button>
+      </div>
+
+      <div class="sidebar-section-label">On-Road Guests</div>
+
+      <div class="info-card">
+        <div class="info-card-label">Guest Count</div>
+        <div class="info-card-value" id="guestCount">—</div>
+      </div>
+
+      <div class="guest-list-sidebar" id="guestListSidebar">
+        <div class="guest-list-inner" id="guestListInner">
+          <div style="font-size:11px;color:rgba(255,255,255,.25);padding:4px 8px">Loading…</div>
+        </div>
+        <button class="guest-show-more" id="guestShowMore" onclick="toggleGuestList()" style="display:none"></button>
+      </div>
+
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="user-badge">
+        <div class="user-dot"></div>
+        <span id="userEmail">Loading…</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="main">
+    <div class="content">
+
+      <!-- Banners -->
+      <div class="banner test" id="testBanner">
+        🧪 <strong>Test mode active</strong> — only <code>@wilderness.co.nz</code> addresses will be contacted. Set <code>TEST_MODE=false</code> in Script Properties to go live.
+      </div>
+      <div class="banner blocked" id="blockedBanner">
+        🔒 <strong>Already sent today</strong> — <span id="blockedDetail">a weather alert has already been sent today.</span> Only one send per day is permitted.
+      </div>
+
+      <!-- Email content -->
+      <div class="section">
+        <div class="section-header"><div class="section-title">Email Content</div></div>
+        <div class="section-body">
+          <div class="field">
+            <label>Subject line</label>
+            <input type="text" id="subject" value="Important weather alert — your Wilderness journey">
+          </div>
+          <div class="field">
+            <label>Alert message <span style="text-transform:none;font-weight:400;color:var(--light)">— inserted into the {{ alertBody }} token in the email template</span></label>
+            <textarea id="body">New Zealand's official weather agency, MetService, has issued a weather warning for parts of the country. You can see the latest updates by clicking the button below.
+
+There's no need to worry, but we recommend checking the forecast and adjusting your travel plans if needed. We hope you're enjoying your adventure and making great memories out there! 🌿🚐</textarea>
+          </div>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-ghost" id="previewBtn" onclick="requestPreview()">👁 Preview email</button>
+            <button class="btn btn-ghost" id="testEmailBtn" onclick="sendTestEmail()">✉️ Send test email to me</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Channels -->
+      <div class="section">
+        <div class="section-header"><div class="section-title">Channels</div></div>
+        <div class="section-body">
+          <div class="channels">
+            <label class="channel-card active" id="card-email">
+              <input type="checkbox" id="ch-email" checked onchange="toggleCard('email')">
+              <div class="channel-card-body">
+                <div class="channel-label">📧 Email</div>
+                <div class="channel-desc">Sends a personalised email to each guest</div>
+              </div>
+            </label>
+            <label class="channel-card active" id="card-whatsapp">
+              <input type="checkbox" id="ch-whatsapp" checked onchange="toggleCard('whatsapp')">
+              <div class="channel-card-body">
+                <div class="channel-label">💬 WhatsApp</div>
+                <div class="channel-desc">HubSpot workflow enrollment — uses its own fixed message template, not the email body above</div>
+              </div>
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="sendBtn" onclick="requestConfirm()">Send weather alert</button>
+
+
+
+    </div>
+  </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="preview-backdrop" id="previewBackdrop">
+  <div class="preview-modal">
+    <div class="preview-modal-header">
+      <div class="preview-modal-title">👁 Email preview</div>
+      <button class="preview-modal-close" onclick="closePreview()">×</button>
+    </div>
+    <div class="preview-modal-body" id="previewBody">
+      <div class="preview-loading">Loading preview…</div>
+    </div>
+    <div class="preview-modal-footer">
+      <button class="btn btn-ghost" onclick="closePreview()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lock Reset Confirm Modal -->
+<div class="confirm-backdrop" id="lockResetBackdrop">
+  <div class="confirm-modal">
+    <div class="confirm-modal-header">
+      <div class="confirm-modal-header-icon">🔓</div>
+      <div class="confirm-modal-title">Reset today's lock?</div>
+    </div>
+    <div class="confirm-modal-body">
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Sent today</span>
+        <span class="confirm-detail-value" id="lrDate"></span>
+      </div>
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Sent by</span>
+        <span class="confirm-detail-value" id="lrBy"></span>
+      </div>
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Effect</span>
+        <span class="confirm-detail-value">Another alert can be sent today. This action will be logged.</span>
+      </div>
+    </div>
+    <div class="confirm-modal-footer">
+      <button class="btn btn-ghost" onclick="closeLockReset()">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmLockReset()">Reset lock</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result Modal -->
+<div class="result-backdrop" id="resultBackdrop">
+  <div class="result-modal">
+    <div class="result-modal-header" id="resultHeader">
+      <div class="result-modal-header-icon" id="resultIcon"></div>
+      <div class="result-modal-title" id="resultTitle"></div>
+    </div>
+    <div class="result-modal-body" id="resultBody"></div>
+    <div class="result-modal-note" id="resultNote" style="display:none"></div>
+    <div class="result-modal-footer">
+      <button class="btn btn-ghost" onclick="closeResult()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="confirm-backdrop" id="confirmBackdrop">
+  <div class="confirm-modal">
+    <div class="confirm-modal-header">
+      <div class="confirm-modal-header-icon">⚠️</div>
+      <div class="confirm-modal-title">Confirm weather alert send</div>
+    </div>
+    <div class="confirm-modal-body">
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Mode</span>
+        <span class="confirm-detail-value" id="cMode"></span>
+      </div>
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Recipients</span>
+        <span class="confirm-detail-value" id="cRecipients"></span>
+      </div>
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Channels</span>
+        <span class="confirm-detail-value" id="cChannels"></span>
+      </div>
+      <div class="confirm-detail-row">
+        <span class="confirm-detail-label">Subject</span>
+        <span class="confirm-detail-value" id="cSubject"></span>
+      </div>
+    </div>
+    <div class="confirm-modal-footer">
+      <button class="btn btn-ghost" onclick="cancelConfirm()">Cancel</button>
+      <button class="btn btn-primary" id="confirmBtn" onclick="confirmSend()">Yes, send now</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  let _state = null;
+
+  // ── Init ─────────────────────────────────────────────────────
+  google.script.run
+    .withSuccessHandler(onStateLoaded)
+    .withFailureHandler(e => showResultModal('error', [['Error', 'Could not load guest list: ' + e.message, 'error']]))
+    .getGuestPreview();
+
+  function onStateLoaded(s) {
+    _state = s;
+    const { testMode, sentToday, lastSendDate, lastSendBy, triggeredBy, contacts } = s;
+
+    // User email
+    document.getElementById('userEmail').textContent = triggeredBy || 'unknown';
+
+    // Mode card
+    const modeVal = document.getElementById('modeValue');
+    modeVal.textContent  = testMode ? 'TEST — @wilderness.co.nz only' : 'LIVE';
+    modeVal.className    = 'info-card-value ' + (testMode ? 'warn' : 'ok');
+
+    // Test banner
+    if (testMode) document.getElementById('testBanner').classList.add('show');
+
+    // Lock card + blocked banner
+    const lockVal = document.getElementById('lockValue');
+    if (sentToday) {
+      const sentBy = lastSendBy ? ` by ${lastSendBy}` : '';
+      lockVal.textContent = `Sent today (${lastSendDate})${sentBy}`;
+      lockVal.className   = 'info-card-value danger';
+      document.getElementById('blockedDetail').textContent =
+        `A weather alert was already sent today (${lastSendDate}).${lastSendBy ? ' Sent by: ' + lastSendBy + '.' : ''}`;
+      document.getElementById('blockedBanner').classList.add('show');
+      document.getElementById('sendBtn').disabled = true;
+      if (s.canOverride) document.getElementById('lockResetBtn').classList.add('visible');
+    } else {
+      lockVal.textContent = 'Clear — no send today';
+      lockVal.className   = 'info-card-value ok';
+    }
+
+    // Guest count
+    const countEl = document.getElementById('guestCount');
+    countEl.textContent = contacts.length;
+    countEl.className   = 'info-card-value ' + (contacts.length ? 'ok' : 'warn');
+
+    // Guest list sidebar
+    const innerEl   = document.getElementById('guestListInner');
+    const moreBtn   = document.getElementById('guestShowMore');
+    const SHOW_MAX  = 5;
+
+    if (!contacts.length) {
+      innerEl.innerHTML = `<div style="font-size:11px;color:rgba(255,255,255,.25);padding:4px 8px">${testMode ? 'No @wilderness.co.nz contacts found' : 'No on-road guests found'}</div>`;
+      document.getElementById('sendBtn').disabled = true;
+    } else {
+      const renderGuests = (all) => contacts.slice(0, all ? contacts.length : SHOW_MAX).map(g => `
+        <div class="guest-item">
+          <div class="guest-name">${g.name}</div>
+          <div class="guest-meta">${g.email} · ${g.bookingNumber}</div>
+        </div>`).join('');
+      innerEl.innerHTML = renderGuests(false);
+      if (contacts.length > SHOW_MAX) {
+        moreBtn.style.display = '';
+        moreBtn.textContent   = `+ ${contacts.length - SHOW_MAX} more guests…`;
+        moreBtn._expanded     = false;
+      }
+    }
+  }
+
+  function toggleCard(ch) {
+    const card = document.getElementById('card-' + ch);
+    const cb   = document.getElementById('ch-' + ch);
+    card.classList.toggle('active', cb.checked);
+  }
+
+  // ── Preview ───────────────────────────────────────────────────
+  function requestPreview() {
+    const subject = document.getElementById('subject').value.trim();
+    const body    = document.getElementById('body').value.trim();
+
+    if (!subject || !body) {
+      toast('Please fill in the subject and alert message before previewing.', 'error');
+      return;
+    }
+
+    document.getElementById('previewBody').innerHTML = '<div class="preview-loading">Loading preview…</div>';
+    document.getElementById('previewBackdrop').classList.add('open');
+
+    const btn = document.getElementById('previewBtn');
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(r => {
+        btn.disabled = false;
+        const bodyEl = document.getElementById('previewBody');
+        if (!r.success) {
+          bodyEl.innerHTML = `<div class="preview-error"><strong>Could not load preview:</strong><br>${r.message}</div>`;
+          return;
+        }
+        bodyEl.innerHTML = `<div class="preview-frame-wrap"><iframe class="preview-iframe" id="previewIframe"></iframe></div>`;
+        const iframe = document.getElementById('previewIframe');
+        const doc    = iframe.contentWindow.document;
+        doc.open(); doc.write(r.html); doc.close();
+        // Resize iframe to fit its content once rendered
+        setTimeout(() => {
+          try { iframe.style.height = (doc.body.scrollHeight + 20) + 'px'; } catch (_) {}
+        }, 100);
+      })
+      .withFailureHandler(e => {
+        btn.disabled = false;
+        document.getElementById('previewBody').innerHTML =
+          `<div class="preview-error"><strong>Could not load preview:</strong><br>${e.message}</div>`;
+      })
+      .previewEmail(subject, body);
+  }
+
+  function closePreview() {
+    document.getElementById('previewBackdrop').classList.remove('open');
+  }
+
+  // ── Send test email ───────────────────────────────────────────
+  function sendTestEmail() {
+    const subject = document.getElementById('subject').value.trim();
+    const body    = document.getElementById('body').value.trim();
+
+    if (!subject || !body) {
+      toast('Please fill in the subject and alert message before sending a test.', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('testEmailBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    google.script.run
+      .withSuccessHandler(r => {
+        btn.disabled = false;
+        btn.textContent = '✉️ Send test email to me';
+        if (!r.success) {
+          showResultModal('error', [['Error', r.message, 'error']]);
+          return;
+        }
+        toast(`Test email sent to ${r.sentTo}`, 'success');
+      })
+      .withFailureHandler(e => {
+        btn.disabled = false;
+        btn.textContent = '✉️ Send test email to me';
+        showResultModal('error', [['Error', e.message, 'error']]);
+      })
+      .sendTestEmail(subject, body);
+  }
+
+  // ── Step 1: validate + show confirm modal ────────────────────
+  function requestConfirm() {
+    const subject = document.getElementById('subject').value.trim();
+    const body    = document.getElementById('body').value.trim();
+    const email   = document.getElementById('ch-email').checked;
+    const wa      = document.getElementById('ch-whatsapp').checked;
+
+    if (!subject || !body) { toast('Please fill in the subject and email body.', 'error'); return; }
+    if (!email && !wa)     { toast('Please select at least one channel.', 'error'); return; }
+
+    const channels   = [email && 'Email', wa && 'WhatsApp'].filter(Boolean).join(' + ');
+    const guestCount = _state?.contacts?.length ?? '?';
+    const modeLabel  = _state?.testMode ? '⚠️ TEST MODE — @wilderness.co.nz only' : 'LIVE — real guests';
+
+    document.getElementById('cMode').textContent       = modeLabel;
+    document.getElementById('cRecipients').textContent = `${guestCount} guest(s)`;
+    document.getElementById('cChannels').textContent   = channels;
+    document.getElementById('cSubject').textContent    = subject;
+
+    document.getElementById('confirmBackdrop').classList.add('open');
+    setTimeout(() => document.getElementById('confirmBtn').focus(), 50);
+  }
+
+  function cancelConfirm() {
+    document.getElementById('confirmBackdrop').classList.remove('open');
+  }
+
+  // ── Step 2: confirmed, fire send ─────────────────────────────
+  function confirmSend() {
+    const subject = document.getElementById('subject').value.trim();
+    const body    = document.getElementById('body').value.trim();
+    const wa      = document.getElementById('ch-whatsapp').checked;
+
+    document.getElementById('confirmBackdrop').classList.remove('open');
+    document.getElementById('confirmBtn').disabled = true;
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<div class="spinner"></div> Sending…';
+
+    google.script.run
+      .withSuccessHandler(onSuccess)
+      .withFailureHandler(onError)
+      .triggerWeatherAlert(subject, body, wa);
+  }
+
+  function onSuccess(r) {
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.innerHTML = 'Send weather alert';
+    document.getElementById('confirmBtn').disabled = false;
+
+    if (!r.success) {
+      showResultModal('error', [['Reason', r.message]]);
+      return;
+    }
+
+    const modeLabel = r.testMode ? 'TEST MODE — @wilderness.co.nz only' : 'LIVE';
+    const rows = [
+      ['Mode',         modeLabel],
+      ['Triggered by', r.triggeredBy],
+      ['Emails sent',  `${r.emailsSent} of ${r.totalContacts}`],
+    ];
+    if (r.whatsApp) rows.push(['WhatsApp', r.whatsApp]);
+    if (r.emailErrors?.length) {
+      rows.push(['Errors', r.emailErrors.map(e => `${e.email} — ${e.error}`).join('<br>'), 'error']);
+    }
+    rows.push(['Sent at', new Date(r.timestamp).toLocaleTimeString('en-NZ')]);
+
+    showResultModal('success', rows, 'A summary email has been sent to you. Full log in the booking spreadsheet.');
+
+    // Update sidebar lock status
+    if (_state) {
+      const lockVal = document.getElementById('lockValue');
+      lockVal.textContent = `Sent today (${new Date().toLocaleDateString('en-NZ')}) by ${r.triggeredBy}`;
+      lockVal.className   = 'info-card-value danger';
+      document.getElementById('blockedBanner').classList.add('show');
+    }
+  }
+
+  function onError(e) {
+    document.getElementById('sendBtn').disabled = false;
+    document.getElementById('sendBtn').innerHTML = 'Send weather alert';
+    document.getElementById('confirmBtn').disabled = false;
+    showResultModal('error', [['Error', e.message, 'error']]);
+  }
+
+  function showResultModal(type, rows, note) {
+    const header = document.getElementById('resultHeader');
+    header.className = 'result-modal-header ' + type;
+    document.getElementById('resultIcon').textContent  = type === 'success' ? '✅' : '❌';
+    document.getElementById('resultTitle').textContent = type === 'success' ? 'Alert sent' : 'Send failed';
+    document.getElementById('resultBody').innerHTML    = rows.map(([label, value, cls]) =>
+      `<div class="result-row">
+        <span class="result-row-label">${label}</span>
+        <span class="result-row-value${cls ? ' ' + cls : ''}">${value}</span>
+      </div>`
+    ).join('');
+    const noteEl = document.getElementById('resultNote');
+    if (note) { noteEl.textContent = note; noteEl.style.display = ''; }
+    else { noteEl.style.display = 'none'; }
+    document.getElementById('resultBackdrop').classList.add('open');
+  }
+
+  function closeResult() {
+    document.getElementById('resultBackdrop').classList.remove('open');
+  }
+
+  function requestLockReset() {
+    if (!_state?.sentToday) return;
+    document.getElementById('lrDate').textContent = _state.lastSendDate || '—';
+    document.getElementById('lrBy').textContent   = _state.lastSendBy  || 'unknown';
+    document.getElementById('lockResetBackdrop').classList.add('open');
+  }
+
+  function closeLockReset() {
+    document.getElementById('lockResetBackdrop').classList.remove('open');
+  }
+
+  function confirmLockReset() {
+    closeLockReset();
+    google.script.run
+      .withSuccessHandler(r => {
+        if (!r.success) {
+          showResultModal('error', [['Error', r.message, 'error']]);
+          return;
+        }
+        // Update sidebar state
+        const lockVal = document.getElementById('lockValue');
+        lockVal.textContent = 'Clear — no send today';
+        lockVal.className   = 'info-card-value ok';
+        document.getElementById('lockResetBtn').classList.remove('visible');
+        document.getElementById('blockedBanner').classList.remove('show');
+        document.getElementById('sendBtn').disabled = false;
+        if (_state) { _state.sentToday = false; _state.lastSendDate = ''; _state.lastSendBy = ''; }
+        toast('Daily lock cleared.', 'success');
+      })
+      .withFailureHandler(e => showResultModal('error', [['Error', e.message, 'error']]))
+      .resetLockFromWebApp();
+  }
+
+  function toggleGuestList() {
+    const contacts  = _state?.contacts ?? [];
+    const SHOW_MAX  = 5;
+    const innerEl   = document.getElementById('guestListInner');
+    const moreBtn   = document.getElementById('guestShowMore');
+    const expanded  = moreBtn._expanded;
+    const renderGuests = (all) => contacts.slice(0, all ? contacts.length : SHOW_MAX).map(g => `
+      <div class="guest-item">
+        <div class="guest-name">${g.name}</div>
+        <div class="guest-meta">${g.email} · ${g.bookingNumber}</div>
+      </div>`).join('');
+    innerEl.innerHTML    = renderGuests(!expanded);
+    moreBtn._expanded    = !expanded;
+    moreBtn.textContent  = expanded
+      ? `+ ${contacts.length - SHOW_MAX} more guests…`
+      : '↑ Show fewer';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { cancelConfirm(); closeResult(); closeLockReset(); closePreview(); }
+  });
+
+  function toast(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.getElementById('toastContainer').appendChild(el);
+    setTimeout(() => el.remove(), 5000);
+  }
+</script>
+</body>
+</html>
