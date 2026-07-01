@@ -121,19 +121,31 @@ Anomalies) plus alert-acknowledgement and manual-resync actions:
 
 Gives non-technical / non-editor access to the same 17 `triggerSync()` targets via
 checkboxes in a "Manual Triggers" sheet, instead of requiring the Apps Script editor.
+Checkboxes are **selection only** — firing happens from the "Pipeline Tools > Run
+Selected Triggers" menu item (`runSelectedManualTriggers()`), which reads every
+checked row, shows a native `Ui.alert()` confirmation listing exactly what's about to
+run, and only calls `triggerSync()` per row on Yes.
 
-Key constraint: `triggerSync()` needs authorized services (`UrlFetchApp`,
-`ScriptApp.getOAuthToken()`), which a **simple** `onEdit(e)` trigger cannot access. This
-is why the checkbox handler is registered as an **installable** trigger
-(`ScriptApp.newTrigger('onManualTriggerEdit').forSpreadsheet(...).onEdit().create()`),
-installed idempotently by `setupManualTriggersSheet()` (checks
-`ScriptApp.getProjectTriggers()` before creating). Running
-`setupManualTriggersSheet()` once from the Apps Script editor (to grant
-authorization) is a one-time requirement; after that, the sheet's "Pipeline Tools"
-menu (built by the simple trigger `onOpen()`) can rebuild the sheet layout without
-going back into the editor. `onOpen` is the only other simple trigger in the
-project — if a second file ever needs its own `onOpen`, it must merge into this one
-rather than redeclaring the function.
+**Why menu-driven, not straight off the checkbox edit**: Apps Script's `Ui` service
+(`alert()`, `prompt()`, HTML dialogs) cannot be called from ANY trigger context —
+simple or installable — so there's no point inside an `onEdit` handler where a
+confirmation dialog could be shown at all. A menu click, by contrast, runs with a
+normal UI-attached, fully authorized execution context (same as the Script editor's
+Run button), so `Ui.alert()` and `triggerSync()`'s authorized calls (`UrlFetchApp`,
+`ScriptApp.getOAuthToken()`, IAM Credentials API impersonation) all just work — no
+installable trigger needed.
+
+(An earlier revision fired `triggerSync()` directly from an installable `onEdit`
+trigger, with no confirmation step — that's what originally required
+`ScriptApp.newTrigger()`. Removed once confirmation became a requirement; see Change
+History, 2026-07-01. `cleanupLegacyEditTrigger_()`, called from
+`setupManualTriggersSheet()`, removes that old trigger from any spreadsheet still
+running it.)
+
+`onOpen()` (a simple trigger) builds the "Pipeline Tools" menu with both "Run
+Selected Triggers" and "Rebuild Manual Triggers Sheet". It's the only simple trigger
+in the project — if a second file ever needs its own `onOpen`, it must merge into
+this one rather than redeclaring the function.
 
 The endpoint list in `MANUAL_TRIGGER_ENDPOINTS` is hand-kept in sync with the
 `triggerX()` wrappers in `Health Check Reporting.js` — adding a new sync target
@@ -160,6 +172,14 @@ something added by hand here) — extend this list if a new external API is call
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-01** — Redesigned Manual Triggers to require confirmation before firing:
+  checkboxes are now selection-only; a new "Pipeline Tools > Run Selected Triggers"
+  menu item (`runSelectedManualTriggers()`) shows a native `Ui.alert()` listing what's
+  about to run and only fires on Yes. Required because Apps Script's `Ui` service
+  can't be called from any trigger context — so confirmation could never have worked
+  from the old checkbox-fires-immediately `onEdit` design. Removed the installable
+  `onEdit` trigger entirely (`cleanupLegacyEditTrigger_()` deletes any leftover one).
+  Files: `Manual Triggers.js`.
 - **2026-07-01** — Fixed a follow-on 403 from the ID-token fix below:
   `generateIdToken`'s endpoint path is `projects/-/...` (wildcard), so Google Cloud
   checked API enablement against the Apps Script's own hidden default GCP project
