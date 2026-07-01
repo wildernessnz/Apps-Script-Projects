@@ -160,6 +160,13 @@ something added by hand here) — extend this list if a new external API is call
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-01** — Fixed a follow-on 403 from the ID-token fix below:
+  `generateIdToken`'s endpoint path is `projects/-/...` (wildcard), so Google Cloud
+  checked API enablement against the Apps Script's own hidden default GCP project
+  (not `wilderness-data`) and failed with `SERVICE_DISABLED`, quoting an unrelated
+  project number. Fixed by adding an explicit `x-goog-user-project: wilderness-data`
+  header to the `generateIdToken` call in `mintIdToken_()`, overriding that fallback.
+  Files: `Health Check Reporting.js`.
 - **2026-07-01** — Fixed `triggerSync()` 401s: Cloud Run rejects
   `ScriptApp.getOAuthToken()`'s plain OAuth access token outright (confirmed live,
   not just a theoretical caveat) — it needs an OIDC ID token audienced to the exact
