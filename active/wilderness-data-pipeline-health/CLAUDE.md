@@ -114,17 +114,37 @@ Anomalies) plus alert-acknowledgement and manual-resync actions:
   target URL — mirroring how Cloud Scheduler's own jobs authenticate to this same
   service. This means the calling identity needs `roles/iam.serviceAccountTokenCreator`
   on `wilderness-pipeline-sa` (not `roles/run.invoker` directly — that's now on the
-  impersonated SA instead). 17 individual `triggerX()` wrappers exist for one-click
-  re-runs of specific sync targets from the Script editor's Run menu.
+  impersonated SA instead). 32 individual `triggerX()` wrappers exist for one-click
+  re-runs of specific sync targets from the Script editor's Run menu — 17 incremental
+  (10 base + 6 associations + 1 Fleetio) and 15 weekly `_reconciliation` counterparts
+  (owners/pipelines have none). These are hand-maintained ON PURPOSE: Apps Script's
+  Run-menu dropdown is populated by static analysis of named top-level functions, so
+  there's no way to generate them dynamically — unlike the Manual Triggers sheet
+  below, which doesn't have that constraint.
 
 ### Manual Triggers sheet (`Manual Triggers.js`)
 
-Gives non-technical / non-editor access to the same 17 `triggerSync()` targets via
-checkboxes in a "Manual Triggers" sheet, instead of requiring the Apps Script editor.
-Checkboxes are **selection only** — firing happens from the "Pipeline Tools > Run
-Selected Triggers" menu item (`runSelectedManualTriggers()`), which reads every
-checked row, shows a native `Ui.alert()` confirmation listing exactly what's about to
-run, and only calls `triggerSync()` per row on Yes.
+Gives non-technical / non-editor access to `triggerSync()` via checkboxes in a
+"Manual Triggers" sheet, instead of requiring the Apps Script editor. Checkboxes are
+**selection only** — firing happens from the "Pipeline Tools > Run Selected Triggers"
+menu item (`runSelectedManualTriggers()`), which reads every checked row, shows a
+native `Ui.alert()` confirmation listing exactly what's about to run, and only calls
+`triggerSync()` per row on Yes.
+
+**Endpoint list is fetched LIVE from Cloud Scheduler, not hand-maintained.**
+`fetchManualTriggerEndpoints_()` calls the same Cloud Scheduler REST API
+`Scheduled Job Reporting.js` already uses (same `roles/cloudscheduler.viewer` grant,
+no new permission needed), filters job target URIs matching `/sync/<platform>/<table>`
+(excluding non-sync routes like `/maintenance/clear-stale-locks`), and reshapes them
+into sheet rows via `describeManualTriggerEndpoint_()`. `setupManualTriggersSheet()`
+("Rebuild Manual Triggers Sheet" in the menu) re-fetches and rebuilds every time it's
+run, so the sheet can never silently drift from what's actually deployed — which is
+exactly what happened with a hand-maintained array (v1 of this file), which missed
+all 15 `_reconciliation` targets entirely until someone noticed and asked "where are
+the reconciliation jobs?" (2026-07-01). **To pick up a newly added/removed Cloud
+Scheduler sync job, just run "Rebuild Manual Triggers Sheet" again — no code change
+needed.** (The `triggerX()` wrappers above are the one place that still needs a
+manual code update when a target is added, for the reason given there.)
 
 **Why menu-driven, not straight off the checkbox edit**: Apps Script's `Ui` service
 (`alert()`, `prompt()`, HTML dialogs) cannot be called from ANY trigger context —
@@ -164,13 +184,26 @@ Two Apps Script libraries, declared in `appsscript.json`:
 OAuth scopes (`appsscript.json`) cover Sheets, external HTTP requests (Cloud Run,
 Cloud Scheduler, IAM Credentials API), full `cloud-platform` (BigQuery + IAM
 Credentials impersonation), `script.send_mail` (health digest emails), and
-`script.scriptapp` (needed for `ScriptApp.newTrigger()` — auto-added by Apps Script
-the first time `setupManualTriggersSheet()` was actually run/authorized; not
-something added by hand here) — extend this list if a new external API is called.
+`script.scriptapp` (needed for `ScriptApp` trigger management —
+`getProjectTriggers()`/`deleteTrigger()` in `cleanupLegacyEditTrigger_()`, originally
+`newTrigger()` before that was removed; auto-added by Apps Script the first time
+`setupManualTriggersSheet()` was run/authorized, not something added by hand here) —
+extend this list if a new external API is called.
 
 ## Change History
 
 Newest first. History prior to this file's creation is in `git log`.
+
+- **2026-07-01** — Manual Triggers now fetches its endpoint list LIVE from Cloud
+  Scheduler (`fetchManualTriggerEndpoints_()`) instead of a hardcoded array, and
+  added all 15 weekly `_reconciliation` sync targets that the hardcoded list had
+  missed entirely. "Rebuild Manual Triggers Sheet" now always reflects whatever's
+  actually deployed — no more hand-kept list to drift. Also added matching
+  `triggerXReconciliation()` wrappers in `Health Check Reporting.js` (still
+  hand-maintained — Run-menu functions can't be generated dynamically) and fixed a
+  stale "9 reconciliation jobs" count in `Scheduled Job Reporting.js`'s doc comment
+  (actually 15). Files: `Manual Triggers.js`, `Health Check Reporting.js`,
+  `Scheduled Job Reporting.js`.
 
 - **2026-07-01** — Redesigned Manual Triggers to require confirmation before firing:
   checkboxes are now selection-only; a new "Pipeline Tools > Run Selected Triggers"
