@@ -62,7 +62,7 @@ these wrappers.
 `wilderness-data.reporting.*` view with a `SELECT *` or a light `GROUP BY` — casting,
 stage grouping, NZT conversion, staleness thresholds, cost rollups, etc. are computed
 in the view. If a number or column looks wrong, first suspect the view, not this
-code. Two exceptions that talk to non-BigQuery APIs directly:
+code. Three exceptions that talk to non-BigQuery APIs directly:
 - `Scheduled Job Reporting.js` calls the Cloud Scheduler REST API directly (job state
   isn't in BigQuery) and computes next-run times client-side by hand-parsing cron
   expressions — `parseNextRun_()` is deliberately **not** a general cron parser, only
@@ -70,6 +70,8 @@ code. Two exceptions that talk to non-BigQuery APIs directly:
   hourly, daily, weekly-on-day). Extend it if a new schedule pattern is added upstream.
 - `Health Check Reporting.js`'s `triggerSync()` / `Manual Triggers.js` call the
   `wilderness-pipeline` Cloud Run service directly to kick off a sync.
+- `Pipeline Logs Reporting.js` calls the Cloud Logging API directly (raw stdout/stderr
+  text logs aren't in BigQuery either) to pull recent Cloud Run activity.
 
 **`writeToSheet_` pattern, duplicated per file, not shared.** Every reporting class
 has its own private `writeToSheet_(sheetName, headers, data)`: clear sheet → write
@@ -171,6 +173,24 @@ The endpoint list in `MANUAL_TRIGGER_ENDPOINTS` is hand-kept in sync with the
 `triggerX()` wrappers in `Health Check Reporting.js` — adding a new sync target
 requires updating both places.
 
+### Pipeline Logs (`Pipeline Logs Reporting.js`)
+
+`refreshPipelineLogs()` pulls the last 24h of `wilderness-pipeline` Cloud Run logs
+via the Cloud Logging API (`entries:list`, paginated up to a 20-page/20,000-entry
+safety cap) and writes matching lines to a "Pipeline Logs" sheet (`timestamp`,
+`message`, `last_refresh`). Filters to `resource.type="cloud_run_revision"` +
+`resource.labels.service_name="wilderness-pipeline"` for the rolling window, then
+keeps only lines starting with a bracketed component tag (`/^\[[^\]]+\]/` —
+matches this pipeline's own log-line convention, e.g. `[PipelineRunner] ...`,
+`[BQWriter] ...`, `[HubSpotRentalConnector] ...`) to drop Cloud Run request/infra
+noise. This regex is intentionally generic across platform/table/job — it replaces
+what would otherwise be a one-off `gcloud logging read | grep <job-specific-keywords>`
+per debugging session. Uses `ScriptApp.getOAuthToken()` directly (no impersonation
+needed, unlike `triggerSync()` — the Cloud Logging API accepts plain OAuth access
+tokens) under the existing `cloud-platform` scope; the calling user's identity needs
+`roles/logging.viewer` on `wilderness-data` (separate grant, not yet made — see file
+header for the `gcloud` command).
+
 ## Dependencies
 
 Two Apps Script libraries, declared in `appsscript.json`:
@@ -194,6 +214,13 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-02** — Added "Pipeline Logs" sheet (`Pipeline Logs Reporting.js`,
+  `refreshPipelineLogs()`): pulls the last 24h of `wilderness-pipeline` Cloud Run
+  logs from the Cloud Logging API, filtered generically to bracket-tagged
+  job-activity lines (not hardcoded to any specific job/keyword), replacing ad hoc
+  `gcloud logging read | grep` debugging with a repeatable in-sheet view. Requires a
+  separate `roles/logging.viewer` grant (not yet made). Files: `Pipeline Logs
+  Reporting.js`, `CLAUDE.md`.
 - **2026-07-01** — Confirmed via `pipeline.sync_runs` query (not just inferred from
   naming) that reconciliation targets are genuine full-table re-pulls: rows_fetched
   == rows_written, both near full table size every run (e.g. `deals_reconciliation`
