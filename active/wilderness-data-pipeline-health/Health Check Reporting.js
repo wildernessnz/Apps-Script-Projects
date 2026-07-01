@@ -144,11 +144,16 @@ function triggerSync(platform, table) {
  *
  * Separately, most of the above also have a weekly RECONCILIATION
  * counterpart — a "<table>_reconciliation" sync target, run on its own
- * Cloud Scheduler cron (see Scheduled Job Reporting.js), that re-checks
- * everything rather than just what's changed since the last cursor, to
- * catch anything an incremental sync silently missed. 8 base + 6
- * association + 1 fleetio = 15 total (owners and pipelines are small
- * reference tables and have no reconciliation job).
+ * Cloud Scheduler cron (see Scheduled Job Reporting.js). Confirmed via
+ * pipeline.sync_runs (2026-07-01): these are genuine full-table
+ * re-pulls, not incremental — rows_fetched == rows_written and both sit
+ * near the table's full size every time (e.g. deals_reconciliation:
+ * ~16,600 rows/run vs ~18 rows/run for incremental deals), taking
+ * 15-45+ min vs under 2 min. They exist to catch anything the
+ * cursor-based incremental sync silently missed (a dropped webhook, a
+ * paging edge case, clock skew). 8 base + 6 association + 1 fleetio =
+ * 15 total (owners and pipelines are small reference tables and have no
+ * reconciliation job).
  *
  * Add a new wrapper here whenever a new connector/target is added
  * (HubSpot Retail, Xero, etc.) to keep this list current.
