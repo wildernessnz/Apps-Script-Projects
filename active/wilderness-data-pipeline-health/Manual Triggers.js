@@ -19,6 +19,17 @@
  * menu-driven design once a confirmation step was required — see
  * Change History in CLAUDE.md, 2026-07-01. cleanupLegacyEditTrigger_()
  * below removes that old trigger from any spreadsheet still running it.)
+ *
+ * Endpoint list: fetched LIVE from Cloud Scheduler on every rebuild
+ * (fetchManualTriggerEndpoints_()), not hand-maintained. An earlier
+ * revision used a hardcoded array here and it silently missed all 15
+ * weekly "_reconciliation" targets from day one — hand-kept lists drift
+ * from whatever's actually deployed. Cloud Scheduler's job list is the
+ * single source of truth for what sync targets exist in production, and
+ * Scheduled Job Reporting.js already reads it the same way for the
+ * "Scheduled Jobs" sheet — this reuses that same REST API and auth
+ * (roles/cloudscheduler.viewer), just filtered down to /sync/... targets
+ * and reshaped into {platform, table, description}.
  */
 
 const MANUAL_TRIGGERS_SHEET = 'Manual Triggers';
@@ -36,38 +47,105 @@ const MT_COL_RESULT = 5;
 const MT_COL_LAST_RUN = 6;
 const MT_NUM_COLS = 6;
 
-// Same 17 targets as the triggerX() wrappers in the Health Check file —
-// keep in sync if a new connector/target is added there.
-const MANUAL_TRIGGER_ENDPOINTS = [
-  // HubSpot Rental — base targets
-  { platform: 'hs-rental', table: 'deals', description: 'HubSpot Rental — Deals' },
-  { platform: 'hs-rental', table: 'contacts', description: 'HubSpot Rental — Contacts' },
-  { platform: 'hs-rental', table: 'tickets', description: 'HubSpot Rental — Tickets' },
-  { platform: 'hs-rental', table: 'tasks', description: 'HubSpot Rental — Tasks' },
-  { platform: 'hs-rental', table: 'calls', description: 'HubSpot Rental — Calls' },
-  { platform: 'hs-rental', table: 'emails', description: 'HubSpot Rental — Emails' },
-  { platform: 'hs-rental', table: 'meetings', description: 'HubSpot Rental — Meetings' },
-  { platform: 'hs-rental', table: 'engagements', description: 'HubSpot Rental — Engagements' },
-  { platform: 'hs-rental', table: 'owners', description: 'HubSpot Rental — Owners' },
-  { platform: 'hs-rental', table: 'pipelines', description: 'HubSpot Rental — Pipelines' },
-  // HubSpot Rental — association targets
-  { platform: 'hs-rental', table: 'deals_associations', description: 'HubSpot Rental — Deals associations' },
-  { platform: 'hs-rental', table: 'tickets_associations', description: 'HubSpot Rental — Tickets associations' },
-  { platform: 'hs-rental', table: 'tasks_associations', description: 'HubSpot Rental — Tasks associations' },
-  { platform: 'hs-rental', table: 'calls_associations', description: 'HubSpot Rental — Calls associations' },
-  { platform: 'hs-rental', table: 'emails_associations', description: 'HubSpot Rental — Emails associations' },
-  { platform: 'hs-rental', table: 'meetings_associations', description: 'HubSpot Rental — Meetings associations' },
-  // Fleetio
-  { platform: 'fleetio', table: 'work_orders', description: 'Fleetio — Work orders' },
-];
+// SCHEDULER_LOCATION is declared once in Scheduled Job Reporting.js —
+// Apps Script shares global scope across all .gs files, so it's
+// available here without redeclaring.
 
 /**
- * Build (or rebuild) the Manual Triggers sheet, and clean up any leftover
- * installable trigger from the earlier immediate-fire design. Safe to
- * re-run — rebuilding the layout doesn't need re-authorization, since
- * firing now happens via a menu item rather than a trigger.
+ * Fetch every currently configured Cloud Scheduler job whose target URI
+ * matches /sync/<platform>/<table>, and reshape into the
+ * {platform, table, description} entries the sheet is built from. This
+ * is what keeps the sheet in sync with production without anyone having
+ * to remember to update a hardcoded list here whenever a sync target is
+ * added or removed upstream.
+ *
+ * Non-sync routes (e.g. /maintenance/clear-stale-locks) don't match the
+ * pattern and are silently excluded — only /sync/... targets are
+ * triggerable via triggerSync() in the first place.
+ *
+ * @returns {{platform: string, table: string, description: string}[]}
+ */
+function fetchManualTriggerEndpoints_() {
+  const url = `https://cloudscheduler.googleapis.com/v1/projects/${GCP_PROJECT_ID}/locations/${SCHEDULER_LOCATION}/jobs`;
+  const response = UrlFetchApp.fetch(url, {
+    method: 'get',
+    headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
+    muteHttpExceptions: true,
+  });
+
+  const code = response.getResponseCode();
+  if (code === 401 || code === 403) {
+    throw new Error(
+      `Cloud Scheduler API auth failed (${code}). The Apps Script identity needs ` +
+      `roles/cloudscheduler.viewer on the project — see Scheduled Job Reporting.js's ` +
+      `file header doc for the grant command.`
+    );
+  }
+  if (code !== 200) {
+    throw new Error(`Cloud Scheduler API error ${code}: ${response.getContentText()}`);
+  }
+
+  const jobs = JSON.parse(response.getContentText()).jobs || [];
+  const syncUriPattern = /\/sync\/([^/]+)\/([^/]+)$/;
+
+  const endpoints = jobs
+    .map(job => {
+      const uri = (job.httpTarget && job.httpTarget.uri) || '';
+      const match = uri.match(syncUriPattern);
+      if (!match) return null;
+      const [, platform, table] = match;
+      return { platform, table, description: describeManualTriggerEndpoint_(platform, table) };
+    })
+    .filter(Boolean);
+
+  endpoints.sort((a, b) => (a.platform + a.table).localeCompare(b.platform + b.table));
+  return endpoints;
+}
+
+/**
+ * Human-readable label for a platform/table pair, e.g.
+ * ('hs-rental', 'deals_associations_reconciliation') ->
+ * "HubSpot Rental — Deals associations (reconciliation)".
+ *
+ * @param {string} platform
+ * @param {string} table
+ * @returns {string}
+ */
+function describeManualTriggerEndpoint_(platform, table) {
+  const PLATFORM_LABELS = { 'hs-rental': 'HubSpot Rental', 'fleetio': 'Fleetio' };
+  const platformLabel = PLATFORM_LABELS[platform] || platform;
+
+  const RECONCILIATION_SUFFIX = '_reconciliation';
+  const isReconciliation = table.endsWith(RECONCILIATION_SUFFIX);
+  const baseTable = isReconciliation ? table.slice(0, -RECONCILIATION_SUFFIX.length) : table;
+  const tableLabel = baseTable
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
+  return isReconciliation
+    ? `${platformLabel} — ${tableLabel} (reconciliation)`
+    : `${platformLabel} — ${tableLabel}`;
+}
+
+/**
+ * Build (or rebuild) the Manual Triggers sheet from the LIVE Cloud
+ * Scheduler job list, and clean up any leftover installable trigger
+ * from the earlier immediate-fire design. Safe to re-run — rebuilding
+ * the layout doesn't need re-authorization, since firing now happens
+ * via a menu item rather than a trigger.
  */
 function setupManualTriggersSheet() {
+  const ui = SpreadsheetApp.getUi();
+
+  let endpoints;
+  try {
+    endpoints = fetchManualTriggerEndpoints_();
+  } catch (err) {
+    ui.alert(`Could not fetch sync targets from Cloud Scheduler:\n\n${err.message}`);
+    return;
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let sheet = ss.getSheetByName(MANUAL_TRIGGERS_SHEET);
   if (!sheet) {
@@ -79,7 +157,7 @@ function setupManualTriggersSheet() {
   sheet.getRange(1, 1, 1, MT_NUM_COLS).setValues([headers]).setFontWeight('bold');
   sheet.setFrozenRows(1);
 
-  const rows = MANUAL_TRIGGER_ENDPOINTS.map(e => [e.platform, e.table, e.description, false, '', '']);
+  const rows = endpoints.map(e => [e.platform, e.table, e.description, false, '', '']);
   sheet.getRange(2, 1, rows.length, MT_NUM_COLS).setValues(rows);
 
   sheet.getRange(2, MT_COL_SELECT, rows.length, 1).insertCheckboxes();

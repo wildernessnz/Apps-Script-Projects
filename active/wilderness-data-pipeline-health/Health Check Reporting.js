@@ -142,6 +142,14 @@ function triggerSync(platform, table) {
  * work_orders run itself and are not independently triggerable — see
  * PipelineRunner's childTables handling.
  *
+ * Separately, most of the above also have a weekly RECONCILIATION
+ * counterpart — a "<table>_reconciliation" sync target, run on its own
+ * Cloud Scheduler cron (see Scheduled Job Reporting.js), that re-checks
+ * everything rather than just what's changed since the last cursor, to
+ * catch anything an incremental sync silently missed. 8 base + 6
+ * association + 1 fleetio = 15 total (owners and pipelines are small
+ * reference tables and have no reconciliation job).
+ *
  * Add a new wrapper here whenever a new connector/target is added
  * (HubSpot Retail, Xero, etc.) to keep this list current.
  */
@@ -168,6 +176,27 @@ function triggerMeetingsAssociations() { triggerSync('hs-rental', 'meetings_asso
 
 // Fleetio
 function triggerWorkOrders() { triggerSync('fleetio', 'work_orders'); }
+
+// HubSpot Rental — base reconciliation targets
+function triggerDealsReconciliation()       { triggerSync('hs-rental', 'deals_reconciliation'); }
+function triggerContactsReconciliation()    { triggerSync('hs-rental', 'contacts_reconciliation'); }
+function triggerTicketsReconciliation()     { triggerSync('hs-rental', 'tickets_reconciliation'); }
+function triggerTasksReconciliation()       { triggerSync('hs-rental', 'tasks_reconciliation'); }
+function triggerCallsReconciliation()       { triggerSync('hs-rental', 'calls_reconciliation'); }
+function triggerEmailsReconciliation()      { triggerSync('hs-rental', 'emails_reconciliation'); }
+function triggerMeetingsReconciliation()    { triggerSync('hs-rental', 'meetings_reconciliation'); }
+function triggerEngagementsReconciliation() { triggerSync('hs-rental', 'engagements_reconciliation'); }
+
+// HubSpot Rental — association reconciliation targets
+function triggerDealsAssociationsReconciliation()    { triggerSync('hs-rental', 'deals_associations_reconciliation'); }
+function triggerTicketsAssociationsReconciliation()  { triggerSync('hs-rental', 'tickets_associations_reconciliation'); }
+function triggerTasksAssociationsReconciliation()    { triggerSync('hs-rental', 'tasks_associations_reconciliation'); }
+function triggerCallsAssociationsReconciliation()    { triggerSync('hs-rental', 'calls_associations_reconciliation'); }
+function triggerEmailsAssociationsReconciliation()   { triggerSync('hs-rental', 'emails_associations_reconciliation'); }
+function triggerMeetingsAssociationsReconciliation() { triggerSync('hs-rental', 'meetings_associations_reconciliation'); }
+
+// Fleetio — reconciliation
+function triggerWorkOrdersReconciliation() { triggerSync('fleetio', 'work_orders_reconciliation'); }
 
 /**
  * Trigger every HubSpot Rental base target, one at a time with a short

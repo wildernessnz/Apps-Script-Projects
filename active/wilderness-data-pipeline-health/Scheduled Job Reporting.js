@@ -136,10 +136,13 @@ var ScheduledJobsReporting = function() {
    *   "M * * * *"      — hourly at fixed minute M
    *   "M H * * *"      — daily at fixed hour H, minute M
    *   "M H * * D"      — weekly, on day-of-week D (0=Sunday..6=Saturday),
-   *                      at fixed hour H, minute M — used by all 9
+   *                      at fixed hour H, minute M — used by all 15
    *                      reconciliation jobs (e.g. "0 1 * * 0" = Sunday
-   *                      01:00). This pattern was MISSING entirely until
-   *                      now — every reconciliation job showed
+   *                      01:00; count confirmed live via `gcloud
+   *                      scheduler jobs list`, 2026-07-01 — update this
+   *                      count if reconciliation jobs are added/removed).
+   *                      This pattern was MISSING entirely until now —
+   *                      every reconciliation job showed
    *                      "(unrecognized schedule pattern)" as a result.
    *
    * @param {string} cronExpr
