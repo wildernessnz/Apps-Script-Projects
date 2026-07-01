@@ -791,6 +791,18 @@ var HealthCheckReporting = function() {
    * impersonating PIPELINE_SERVICE_ACCOUNT via the IAM Credentials API.
    * See the comment above triggerSync() for why this is necessary.
    *
+   * The generateIdToken endpoint path is "projects/-/serviceAccounts/..."
+   * (a wildcard, not a real project) — Google Cloud then falls back to
+   * whichever GCP project is tied to the CALLING credential for API
+   * enablement/quota checks. For an Apps Script OAuth token that's the
+   * script's own hidden default GCP project, not wilderness-data — and
+   * the IAM Service Account Credentials API isn't enabled there (nor
+   * should it need to be). x-goog-user-project overrides that fallback
+   * explicitly, pointing quota/enablement checks at wilderness-data
+   * instead, where the API is already enabled. Confirmed empirically
+   * (2026-07-01): calls fail with a SERVICE_DISABLED 403 quoting an
+   * unrelated project number without this header.
+   *
    * @param {string} targetUrl
    * @returns {string} ID token
    */
@@ -802,6 +814,7 @@ var HealthCheckReporting = function() {
       contentType: 'application/json',
       headers: {
         Authorization: `Bearer ${ScriptApp.getOAuthToken()}`,
+        'x-goog-user-project': GCP_PROJECT_ID,
       },
       payload: JSON.stringify({ audience: targetUrl, includeEmail: true }),
       muteHttpExceptions: true,
