@@ -15,8 +15,8 @@
  * they did" for ANY platform/table/job — it does not hardcode any specific
  * job name (unlike a one-off keyword grep for e.g. "tickets").
  *
- * Sheet: "Pipeline Logs"
- *   timestamp, message, last_refresh
+ * Sheet: "Pipeline Logs" (newest first)
+ *   timestamp, severity, revision, message, last_refresh
  *
  * Requires:
  *   - GCP_PROJECT_ID declared in its own file (shared global scope)
@@ -57,12 +57,14 @@ var PipelineLogsReporting = function() {
       .filter(e => e.textPayload && PIPELINE_ACTIVITY_PATTERN_.test(e.textPayload))
       .map(e => [
         Utilities.formatDate(new Date(e.timestamp), 'Pacific/Auckland', 'yyyy-MM-dd HH:mm:ss'),
+        e.severity || 'DEFAULT',
+        (e.resource && e.resource.labels && e.resource.labels.revision_name) || '',
         e.textPayload,
       ]);
 
     Logger.log(`[PipelineLogsReporting.refresh] ${rows.length} entries matched job-activity pattern`);
 
-    writeToSheet_(PIPELINE_LOGS_SHEET, ['timestamp', 'message'], rows);
+    writeToSheet_(PIPELINE_LOGS_SHEET, ['timestamp', 'severity', 'revision', 'message'], rows);
   };
 
   // ── Private helpers ────────────────────────────────────────────────────────
@@ -85,7 +87,7 @@ var PipelineLogsReporting = function() {
       const body = {
         resourceNames: [`projects/${GCP_PROJECT_ID}`],
         filter,
-        orderBy: 'timestamp asc',
+        orderBy: 'timestamp desc',
         pageSize: 1000,
       };
       if (pageToken) body.pageToken = pageToken;
@@ -147,7 +149,7 @@ var PipelineLogsReporting = function() {
 
     sheet.getRange(1, 1, 1, headersWithRefresh.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
-    sheet.autoResizeColumn(2);
+    sheet.autoResizeColumn(4);
 
     Logger.log(`[PipelineLogsReporting.writeToSheet_] sheet=${sheetName} rows=${data.length}`);
   };

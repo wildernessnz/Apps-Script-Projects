@@ -176,8 +176,9 @@ requires updating both places.
 ### Pipeline Logs (`Pipeline Logs Reporting.js`)
 
 `refreshPipelineLogs()` pulls the last 24h of `wilderness-pipeline` Cloud Run logs
-via the Cloud Logging API (`entries:list`, paginated up to a 20-page/20,000-entry
-safety cap) and writes matching lines to a "Pipeline Logs" sheet (`timestamp`,
+via the Cloud Logging API (`entries:list`, `orderBy: timestamp desc` so the sheet
+reads newest-first, paginated up to a 20-page/20,000-entry safety cap) and writes
+matching lines to a "Pipeline Logs" sheet (`timestamp`, `severity`, `revision`,
 `message`, `last_refresh`). Filters to `resource.type="cloud_run_revision"` +
 `resource.labels.service_name="wilderness-pipeline"` for the rolling window, then
 keeps only lines starting with a bracketed component tag (`/^\[[^\]]+\]/` —
@@ -214,6 +215,9 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-02** — Pipeline Logs: added `severity` and `revision` columns, and
+  switched ordering to `timestamp desc` so the sheet reads newest-first (was
+  ascending). Files: `Pipeline Logs Reporting.js`, `CLAUDE.md`.
 - **2026-07-02** — Added "Pipeline Logs" sheet (`Pipeline Logs Reporting.js`,
   `refreshPipelineLogs()`): pulls the last 24h of `wilderness-pipeline` Cloud Run
   logs from the Cloud Logging API, filtered generically to bracket-tagged
