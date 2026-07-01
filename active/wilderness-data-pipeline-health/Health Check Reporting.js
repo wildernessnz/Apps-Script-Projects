@@ -101,13 +101,15 @@ function runHealthCheckDigestScheduled() {
 /**
  * Manually trigger a sync for a given platform/table via the Cloud Run
  * endpoint, without needing to construct a curl command by hand. Requires
- * an OIDC identity token — Apps Script can't generate gcloud-style tokens
- * directly, so this uses ScriptApp's OAuth token instead, which requires
- * the Cloud Run service to also accept Google-issued OAuth tokens from
- * the script's own identity (the Apps Script project's service account /
- * the running user's Google identity must have the Cloud Run Invoker role
- * on the wilderness-pipeline service — set this up once in IAM if calls
- * fail with 401/403).
+ * an OIDC ID token audienced to the exact target URL — Cloud Run's auth
+ * check rejects a plain OAuth access token (confirmed empirically, not
+ * just a theoretical caveat). The calling identity mints one on demand by
+ * impersonating wilderness-pipeline-sa (which already has Cloud Run
+ * Invoker) via the IAM Credentials API — see mintIdToken_() in
+ * HealthCheckReporting for the full mechanism. This requires the calling
+ * identity to have roles/iam.serviceAccountTokenCreator on
+ * wilderness-pipeline-sa — set this up once in IAM if calls fail with
+ * 401/403 quoting a token-minting error.
  *
  * NOTE on timing: routes/scheduled.js responds with {"status":"accepted",...}
  * IMMEDIATELY, before the actual sync work runs — the sync itself happens
@@ -759,11 +761,66 @@ var HealthCheckReporting = function() {
     Logger.log(`[HealthCheckReporting.runDigest] email sent to ${recipientEmail} — ${problemRows.length} issues, ${alertRows.length} alerts`);
   };
 
+  // Cloud Run's own auth check (when "require authentication" is on)
+  // validates a proper OIDC ID token whose audience matches the exact
+  // request URL — it does NOT accept a plain OAuth access token like the
+  // one ScriptApp.getOAuthToken() returns (confirmed empirically: it
+  // fails with a GFE-level 401 regardless of IAM bindings, since the
+  // token type itself is wrong, not the permission). Cloud Scheduler's
+  // own jobs call this same service successfully using exactly this
+  // pattern — an OIDC token audienced to the specific /sync/<platform>/
+  // <table> URL, issued for the wilderness-pipeline-sa service account
+  // (which already has roles/run.invoker on the service).
+  //
+  // A human Google identity can't mint an audience-bound ID token for an
+  // arbitrary URL directly — that requires impersonating a service
+  // account. So triggerSync() impersonates wilderness-pipeline-sa via the
+  // IAM Credentials API's generateIdToken method, using the calling
+  // user's own OAuth token (already cloud-platform scoped) as the
+  // credential for that impersonation call. This requires the calling
+  // identity to have roles/iam.serviceAccountTokenCreator on
+  // wilderness-pipeline-sa (grant via: gcloud iam service-accounts
+  // add-iam-policy-binding wilderness-pipeline-sa@wilderness-data.iam.gserviceaccount.com
+  // --member="user:YOUR_EMAIL" --role="roles/iam.serviceAccountTokenCreator"
+  // --project=wilderness-data). No service account key file involved —
+  // the impersonation call mints a short-lived token on demand.
+  const PIPELINE_SERVICE_ACCOUNT = 'wilderness-pipeline-sa@wilderness-data.iam.gserviceaccount.com';
+
   /**
-   * Manually trigger a sync via the Cloud Run endpoint. See triggerSync()
-   * top-level function doc for the IAM/auth caveat — this uses
-   * ScriptApp.getOAuthToken(), which requires the calling user/script
-   * identity to have Cloud Run Invoker on the wilderness-pipeline service.
+   * Mint a short-lived OIDC ID token audienced to `targetUrl`, by
+   * impersonating PIPELINE_SERVICE_ACCOUNT via the IAM Credentials API.
+   * See the comment above triggerSync() for why this is necessary.
+   *
+   * @param {string} targetUrl
+   * @returns {string} ID token
+   */
+  const mintIdToken_ = (targetUrl) => {
+    const iamUrl = `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${PIPELINE_SERVICE_ACCOUNT}:generateIdToken`;
+
+    const response = UrlFetchApp.fetch(iamUrl, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        Authorization: `Bearer ${ScriptApp.getOAuthToken()}`,
+      },
+      payload: JSON.stringify({ audience: targetUrl, includeEmail: true }),
+      muteHttpExceptions: true,
+    });
+
+    const code = response.getResponseCode();
+    if (code !== 200) {
+      throw new Error(
+        `Failed to mint ID token via impersonation (${code}): ${response.getContentText()} — ` +
+        `the calling identity needs roles/iam.serviceAccountTokenCreator on ${PIPELINE_SERVICE_ACCOUNT}.`
+      );
+    }
+
+    return JSON.parse(response.getContentText()).token;
+  };
+
+  /**
+   * Manually trigger a sync via the Cloud Run endpoint, authenticating
+   * with an impersonated ID token (see mintIdToken_() doc above).
    *
    * @param {string} platform
    * @param {string} table
@@ -773,10 +830,12 @@ var HealthCheckReporting = function() {
     const url = `https://wilderness-pipeline-707857814172.australia-southeast1.run.app/sync/${platform}/${table}`;
     Logger.log(`[HealthCheckReporting.triggerSync] POST ${url}`);
 
+    const idToken = mintIdToken_(url);
+
     const options = {
       method: 'post',
       headers: {
-        Authorization: `Bearer ${ScriptApp.getOAuthToken()}`,
+        Authorization: `Bearer ${idToken}`,
       },
       muteHttpExceptions: true,
     };
@@ -789,10 +848,10 @@ var HealthCheckReporting = function() {
 
     if (code === 401 || code === 403) {
       Logger.log(
-        '[HealthCheckReporting.triggerSync] AUTH FAILED — the Apps Script ' +
-        'identity needs the Cloud Run Invoker role on wilderness-pipeline. ' +
+        '[HealthCheckReporting.triggerSync] AUTH FAILED — the impersonated ' +
+        'service account needs roles/run.invoker on wilderness-pipeline. ' +
         'Grant via: gcloud run services add-iam-policy-binding wilderness-pipeline ' +
-        '--region=australia-southeast1 --member="user:YOUR_EMAIL" --role="roles/run.invoker"'
+        `--region=australia-southeast1 --member="serviceAccount:${PIPELINE_SERVICE_ACCOUNT}" --role="roles/run.invoker"`
       );
     }
 
