@@ -194,6 +194,12 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-01** — Confirmed via `pipeline.sync_runs` query (not just inferred from
+  naming) that reconciliation targets are genuine full-table re-pulls: rows_fetched
+  == rows_written, both near full table size every run (e.g. `deals_reconciliation`
+  ~16,600 rows vs ~18/run for incremental `deals`), 15-45+ min vs under 2 min.
+  Updated the doc comment above the `triggerX()` wrappers accordingly. Files:
+  `Health Check Reporting.js`.
 - **2026-07-01** — Manual Triggers now fetches its endpoint list LIVE from Cloud
   Scheduler (`fetchManualTriggerEndpoints_()`) instead of a hardcoded array, and
   added all 15 weekly `_reconciliation` sync targets that the hardcoded list had
