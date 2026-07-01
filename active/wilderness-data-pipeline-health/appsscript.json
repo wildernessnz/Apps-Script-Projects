@@ -1,0 +1,27 @@
+{
+  "timeZone": "Pacific/Auckland",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "BigQueryLibrary",
+        "version": "0",
+        "libraryId": "1BQX3gNTlO4XiSo0GdQIn8IOVJhrJ5m8TV_E3USAJfZmconIB4T1pgd_0",
+        "developmentMode": true
+      },
+      {
+        "userSymbol": "WildernessAppScriptLibrary",
+        "version": "0",
+        "libraryId": "1qv1tezMhtuE_YyaIEhj4G1q-bjEYM43an4XH1qCgzllPKEHeQEggpUOS",
+        "developmentMode": true
+      }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/cloud-platform",
+    "https://www.googleapis.com/auth/script.send_mail"
+  ],
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8"
+}
