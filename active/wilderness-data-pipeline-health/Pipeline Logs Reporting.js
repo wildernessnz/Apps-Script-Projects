@@ -1,22 +1,40 @@
 /**
  * @fileoverview Wilderness Pipeline — recent Cloud Run log viewer. Pulls
  * `wilderness-pipeline` Cloud Run logs directly from the Cloud Logging API
- * (NOT BigQuery — these are stdout/stderr text logs, not a table this
- * pipeline writes to) for a rolling lookback window and writes the
- * job-activity lines to a sheet, so a run's recent behaviour can be
- * inspected without a terminal / `gcloud` access.
+ * (NOT BigQuery — these are stdout/stderr logs, not a table this pipeline
+ * writes to) for a rolling lookback window and writes the job-activity
+ * lines to a sheet, so a run's recent behaviour can be inspected without a
+ * terminal / `gcloud` access.
  *
- * WHY A REGEX FILTER INSTEAD OF FULL LOGS: Cloud Run emits a lot of
- * request/infra noise per revision. This pipeline's own code tags every
- * job-activity line with a bracketed component name (e.g.
- * "[PipelineRunner] Starting hs_rental_raw.tickets (incremental)",
- * "[BQWriter] Upserted 36 rows -> hs_rental_raw.tickets"). Filtering on
- * that bracket-tag prefix generically captures "what jobs ran and what
- * they did" for ANY platform/table/job — it does not hardcode any specific
- * job name (unlike a one-off keyword grep for e.g. "tickets").
+ * LOG FORMAT (as of the wilderness-pipeline structured-logging change):
+ * each app log line is a single JSON object on stdout/stderr, e.g.
+ *   {"severity":"INFO","message":"Upserted 36 rows -> hs_rental_raw.tickets",
+ *    "component":"BQWriter","runId":"a1b2c3d4-...","platform":"hs_rental",
+ *    "table":"tickets","mode":"incremental"}
+ * Cloud Run's logging agent promotes the top-level "severity" key to the
+ * LogEntry's own `severity` field and puts the rest in `jsonPayload`.
+ * `runId`/`platform`/`table`/`mode` are only present for lines logged
+ * inside `withRunContext()` (i.e. an actual sync invocation, keyed to the
+ * SAME platform/table/mode taxonomy as `pipeline.sync_runs` and the Cloud
+ * Scheduler job's target URI) — a few call sites outside a run (webhook
+ * receipt, maintenance sweep, startup) pass platform/table manually where
+ * they have it, everything else (process startup, the concurrency-cap 503)
+ * has none of the four. This is what makes it possible to answer "which
+ * scheduled job do these lines belong to" — before this change, only lines
+ * that happened to spell out the table name in their message text could be
+ * attributed at all.
+ *
+ * LEGACY FALLBACK: any entry without a matching `jsonPayload.component`
+ * falls back to matching the OLD plain-text convention this pipeline used
+ * before structured logging (`"[Component] message"`, no platform/table/
+ * mode/runId) — this keeps older log lines still inside the lookback
+ * window (from before the pipeline's redeploy) visible in the sheet
+ * instead of silently vanishing. Safe to delete this fallback once no
+ * pre-migration lines remain in the lookback window.
  *
  * Sheet: "Pipeline Logs" (newest first)
- *   timestamp, severity, revision, message, last_refresh
+ *   timestamp, severity, platform, table, mode, component, message, run_id,
+ *   revision, last_refresh
  *
  * Requires:
  *   - GCP_PROJECT_ID declared in its own file (shared global scope)
@@ -53,23 +71,39 @@ var PipelineLogsReporting = function() {
     const entries = fetchLogEntries_(start, end);
     Logger.log(`[PipelineLogsReporting.refresh] fetched ${entries.length} raw log entries`);
 
-    const rows = entries
-      .filter(e => e.textPayload && PIPELINE_ACTIVITY_PATTERN_.test(e.textPayload))
-      .map(e => [
-        Utilities.formatDate(new Date(e.timestamp), 'Pacific/Auckland', 'yyyy-MM-dd HH:mm:ss'),
-        e.severity || 'DEFAULT',
-        (e.resource && e.resource.labels && e.resource.labels.revision_name) || '',
-        e.textPayload,
-      ]);
+    const rows = entries.map(extractRow_).filter(row => row !== null);
 
     Logger.log(`[PipelineLogsReporting.refresh] ${rows.length} entries matched job-activity pattern`);
 
-    writeToSheet_(PIPELINE_LOGS_SHEET, ['timestamp', 'severity', 'revision', 'message'], rows);
+    const headers = ['timestamp', 'severity', 'platform', 'table', 'mode', 'component', 'message', 'run_id', 'revision'];
+    writeToSheet_(PIPELINE_LOGS_SHEET, headers, rows);
   };
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  const PIPELINE_ACTIVITY_PATTERN_ = /^\[[^\]]+\]/;
+  const LEGACY_COMPONENT_PATTERN_ = /^\[([^\]]+)\]\s*/;
+
+  function extractRow_(e) {
+    const timestamp = Utilities.formatDate(new Date(e.timestamp), 'Pacific/Auckland', 'yyyy-MM-dd HH:mm:ss');
+    const severity  = e.severity || 'DEFAULT';
+    const revision  = (e.resource && e.resource.labels && e.resource.labels.revision_name) || '';
+
+    if (e.jsonPayload && e.jsonPayload.component) {
+      const jp = e.jsonPayload;
+      return [timestamp, severity, jp.platform || '', jp.table || '', jp.mode || '', jp.component, jp.message || '', jp.runId || '', revision];
+    }
+
+    if (e.textPayload) {
+      const match = e.textPayload.match(LEGACY_COMPONENT_PATTERN_);
+      if (match) {
+        const component = match[1];
+        const message = e.textPayload.slice(match[0].length);
+        return [timestamp, severity, '', '', '', component, message, '', revision];
+      }
+    }
+
+    return null;
+  }
 
   function fetchLogEntries_(start, end) {
     const filter = [
@@ -149,7 +183,7 @@ var PipelineLogsReporting = function() {
 
     sheet.getRange(1, 1, 1, headersWithRefresh.length).setFontWeight('bold');
     sheet.setFrozenRows(1);
-    sheet.autoResizeColumn(4);
+    sheet.autoResizeColumn(7);
 
     Logger.log(`[PipelineLogsReporting.writeToSheet_] sheet=${sheetName} rows=${data.length}`);
   };

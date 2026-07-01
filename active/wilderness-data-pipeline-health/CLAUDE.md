@@ -178,15 +178,27 @@ requires updating both places.
 `refreshPipelineLogs()` pulls the last 24h of `wilderness-pipeline` Cloud Run logs
 via the Cloud Logging API (`entries:list`, `orderBy: timestamp desc` so the sheet
 reads newest-first, paginated up to a 20-page/20,000-entry safety cap) and writes
-matching lines to a "Pipeline Logs" sheet (`timestamp`, `severity`, `revision`,
-`message`, `last_refresh`). Filters to `resource.type="cloud_run_revision"` +
-`resource.labels.service_name="wilderness-pipeline"` for the rolling window, then
-keeps only lines starting with a bracketed component tag (`/^\[[^\]]+\]/` —
-matches this pipeline's own log-line convention, e.g. `[PipelineRunner] ...`,
-`[BQWriter] ...`, `[HubSpotRentalConnector] ...`) to drop Cloud Run request/infra
-noise. This regex is intentionally generic across platform/table/job — it replaces
-what would otherwise be a one-off `gcloud logging read | grep <job-specific-keywords>`
-per debugging session. Uses `ScriptApp.getOAuthToken()` directly (no impersonation
+matching lines to a "Pipeline Logs" sheet (`timestamp`, `severity`, `platform`,
+`table`, `mode`, `component`, `message`, `run_id`, `revision`, `last_refresh`).
+Filters to `resource.type="cloud_run_revision"` +
+`resource.labels.service_name="wilderness-pipeline"` for the rolling window.
+
+`wilderness-pipeline` (the separate Cloud Run repo) emits structured JSON log
+lines — `{"severity":...,"message":...,"component":...,"runId":...,"platform":...,
+"table":...,"mode":...}` — with `runId`/`platform`/`table`/`mode` present on every
+line logged during a sync invocation (via that repo's `withRunContext()`,
+AsyncLocalStorage-based), keyed to the same platform/table/mode taxonomy as
+`pipeline.sync_runs` and the Cloud Scheduler job's target URI. Cloud Run's logging
+agent promotes the JSON's `severity` key to the LogEntry's own field and the rest
+lands in `jsonPayload`; `extractRow_()` reads `jsonPayload.component` as the
+"this is a job-activity line, not Cloud Run request/infra noise" signal (replacing
+the plain-text `/^\[[^\]]+\]/` bracket-tag regex the pipeline used before it had
+structured logging), and falls back to that legacy regex against `textPayload` for
+any pre-migration lines still inside the lookback window. **This is what makes it
+possible to see which scheduled job a given log line belongs to** — before the
+structured-logging change, only lines whose message text happened to spell out the
+table name could be attributed at all, and most (e.g. `BQWriter` batch-insert
+lines) couldn't. Uses `ScriptApp.getOAuthToken()` directly (no impersonation
 needed, unlike `triggerSync()` — the Cloud Logging API accepts plain OAuth access
 tokens) under the existing `cloud-platform` scope; the calling user's identity needs
 `roles/logging.viewer` on `wilderness-data` (separate grant, not yet made — see file
@@ -215,6 +227,13 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-02** — Pipeline Logs: read `wilderness-pipeline`'s new structured JSON
+  log lines (`jsonPayload.component/runId/platform/table/mode`) instead of the old
+  plain-text `[Component] message` convention, adding `platform`, `table`, `mode`,
+  `component`, and `run_id` columns — this is what finally lets a log line be
+  attributed to the scheduled job/run that produced it. Kept a legacy-format
+  fallback for pre-migration lines still inside the 24h lookback window. Files:
+  `Pipeline Logs Reporting.js`, `CLAUDE.md`.
 - **2026-07-02** — Pipeline Logs: added `severity` and `revision` columns, and
   switched ordering to `timestamp desc` so the sheet reads newest-first (was
   ascending). Files: `Pipeline Logs Reporting.js`, `CLAUDE.md`.
