@@ -104,11 +104,18 @@ Anomalies) plus alert-acknowledgement and manual-resync actions:
 - The Volume Trends Chart sheet's chart is created once and bound to a fixed range;
   it deliberately never gets a `last_refresh` column appended (unlike every other
   sheet) because that would shift the chart's bound range and break it.
-- `triggerSync(platform, table)` POSTs to the Cloud Run service using
-  `ScriptApp.getOAuthToken()` as a bearer token — requires the Apps Script identity to
-  have `roles/run.invoker` on the `wilderness-pipeline` Cloud Run service (grant
-  command is in the function's doc comment). 17 individual `triggerX()` wrappers exist
-  for one-click re-runs of specific sync targets from the Script editor's Run menu.
+- `triggerSync(platform, table)` POSTs to the Cloud Run service authenticated with an
+  **impersonated OIDC ID token**, not `ScriptApp.getOAuthToken()` directly — Cloud
+  Run's auth check rejects plain OAuth access tokens outright (confirmed empirically,
+  2026-07-01), regardless of IAM bindings on the calling identity, because the token
+  type itself doesn't carry an audience claim. `mintIdToken_()` calls the IAM
+  Credentials API's `generateIdToken`, impersonating `wilderness-pipeline-sa@wilderness-data.iam.gserviceaccount.com`
+  (which has `roles/run.invoker` on the service) with `audience` set to the exact
+  target URL — mirroring how Cloud Scheduler's own jobs authenticate to this same
+  service. This means the calling identity needs `roles/iam.serviceAccountTokenCreator`
+  on `wilderness-pipeline-sa` (not `roles/run.invoker` directly — that's now on the
+  impersonated SA instead). 17 individual `triggerX()` wrappers exist for one-click
+  re-runs of specific sync targets from the Script editor's Run menu.
 
 ### Manual Triggers sheet (`Manual Triggers.js`)
 
@@ -143,13 +150,24 @@ Two Apps Script libraries, declared in `appsscript.json`:
   code; check before assuming it's unused if adding new features.
 
 OAuth scopes (`appsscript.json`) cover Sheets, external HTTP requests (Cloud Run,
-Cloud Scheduler), full `cloud-platform` (BigQuery), and `script.send_mail` (health
-digest emails) — extend this list if a new external API is called.
+Cloud Scheduler, IAM Credentials API), full `cloud-platform` (BigQuery + IAM
+Credentials impersonation), `script.send_mail` (health digest emails), and
+`script.scriptapp` (needed for `ScriptApp.newTrigger()` — auto-added by Apps Script
+the first time `setupManualTriggersSheet()` was actually run/authorized; not
+something added by hand here) — extend this list if a new external API is called.
 
 ## Change History
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-01** — Fixed `triggerSync()` 401s: Cloud Run rejects
+  `ScriptApp.getOAuthToken()`'s plain OAuth access token outright (confirmed live,
+  not just a theoretical caveat) — it needs an OIDC ID token audienced to the exact
+  target URL. Now mints one via IAM Credentials API impersonation of
+  `wilderness-pipeline-sa` (which already has `run.invoker`), matching how Cloud
+  Scheduler's own jobs authenticate to the same service. Required granting
+  `mark.lonergan@wilderness.co.nz` `roles/iam.serviceAccountTokenCreator` on
+  `wilderness-pipeline-sa` (IAM change, not in git). Files: `Health Check Reporting.js`.
 - **2026-07-01** — Added maintenance policy (update this file + log + git commit
   after every change) and this Change History section. Files: `CLAUDE.md`.
 - **2026-07-01** — Added "Manual Triggers" sheet: checkbox per sync endpoint (17
