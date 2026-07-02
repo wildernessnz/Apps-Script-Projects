@@ -330,6 +330,7 @@ var HealthCheckReporting = function() {
     );
     Logger.log(`[HealthCheckReporting.refreshUnacknowledgedAlerts] rows=${res.totalRows}`);
     writeToSheet_(ALERTS_SHEET, res.headers, res.data);
+    applyAlertsFormatting_(ALERTS_SHEET, res.headers);
   };
 
   /**
@@ -1004,6 +1005,43 @@ var HealthCheckReporting = function() {
             sheet.getRange(i + 2, 1, 1, numCols).setBackground('#fff2cc');
           }
         }
+      }
+    }
+  };
+
+  /**
+   * Highlight rows in the Unacknowledged Alerts sheet by severity:
+   *   - red background where severity = 'critical'
+   *   - yellow background for anything else (e.g. 'warning')
+   * Same two colors and same critical-vs-other split as the digest email's
+   * alerts table (see runDigest()'s ROW_COLORS/severity check) — keep both
+   * in sync if either changes. 'critical' was introduced by the Xero
+   * connector (fires on OAuth refresh failure / token-persist failure);
+   * every alert before that used 'warning'. Unlike every other sheet in
+   * this file, this one previously had NO severity-based formatting at
+   * all — added 2026-07-02.
+   *
+   * @param {string} sheetName
+   * @param {string[]} headers
+   */
+  const applyAlertsFormatting_ = (sheetName, headers) => {
+    const ss    = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(sheetName);
+    if (!sheet) return;
+
+    const lastRow = sheet.getLastRow();
+    if (lastRow < 2) return;
+
+    const severityCol = headers.indexOf('severity') + 1;
+    const numCols = headers.length + 1; // +1 for last_refresh
+
+    sheet.getRange(2, 1, lastRow - 1, numCols).setBackground(null);
+
+    if (severityCol > 0) {
+      const values = sheet.getRange(2, severityCol, lastRow - 1, 1).getValues();
+      for (let i = 0; i < values.length; i++) {
+        const bg = values[i][0] === 'critical' ? '#f4cccc' : '#fff2cc';
+        sheet.getRange(i + 2, 1, 1, numCols).setBackground(bg);
       }
     }
   };

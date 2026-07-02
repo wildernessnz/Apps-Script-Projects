@@ -67,7 +67,13 @@ code. Three exceptions that talk to non-BigQuery APIs directly:
   isn't in BigQuery) and computes next-run times client-side by hand-parsing cron
   expressions — `parseNextRun_()` is deliberately **not** a general cron parser, only
   handles the specific patterns this pipeline's jobs actually use (every-N-minutes,
-  hourly, daily, weekly-on-day). Extend it if a new schedule pattern is added upstream.
+  hourly, daily, weekly-on-day, daily-at-multiple-fixed-hours). Extend it if a new
+  schedule pattern is added upstream. The multi-fixed-hour pattern (`"M H1,H2 * * *"`,
+  e.g. `"0 7,13 * * *"` for Xero's twice-daily `purchase_orders` sync, added
+  2026-07-02) MUST be checked before the single-fixed-hour branch — `parseInt("7,13",
+  10)` resolves to `7` without erroring, so without that ordering the parser would
+  silently compute only the first hour and drop every other one, rather than falling
+  through to `"(unrecognized schedule pattern)"` as you might expect.
 - `Health Check Reporting.js`'s `triggerSync()` / `Manual Triggers.js` call the
   `wilderness-pipeline` Cloud Run service directly to kick off a sync.
 - `Pipeline Logs Reporting.js` calls the Cloud Logging API directly (raw stdout/stderr
@@ -103,6 +109,14 @@ Anomalies) plus alert-acknowledgement and manual-resync actions:
   stale lock, unacked alert, or volume anomaly) — silent when healthy, to avoid digest
   fatigue. The email's row colors intentionally reuse the same hex values as the
   sheet's own formatting — keep both in sync if either changes.
+- `applyAlertsFormatting_()` colors the Unacknowledged Alerts sheet by `severity`
+  (red for `'critical'`, yellow for anything else) — added 2026-07-02; this sheet
+  previously had NO severity-based coloring at all, unlike every other sheet in this
+  file. Uses the same two hex values and the same critical-vs-other split as
+  `runDigest()`'s alerts table — keep both in sync if either changes. `'critical'` is
+  a new severity introduced by the Xero connector (fires on OAuth refresh failure or
+  a token-persist failure after retries); every `pipeline.alerts` row before that used
+  `'warning'`.
 - The Volume Trends Chart sheet's chart is created once and bound to a fixed range;
   it deliberately never gets a `last_refresh` column appended (unlike every other
   sheet) because that would shift the chart's bound range and break it.
@@ -227,6 +241,23 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-02** — Xero connector follow-up (part 1 of a multi-part fix — see project
+  memory for the full 4-item handoff): fixed `parseNextRun_()`/`describeSchedule_()`
+  in `Scheduled Job Reporting.js` to correctly handle daily schedules with a
+  comma-separated hour list (`"M H1,H2 * * *"`), needed for the new twice-daily
+  `purchase_orders` Xero sync (`"0 7,13 * * *"`). Without this, `parseInt("7,13",
+  10)` would have silently computed only the 7am run — not the "(unrecognized
+  schedule pattern)" fallback one might expect. Also added `applyAlertsFormatting_()`
+  to color the Unacknowledged Alerts sheet by `severity` (red for `'critical'`,
+  yellow otherwise) — that sheet had no severity-based coloring at all before this,
+  unlike every other sheet in `Health Check Reporting.js`; `runDigest()`'s email
+  already handled `'critical'` distinctly (added when the Xero connector introduced
+  that severity), the sheet just hadn't caught up. Still outstanding from that
+  handoff: 2 corrections to the live `reporting.health_current_status` BigQuery view
+  (`has_stale_lock` thresholds for `purchase_orders`/`bills_reconciliation`, and
+  missing `is_stale`/`expected_max_staleness_minutes` entries for `purchase_orders`/
+  `bills`) — that view isn't tracked in this repo, pending review before applying.
+  Files: `Scheduled Job Reporting.js`, `Health Check Reporting.js`, `CLAUDE.md`.
 - **2026-07-02** — Pipeline Logs: read `wilderness-pipeline`'s new structured JSON
   log lines (`jsonPayload.component/runId/platform/table/mode`) instead of the old
   plain-text `[Component] message` convention, adding `platform`, `table`, `mode`,

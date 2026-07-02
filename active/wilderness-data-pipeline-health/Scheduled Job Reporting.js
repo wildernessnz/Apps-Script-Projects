@@ -144,6 +144,14 @@ var ScheduledJobsReporting = function() {
    *                      This pattern was MISSING entirely until now —
    *                      every reconciliation job showed
    *                      "(unrecognized schedule pattern)" as a result.
+   *   "M H1,H2,... * * *" — daily at fixed minute M, multiple fixed hours
+   *                      (e.g. "0 7,13 * * *" = Xero's twice-daily
+   *                      purchase_orders sync, added 2026-07-02). MUST be
+   *                      checked before the single-fixed-hour path below:
+   *                      `parseInt("7,13", 10)` resolves to 7 without
+   *                      erroring, so an unguarded fallthrough would
+   *                      silently compute only the first hour and drop
+   *                      every other one, rather than failing loudly.
    *
    * @param {string} cronExpr
    * @param {string} timeZone
@@ -184,6 +192,35 @@ var ScheduledJobsReporting = function() {
         next.setUTCHours(next.getUTCHours() + 1);
       }
       return next;
+    }
+
+    // Pattern: M H1,H2,... * * * — daily, multiple fixed hours (dayOfWeek
+    // must be '*'). Checked before the single-fixed-hour path below — see
+    // the file-header doc comment for why the ordering matters.
+    if (hour.indexOf(',') !== -1 && dayOfWeek === '*') {
+      const fixedMinuteMulti = parseInt(minute, 10);
+      const hourList = hour.split(',').map(h => parseInt(h, 10));
+      if (isNaN(fixedMinuteMulti) || hourList.some(isNaN)) return null;
+
+      const todayStr = Utilities.formatDate(now, timeZone, 'yyyy-MM-dd');
+      const nowInZoneMulti = new Date(Utilities.formatDate(now, timeZone, "yyyy-MM-dd'T'HH:mm:ss"));
+
+      const remainingToday = hourList
+        .map(h => {
+          const candidate = new Date(todayStr + 'T00:00:00');
+          candidate.setHours(h, fixedMinuteMulti, 0, 0);
+          return candidate;
+        })
+        .filter(candidate => candidate > nowInZoneMulti)
+        .sort((a, b) => a - b);
+
+      if (remainingToday.length > 0) return remainingToday[0];
+
+      // No occurrence left today — earliest hour tomorrow.
+      const tomorrow = new Date(todayStr + 'T00:00:00');
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setHours(Math.min(...hourList), fixedMinuteMulti, 0, 0);
+      return tomorrow;
     }
 
     const fixedMinute = parseInt(minute, 10);
@@ -265,6 +302,22 @@ var ScheduledJobsReporting = function() {
       return fixedMinuteOnly === 0
         ? 'Hourly, on the hour'
         : `Hourly, at minute ${fixedMinuteOnly}`;
+    }
+
+    // Pattern: M H1,H2,... * * * — daily, multiple fixed hours. Checked
+    // before the single-fixed-hour path below for the same reason as in
+    // parseNextRun_() — parseInt("7,13", 10) doesn't error.
+    if (hour.indexOf(',') !== -1 && dayOfWeek === '*') {
+      const fixedMinuteMulti = parseInt(minute, 10);
+      const hourList = hour.split(',').map(h => parseInt(h, 10));
+      if (isNaN(fixedMinuteMulti) || hourList.some(isNaN)) return cronExpr;
+
+      const times = hourList
+        .slice()
+        .sort((a, b) => a - b)
+        .map(h => `${String(h).padStart(2, '0')}:${String(fixedMinuteMulti).padStart(2, '0')}`)
+        .join(', ');
+      return `Daily at ${times} ${timeZone}`;
     }
 
     const fixedMinute = parseInt(minute, 10);
