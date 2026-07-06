@@ -354,10 +354,11 @@ Newest first. History prior to this file's creation is in `git log`.
   the next rebuild, since Job-targeted rows hit a `run.googleapis.com/.../
   jobs/...:run` URI instead. The sheet gained a `Target Type` column (Service/
   Job) driving which function `runSelectedManualTriggers()` calls per row.
-  Needs a new IAM grant this session didn't make (unlike `roles/run.viewer` /
-  `roles/monitoring.viewer` below, which were): `roles/run.invoker` on
-  `wilderness-pipeline-job` for whoever fires a reconciliation trigger — see
-  `triggerJobRun()`'s doc comment for the `gcloud` command. Files:
+  Needed one more IAM grant beyond `roles/run.viewer`/`roles/monitoring.viewer`
+  below: `roles/run.invoker` on `wilderness-pipeline-job`, to actually START an
+  execution rather than just read its config — granted to
+  `mark.lonergan@wilderness.co.nz` 2026-07-06 (see `triggerJobRun()`'s doc
+  comment for the exact `gcloud` command used). Files:
   `Scheduled Job Reporting.js`, `Health Check Reporting.js`,
   `Manual Triggers.js`, `CLAUDE.md`.
 - **2026-07-06** — Health Monitor enhancements, following a handoff about
