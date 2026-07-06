@@ -62,7 +62,7 @@ these wrappers.
 `wilderness-data.reporting.*` view with a `SELECT *` or a light `GROUP BY` — casting,
 stage grouping, NZT conversion, staleness thresholds, cost rollups, etc. are computed
 in the view. If a number or column looks wrong, first suspect the view, not this
-code. Three exceptions that talk to non-BigQuery APIs directly:
+code. Exceptions that talk to non-BigQuery APIs directly:
 - `Scheduled Job Reporting.js` calls the Cloud Scheduler REST API directly (job state
   isn't in BigQuery) and computes next-run times client-side by hand-parsing cron
   expressions — `parseNextRun_()` is deliberately **not** a general cron parser, only
@@ -73,11 +73,29 @@ code. Three exceptions that talk to non-BigQuery APIs directly:
   2026-07-02) MUST be checked before the single-fixed-hour branch — `parseInt("7,13",
   10)` resolves to `7` without erroring, so without that ordering the parser would
   silently compute only the first hour and drop every other one, rather than falling
-  through to `"(unrecognized schedule pattern)"` as you might expect.
+  through to `"(unrecognized schedule pattern)"` as you might expect. Also reads
+  `httpTarget.oidcToken`/`.oauthToken`/`.body` on each job to distinguish the two kinds
+  of destination Cloud Scheduler jobs hit since the pipeline-side move of 16
+  reconciliation targets to a dedicated `wilderness-pipeline-job` Cloud Run Job
+  (2026-07-06, in the separate `wilderness-pipeline` repo, not this one — see
+  `describeTarget_()`'s doc comment).
 - `Health Check Reporting.js`'s `triggerSync()` / `Manual Triggers.js` call the
-  `wilderness-pipeline` Cloud Run service directly to kick off a sync.
+  `wilderness-pipeline` Cloud Run service directly to kick off a sync. **Known gap
+  (2026-07-06):** `triggerSync()` always POSTs to the Service's `/sync/<platform>/
+  <table>` route — it was never updated for the reconciliation targets that moved to
+  `wilderness-pipeline-job`. All 15 `_reconciliation` `triggerX()` wrappers in this
+  file, and any Manual Triggers row for a reconciliation target, likely no longer work
+  correctly post-move. Not fixed in this pass (out of scope of the 2026-07-06 Health
+  Monitor enhancements); needs its own fix — probably a Cloud Run Admin API
+  `jobs:run` call, mirroring what Cloud Scheduler's Job-targeted rows now do (see
+  `Scheduled Job Reporting.js`'s `describeTarget_()`).
 - `Pipeline Logs Reporting.js` calls the Cloud Logging API directly (raw stdout/stderr
   text logs aren't in BigQuery either) to pull recent Cloud Run activity.
+- `Rate Limit Reporting.js` calls the Cloud Logging API directly to surface 429
+  rate-limit warnings — a GAS-side stopgap, not the long-term home for this data (see
+  the file's own header doc for why).
+- `Cost Reporting.js` calls the Cloud Run Admin API and Cloud Monitoring API directly
+  to estimate current Cloud Run spend — nothing here is derived from BigQuery either.
 
 **`writeToSheet_` pattern, duplicated per file, not shared.** Every reporting class
 has its own private `writeToSheet_(sheetName, headers, data)`: clear sheet → write
@@ -218,6 +236,82 @@ tokens) under the existing `cloud-platform` scope; the calling user's identity n
 `roles/logging.viewer` on `wilderness-data` (separate grant, not yet made — see file
 header for the `gcloud` command).
 
+### Scheduled Jobs target detail (`Scheduled Job Reporting.js`)
+
+Added 2026-07-06. The "Scheduled Jobs" sheet gained five columns —
+`target_type`, `target_uri`, `auth_type`, `target_platform`, `target_table` —
+via `describeTarget_()`, to distinguish the two kinds of destination Cloud
+Scheduler jobs now hit after the pipeline-side move of the 16 reconciliation
+targets to a dedicated `wilderness-pipeline-job` Cloud Run Job (that move
+happened in the separate `wilderness-pipeline` repo, not here):
+- **Service targets** (the fast/incremental syncs): `httpTarget.uri` is
+  `wilderness-pipeline`'s own `/sync/<platform>/<table>` route, authenticated
+  with `oidcToken` — `target_platform`/`target_table` are parsed straight out
+  of the URI path.
+- **Job targets** (all 15 `_reconciliation` syncs): `httpTarget.uri` is Cloud
+  Run's Admin API (`.../jobs/wilderness-pipeline-job:run`), authenticated
+  with `oauthToken` instead. The Job resource itself is generic and reused
+  across all 16 targets, so the actual platform/table is only recoverable by
+  base64-decoding `httpTarget.body` (a `RunJobRequest` JSON payload) and
+  reading `overrides.containerOverrides[0].args` (e.g.
+  `["run-job.js","--platform=xero","--table=bills_reconciliation"]`).
+
+### Rate Limit Events (`Rate Limit Reporting.js`)
+
+Added 2026-07-06. `refreshRateLimitEvents()` pulls `core/httpUtils.js`'s
+`"429 rate limited — waiting Xs before retry"` warnings from the Cloud
+Logging API (same auth pattern as `Pipeline Logs Reporting.js` —
+`ScriptApp.getOAuthToken()`, `roles/logging.viewer`, no impersonation) into a
+"Health - Rate Limit Events" sheet (`timestamp`, `source` [Service/Job],
+`platform`, `table`, `mode`, `wait_seconds`, `message`, `run_id`,
+`revision_or_execution`, `last_refresh`). Filters across BOTH
+`resource.type="cloud_run_revision"` (the `wilderness-pipeline` Service) and
+`resource.type="cloud_run_job"` (the `wilderness-pipeline-job` Job) — 429s can
+happen from either since both run the same `httpUtils.js`.
+
+This is a deliberate GAS-side stopgap, not this project's normal pattern —
+it exists because nothing in the pipeline writes 429 occurrences to BigQuery
+today. The preferred long-term fix (not done here — requires a change in the
+separate `wilderness-pipeline` repo) is for the pipeline to write these to
+BigQuery so this could become a normal `reporting.*`-view-backed sheet like
+everything else; revisit and delete this file's Cloud Logging query entirely
+once that lands. Directly related to this project's accepted
+cross-process-rate-limiter blind spot (Service instances and Job executions
+can't see each other's rate-limit state) — this sheet is the monitoring half
+of that risk, not a fix for it.
+
+### Cost Summary (`Cost Reporting.js`)
+
+Added 2026-07-06, deliberately scoped as an MVP (current-month running total
++ Service vs Job split only — no per-connector breakdown, no historical
+trend). `refreshCostSummary()` writes a "Health - Cost Summary" sheet by
+combining:
+- **Rates** — hardcoded constants (`COST_RATES`), pulled from the Cloud
+  Billing Catalog API (`cloudbilling.googleapis.com/v1/services/152E-C115-5142/skus`,
+  service `152E-C115-5142` = Cloud Run) for `australia-southeast1` on
+  2026-07-06. NOT re-queried live on every refresh (SKU-matching that API's
+  response is fiddly enough that a wrong live parse could silently produce a
+  wrong cost with no way to notice) — re-verify by hand periodically instead.
+- **Config** — `containers[0].resources.limits.cpu`/`.memory` and
+  `resources.cpuIdle` (Service only — distinguishes request-based/throttled
+  vs instance-based/`--no-cpu-throttling` billing; Jobs have no such toggle,
+  always instance-based) via the Cloud Run Admin API (`services.get` /
+  `jobs.get`).
+- **Usage** — `run.googleapis.com/container/billable_instance_time` via the
+  Cloud Monitoring API for the Service; summed
+  `(completionTime - startTime) × taskCount` across `executions.list` for the
+  Job (completed executions only — a still-running execution's eventual
+  duration isn't counted until it finishes, a minor known undercount at the
+  tail of the month).
+
+Needs two new IAM grants beyond what this repo already required —
+`roles/run.viewer` (Cloud Run Admin API reads) and `roles/monitoring.viewer`
+(Cloud Monitoring API reads) on `wilderness-data`, neither made yet; see the
+file's header doc for the exact `gcloud` commands. Uses
+`ScriptApp.getOAuthToken()` directly, same as `Scheduled Job Reporting.js`
+and `Pipeline Logs Reporting.js` — no impersonation needed, the existing
+`cloud-platform` scope already covers both APIs.
+
 ## Dependencies
 
 Two Apps Script libraries, declared in `appsscript.json`:
@@ -241,6 +335,32 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-06** — Health Monitor enhancements, following a handoff about
+  pipeline-side changes made in the separate `wilderness-pipeline` repo (a
+  Cloud Run CPU-throttling fix, and moving the 16 reconciliation targets to a
+  new `wilderness-pipeline-job` Cloud Run Job — none of that is code in this
+  repo). Three additions: (1) `Scheduled Job Reporting.js` gained
+  `target_type`/`target_uri`/`auth_type`/`target_platform`/`target_table`
+  columns via `describeTarget_()`, decoding Cloud Scheduler's `httpTarget` to
+  show which jobs hit the Service vs the new Job, and — for Job-targeted
+  rows — decoding `httpTarget.body`'s container-override args to recover the
+  actual platform/table (the Job resource itself is generic and reused
+  across all 16). (2) New "Health - Rate Limit Events" sheet
+  (`Rate Limit Reporting.js`) reading 429 warnings from Cloud Logging across
+  both the Service and the Job — a deliberate GAS-side stopgap pending a
+  proper pipeline-side BigQuery write (see the file's own header doc). (3)
+  New "Health - Cost Summary" sheet (`Cost Reporting.js`), an MVP
+  current-month cost estimate (Service vs Job split) combining hardcoded
+  Cloud Billing Catalog rates with live Cloud Run Admin API config and Cloud
+  Monitoring API usage data. **Known gap surfaced but not fixed in this
+  pass:** `triggerSync()`/Manual Triggers still only know how to hit the
+  Service's `/sync/<platform>/<table>` route — the 15 reconciliation
+  `triggerX()` wrappers and any reconciliation row in Manual Triggers are
+  likely broken post-move, since they never learned about the new Job
+  target. Needs two new IAM grants (`roles/run.viewer`,
+  `roles/monitoring.viewer`), not yet made — see `Cost Reporting.js`'s header
+  for the `gcloud` commands. Files: `Scheduled Job Reporting.js`,
+  `Rate Limit Reporting.js` (new), `Cost Reporting.js` (new), `CLAUDE.md`.
 - **2026-07-02** — Xero connector follow-up (part 1 of a multi-part fix — see project
   memory for the full 4-item handoff): fixed `parseNextRun_()`/`describeSchedule_()`
   in `Scheduled Job Reporting.js` to correctly handle daily schedules with a
