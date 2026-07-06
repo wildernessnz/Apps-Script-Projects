@@ -17,10 +17,15 @@
  *     email ONLY if something needs attention (error, stale schedule, or
  *     stale lock). Silent when healthy. Wire up via a time-driven Apps
  *     Script trigger (Triggers UI → this function → time-driven).
- *   - triggerSync(platform, table) — manually re-run a sync target from
- *     a sheet/menu without constructing a curl command by hand. Requires
- *     the Apps Script identity to have Cloud Run Invoker on the
- *     wilderness-pipeline service (see function doc for the IAM command).
+ *   - triggerSync(platform, table) — manually re-run a SERVICE-hosted sync
+ *     target (incremental/base syncs) from a sheet/menu without
+ *     constructing a curl command by hand. Requires the Apps Script
+ *     identity to have Cloud Run Invoker on the wilderness-pipeline
+ *     service (see function doc for the IAM command).
+ *   - triggerJobRun(platform, table) — the same, for the 16 RECONCILIATION
+ *     targets that run on the wilderness-pipeline-job Cloud Run Job
+ *     instead (since 2026-07-06) — triggerSync() doesn't work for these
+ *     (see its function doc for why they need a different mechanism).
  *
  * Requires:
  *   - BigQueryLibrary linked as a library
@@ -131,6 +136,21 @@ function triggerSync(platform, table) {
 }
 
 /**
+ * Manually trigger a RECONCILIATION sync by starting an execution of the
+ * wilderness-pipeline-job Cloud Run Job — see
+ * HealthCheckReporting.triggerJobRun()'s doc comment for why this is a
+ * separate mechanism from triggerSync() above and not just an alternate
+ * URL for the same function.
+ *
+ * @param {string} platform - e.g. 'hs-rental', 'xero'
+ * @param {string} table    - e.g. 'deals_reconciliation'
+ * @returns {string} response body or error description
+ */
+function triggerJobRun(platform, table) {
+  return new HealthCheckReporting().triggerJobRun(platform, table);
+}
+
+/**
  * Convenience wrappers for every sync target across both connectors —
  * one-click re-run from the Apps Script editor (Run menu) or a custom
  * menu/button, without typing platform/table each time.
@@ -153,7 +173,10 @@ function triggerSync(platform, table) {
  * cursor-based incremental sync silently missed (a dropped webhook, a
  * paging edge case, clock skew). 8 base + 6 association + 1 fleetio =
  * 15 total (owners and pipelines are small reference tables and have no
- * reconciliation job).
+ * reconciliation job). Since 2026-07-06 all 15 reconciliation wrappers
+ * below call triggerJobRun(), not triggerSync() — they moved to running
+ * on the wilderness-pipeline-job Cloud Run Job, not the Service (see
+ * HealthCheckReporting.triggerJobRun()'s doc comment).
  *
  * Add a new wrapper here whenever a new connector/target is added
  * (HubSpot Retail, Xero, etc.) to keep this list current.
@@ -182,26 +205,29 @@ function triggerMeetingsAssociations() { triggerSync('hs-rental', 'meetings_asso
 // Fleetio
 function triggerWorkOrders() { triggerSync('fleetio', 'work_orders'); }
 
-// HubSpot Rental — base reconciliation targets
-function triggerDealsReconciliation()       { triggerSync('hs-rental', 'deals_reconciliation'); }
-function triggerContactsReconciliation()    { triggerSync('hs-rental', 'contacts_reconciliation'); }
-function triggerTicketsReconciliation()     { triggerSync('hs-rental', 'tickets_reconciliation'); }
-function triggerTasksReconciliation()       { triggerSync('hs-rental', 'tasks_reconciliation'); }
-function triggerCallsReconciliation()       { triggerSync('hs-rental', 'calls_reconciliation'); }
-function triggerEmailsReconciliation()      { triggerSync('hs-rental', 'emails_reconciliation'); }
-function triggerMeetingsReconciliation()    { triggerSync('hs-rental', 'meetings_reconciliation'); }
-function triggerEngagementsReconciliation() { triggerSync('hs-rental', 'engagements_reconciliation'); }
+// HubSpot Rental — base reconciliation targets. These 15 wrappers call
+// triggerJobRun(), NOT triggerSync() — since 2026-07-06 these targets run
+// on wilderness-pipeline-job (a Cloud Run Job), not the Service, and
+// triggerSync() only knows how to POST to the Service's /sync/... route.
+function triggerDealsReconciliation()       { triggerJobRun('hs-rental', 'deals_reconciliation'); }
+function triggerContactsReconciliation()    { triggerJobRun('hs-rental', 'contacts_reconciliation'); }
+function triggerTicketsReconciliation()     { triggerJobRun('hs-rental', 'tickets_reconciliation'); }
+function triggerTasksReconciliation()       { triggerJobRun('hs-rental', 'tasks_reconciliation'); }
+function triggerCallsReconciliation()       { triggerJobRun('hs-rental', 'calls_reconciliation'); }
+function triggerEmailsReconciliation()      { triggerJobRun('hs-rental', 'emails_reconciliation'); }
+function triggerMeetingsReconciliation()    { triggerJobRun('hs-rental', 'meetings_reconciliation'); }
+function triggerEngagementsReconciliation() { triggerJobRun('hs-rental', 'engagements_reconciliation'); }
 
 // HubSpot Rental — association reconciliation targets
-function triggerDealsAssociationsReconciliation()    { triggerSync('hs-rental', 'deals_associations_reconciliation'); }
-function triggerTicketsAssociationsReconciliation()  { triggerSync('hs-rental', 'tickets_associations_reconciliation'); }
-function triggerTasksAssociationsReconciliation()    { triggerSync('hs-rental', 'tasks_associations_reconciliation'); }
-function triggerCallsAssociationsReconciliation()    { triggerSync('hs-rental', 'calls_associations_reconciliation'); }
-function triggerEmailsAssociationsReconciliation()   { triggerSync('hs-rental', 'emails_associations_reconciliation'); }
-function triggerMeetingsAssociationsReconciliation() { triggerSync('hs-rental', 'meetings_associations_reconciliation'); }
+function triggerDealsAssociationsReconciliation()    { triggerJobRun('hs-rental', 'deals_associations_reconciliation'); }
+function triggerTicketsAssociationsReconciliation()  { triggerJobRun('hs-rental', 'tickets_associations_reconciliation'); }
+function triggerTasksAssociationsReconciliation()    { triggerJobRun('hs-rental', 'tasks_associations_reconciliation'); }
+function triggerCallsAssociationsReconciliation()    { triggerJobRun('hs-rental', 'calls_associations_reconciliation'); }
+function triggerEmailsAssociationsReconciliation()   { triggerJobRun('hs-rental', 'emails_associations_reconciliation'); }
+function triggerMeetingsAssociationsReconciliation() { triggerJobRun('hs-rental', 'meetings_associations_reconciliation'); }
 
 // Fleetio — reconciliation
-function triggerWorkOrdersReconciliation() { triggerSync('fleetio', 'work_orders_reconciliation'); }
+function triggerWorkOrdersReconciliation() { triggerJobRun('fleetio', 'work_orders_reconciliation'); }
 
 /**
  * Trigger every HubSpot Rental base target, one at a time with a short
@@ -900,6 +926,106 @@ var HealthCheckReporting = function() {
         'service account needs roles/run.invoker on wilderness-pipeline. ' +
         'Grant via: gcloud run services add-iam-policy-binding wilderness-pipeline ' +
         `--region=australia-southeast1 --member="serviceAccount:${PIPELINE_SERVICE_ACCOUNT}" --role="roles/run.invoker"`
+      );
+    }
+
+    return body;
+  };
+
+  /**
+   * Manually trigger a RECONCILIATION sync by starting an execution of
+   * the wilderness-pipeline-job Cloud Run Job — for the 16 targets moved
+   * off the Service on 2026-07-06 (see CLAUDE.md's Change History and
+   * `describeTarget_()` in Scheduled Job Reporting.js). triggerSync()
+   * above no longer works for these: it always POSTs to the Service's
+   * /sync/<platform>/<table> route, which the reconciliation targets no
+   * longer live on.
+   *
+   * Unlike triggerSync() — which pushes an HTTP request straight to a
+   * Cloud Run SERVICE and therefore needs an OIDC ID token audienced to
+   * that exact URL (see the comment above PIPELINE_SERVICE_ACCOUNT) —
+   * this calls the Cloud Run ADMIN API's `jobs.run` method, a normal
+   * Google Cloud management endpoint (the same API surface
+   * Cost Reporting.js already reads `services.get`/`jobs.get`/
+   * `executions.list` from). Admin API endpoints accept a plain OAuth
+   * access token like every other Google Cloud API this project calls
+   * directly (Cloud Scheduler, Cloud Logging, Cloud Monitoring) — no
+   * impersonation needed here. The calling identity needs
+   * roles/run.invoker (or run.developer/editor/owner) specifically ON
+   * wilderness-pipeline-job to actually START an execution — the
+   * roles/run.viewer already granted for Cost Reporting.js only covers
+   * reading config, not running it.
+   *
+   * The Job resource is generic and reused across all 16 reconciliation
+   * targets — the platform/table for a given run only exists in the
+   * container override args passed at :run time, not in the Job's own
+   * definition (see describeTarget_()'s doc comment for the shape of
+   * that body). This reads the Job's OWN default args first, to preserve
+   * whatever entrypoint script it's actually configured with (e.g.
+   * "run-job.js") rather than hardcoding it, and overrides only the
+   * --platform=/--table= arguments.
+   *
+   * @param {string} platform
+   * @param {string} table
+   * @returns {string} response body or error description
+   */
+  this.triggerJobRun = (platform, table) => {
+    // COST_JOB / SCHEDULER_LOCATION are declared in Cost Reporting.js /
+    // Scheduled Job Reporting.js — reused here since Apps Script shares
+    // global scope across files, rather than redeclaring the same values
+    // under new names.
+    const jobPath = `projects/${GCP_PROJECT_ID}/locations/${SCHEDULER_LOCATION}/jobs/${COST_JOB}`;
+    Logger.log(`[HealthCheckReporting.triggerJobRun] running ${jobPath} platform=${platform} table=${table}`);
+
+    let entrypoint = 'run-job.js';
+    try {
+      const configResponse = UrlFetchApp.fetch(`https://run.googleapis.com/v2/${jobPath}`, {
+        method: 'get',
+        headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
+        muteHttpExceptions: true,
+      });
+      if (configResponse.getResponseCode() === 200) {
+        const config = JSON.parse(configResponse.getContentText());
+        const container = config.template && config.template.template && config.template.template.containers
+          && config.template.template.containers[0];
+        if (container && container.args && container.args.length > 0) {
+          entrypoint = container.args[0];
+        }
+      } else {
+        Logger.log(`[HealthCheckReporting.triggerJobRun] could not read job config (${configResponse.getResponseCode()}) — defaulting entrypoint to "${entrypoint}"`);
+      }
+    } catch (e) {
+      Logger.log(`[HealthCheckReporting.triggerJobRun] job config lookup failed: ${e} — defaulting entrypoint to "${entrypoint}"`);
+    }
+
+    const payload = {
+      overrides: {
+        containerOverrides: [
+          { args: [entrypoint, `--platform=${platform}`, `--table=${table}`] },
+        ],
+      },
+    };
+
+    const response = UrlFetchApp.fetch(`https://run.googleapis.com/v2/${jobPath}:run`, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { Authorization: `Bearer ${ScriptApp.getOAuthToken()}` },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true,
+    });
+
+    const code = response.getResponseCode();
+    const body = response.getContentText();
+
+    Logger.log(`[HealthCheckReporting.triggerJobRun] response ${code}: ${body}`);
+
+    if (code === 401 || code === 403) {
+      Logger.log(
+        '[HealthCheckReporting.triggerJobRun] AUTH FAILED — the calling identity needs ' +
+        'roles/run.invoker on wilderness-pipeline-job (roles/run.viewer, already granted for ' +
+        'Cost Reporting.js, only covers reads). Grant via: gcloud run jobs add-iam-policy-binding ' +
+        `${COST_JOB} --region=${SCHEDULER_LOCATION} --member="user:YOUR_EMAIL@wilderness.co.nz" ` +
+        `--role="roles/run.invoker" --project=${GCP_PROJECT_ID}`
       );
     }
 

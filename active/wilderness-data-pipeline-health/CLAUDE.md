@@ -79,16 +79,17 @@ code. Exceptions that talk to non-BigQuery APIs directly:
   reconciliation targets to a dedicated `wilderness-pipeline-job` Cloud Run Job
   (2026-07-06, in the separate `wilderness-pipeline` repo, not this one — see
   `describeTarget_()`'s doc comment).
-- `Health Check Reporting.js`'s `triggerSync()` / `Manual Triggers.js` call the
-  `wilderness-pipeline` Cloud Run service directly to kick off a sync. **Known gap
-  (2026-07-06):** `triggerSync()` always POSTs to the Service's `/sync/<platform>/
-  <table>` route — it was never updated for the reconciliation targets that moved to
-  `wilderness-pipeline-job`. All 15 `_reconciliation` `triggerX()` wrappers in this
-  file, and any Manual Triggers row for a reconciliation target, likely no longer work
-  correctly post-move. Not fixed in this pass (out of scope of the 2026-07-06 Health
-  Monitor enhancements); needs its own fix — probably a Cloud Run Admin API
-  `jobs:run` call, mirroring what Cloud Scheduler's Job-targeted rows now do (see
-  `Scheduled Job Reporting.js`'s `describeTarget_()`).
+- `Health Check Reporting.js`'s `triggerSync()` / `triggerJobRun()` and
+  `Manual Triggers.js` call `wilderness-pipeline` (the Cloud Run Service) or
+  `wilderness-pipeline-job` (the Cloud Run Job) directly to kick off a sync —
+  `triggerSync()` POSTs to the Service's `/sync/<platform>/<table>` route (OIDC
+  token, impersonated); `triggerJobRun()` (added 2026-07-06, after the
+  reconciliation targets moved to the Job) calls the Cloud Run Admin API's
+  `jobs.run` method instead (plain OAuth token, `roles/run.invoker` on the Job).
+  Manual Triggers picks whichever one a row needs from its `Target Type` column,
+  populated via `describeTarget_()` (shared from `Scheduled Job Reporting.js`) —
+  see that file's and `Health Check Reporting.js`'s own doc comments for why
+  these need genuinely different transport/auth, not just a different URL.
 - `Pipeline Logs Reporting.js` calls the Cloud Logging API directly (raw stdout/stderr
   text logs aren't in BigQuery either) to pull recent Cloud Run activity.
 - `Rate Limit Reporting.js` calls the Cloud Logging API directly to surface 429
@@ -201,9 +202,11 @@ Selected Triggers" and "Rebuild Manual Triggers Sheet". It's the only simple tri
 in the project — if a second file ever needs its own `onOpen`, it must merge into
 this one rather than redeclaring the function.
 
-The endpoint list in `MANUAL_TRIGGER_ENDPOINTS` is hand-kept in sync with the
-`triggerX()` wrappers in `Health Check Reporting.js` — adding a new sync target
-requires updating both places.
+Manual Triggers' endpoint list needs no manual upkeep (it's fetched live — see
+above); the `triggerX()`/`triggerXReconciliation()` wrappers in `Health Check
+Reporting.js` are the only place that still requires a manual code change when a
+sync target is added or removed upstream (Run-menu functions can't be generated
+dynamically — see that file's doc comment above the wrappers).
 
 ### Pipeline Logs (`Pipeline Logs Reporting.js`)
 
@@ -336,6 +339,27 @@ extend this list if a new external API is called.
 
 Newest first. History prior to this file's creation is in `git log`.
 
+- **2026-07-06** — Fixed the `triggerSync()`/Manual Triggers gap flagged in the
+  entry below, same day: added `HealthCheckReporting.triggerJobRun()`, which
+  starts a `wilderness-pipeline-job` execution via the Cloud Run Admin API's
+  `jobs.run` method (plain OAuth token, no impersonation — unlike `triggerSync()`,
+  the Admin API isn't the Cloud Run push endpoint and doesn't need an OIDC ID
+  token) instead of POSTing to the Service. Repointed all 15 `_reconciliation`
+  `triggerX()` wrappers at it. Also hoisted `describeTarget_()` out of
+  `ScheduledJobsReporting` to top-level scope in `Scheduled Job Reporting.js` so
+  `Manual Triggers.js` could reuse the exact same Service-vs-Job decoding — that
+  file's `fetchManualTriggerEndpoints_()` previously matched only `/sync/
+  <platform>/<table>` URIs directly, which would have made all 15 reconciliation
+  targets silently vanish from the Manual Triggers sheet (not just mis-fire) on
+  the next rebuild, since Job-targeted rows hit a `run.googleapis.com/.../
+  jobs/...:run` URI instead. The sheet gained a `Target Type` column (Service/
+  Job) driving which function `runSelectedManualTriggers()` calls per row.
+  Needs a new IAM grant this session didn't make (unlike `roles/run.viewer` /
+  `roles/monitoring.viewer` below, which were): `roles/run.invoker` on
+  `wilderness-pipeline-job` for whoever fires a reconciliation trigger — see
+  `triggerJobRun()`'s doc comment for the `gcloud` command. Files:
+  `Scheduled Job Reporting.js`, `Health Check Reporting.js`,
+  `Manual Triggers.js`, `CLAUDE.md`.
 - **2026-07-06** — Health Monitor enhancements, following a handoff about
   pipeline-side changes made in the separate `wilderness-pipeline` repo (a
   Cloud Run CPU-throttling fix, and moving the 16 reconciliation targets to a
@@ -358,9 +382,11 @@ Newest first. History prior to this file's creation is in `git log`.
   Service's `/sync/<platform>/<table>` route — the 15 reconciliation
   `triggerX()` wrappers and any reconciliation row in Manual Triggers are
   likely broken post-move, since they never learned about the new Job
-  target. Needs two new IAM grants (`roles/run.viewer`,
-  `roles/monitoring.viewer`), not yet made — see `Cost Reporting.js`'s header
-  for the `gcloud` commands. Files: `Scheduled Job Reporting.js`,
+  target. (Fixed later the same day — see the entry above.) Needs two new
+  IAM grants (`roles/run.viewer`, `roles/monitoring.viewer`), not yet made —
+  see `Cost Reporting.js`'s header for the `gcloud` commands. (Also granted
+  later the same day — see the "Grant roles/run.viewer..." entry.) Files:
+  `Scheduled Job Reporting.js`,
   `Rate Limit Reporting.js` (new), `Cost Reporting.js` (new), `CLAUDE.md`.
 - **2026-07-02** — Xero connector follow-up (part 1 of a multi-part fix — see project
   memory for the full 4-item handoff): fixed `parseNextRun_()`/`describeSchedule_()`

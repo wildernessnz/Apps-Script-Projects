@@ -28,8 +28,26 @@
  * single source of truth for what sync targets exist in production, and
  * Scheduled Job Reporting.js already reads it the same way for the
  * "Scheduled Jobs" sheet — this reuses that same REST API and auth
- * (roles/cloudscheduler.viewer), just filtered down to /sync/... targets
- * and reshaped into {platform, table, description}.
+ * (roles/cloudscheduler.viewer), reshaped into
+ * {platform, table, targetType, description}.
+ *
+ * TWO FIRING MECHANISMS, chosen per row by its Target Type column (added
+ * 2026-07-06, when the 16 reconciliation targets moved off the Service
+ * onto a dedicated wilderness-pipeline-job Cloud Run Job — see
+ * describeTarget_() in Scheduled Job Reporting.js, shared from there
+ * rather than reimplemented here): "Service" rows call triggerSync()
+ * (POSTs straight to the wilderness-pipeline Cloud Run service);
+ * "Job" rows call triggerJobRun() (starts a wilderness-pipeline-job
+ * execution via the Cloud Run Admin API instead — see both functions'
+ * doc comments in Health Check Reporting.js for why these need
+ * genuinely different transport/auth, not just a different URL). Before
+ * this, EVERY row called triggerSync() regardless of target type, which
+ * silently broke for all 15 reconciliation targets once they moved to
+ * the Job — and fetchManualTriggerEndpoints_() previously matched only
+ * `/sync/<platform>/<table>` URIs, which would have made those same 15
+ * targets vanish from this sheet entirely on the next rebuild (Job
+ * targets hit a `run.googleapis.com/.../jobs/...:run` URI, not
+ * `/sync/...`) rather than merely mis-firing.
  */
 
 const MANUAL_TRIGGERS_SHEET = 'Manual Triggers';
@@ -41,29 +59,39 @@ const LEGACY_MANUAL_TRIGGERS_HANDLER = 'onManualTriggerEdit';
 // Column layout (1-indexed) for the Manual Triggers sheet.
 const MT_COL_PLATFORM = 1;
 const MT_COL_TABLE = 2;
-const MT_COL_DESCRIPTION = 3;
-const MT_COL_SELECT = 4;
-const MT_COL_RESULT = 5;
-const MT_COL_LAST_RUN = 6;
-const MT_NUM_COLS = 6;
+const MT_COL_TARGET_TYPE = 3; // "Service" or "Job" — determines which trigger function fires this row
+const MT_COL_DESCRIPTION = 4;
+const MT_COL_SELECT = 5;
+const MT_COL_RESULT = 6;
+const MT_COL_LAST_RUN = 7;
+const MT_NUM_COLS = 7;
 
 // SCHEDULER_LOCATION is declared once in Scheduled Job Reporting.js —
 // Apps Script shares global scope across all .gs files, so it's
 // available here without redeclaring.
 
 /**
- * Fetch every currently configured Cloud Scheduler job whose target URI
- * matches /sync/<platform>/<table>, and reshape into the
- * {platform, table, description} entries the sheet is built from. This
- * is what keeps the sheet in sync with production without anyone having
- * to remember to update a hardcoded list here whenever a sync target is
- * added or removed upstream.
+ * Fetch every currently configured Cloud Scheduler job that resolves to a
+ * usable sync target, and reshape into the
+ * {platform, table, targetType, description} entries the sheet is built
+ * from. This is what keeps the sheet in sync with production without
+ * anyone having to remember to update a hardcoded list here whenever a
+ * sync target is added or removed upstream.
  *
- * Non-sync routes (e.g. /maintenance/clear-stale-locks) don't match the
- * pattern and are silently excluded — only /sync/... targets are
- * triggerable via triggerSync() in the first place.
+ * Uses the SAME describeTarget_() Scheduled Job Reporting.js uses for the
+ * "Scheduled Jobs" sheet (declared top-level there, shared via Apps
+ * Script's global scope) rather than a separate regex here — before
+ * 2026-07-06 this file matched only `/sync/<platform>/<table>` URIs
+ * directly, which worked when every sync target was Service-hosted, but
+ * would have made all 15 reconciliation targets vanish from this sheet
+ * the moment they moved to hitting a `run.googleapis.com/.../jobs/
+ * ...:run` URI instead (Job targets don't have `/sync/` in their URI at
+ * all — see describeTarget_()'s doc comment). Non-sync, non-decodable, or
+ * non-HTTP targets (e.g. /maintenance/clear-stale-locks, or a Job body
+ * that fails to decode) are excluded — only rows describeTarget_()
+ * resolved to a real platform/table are triggerable in the first place.
  *
- * @returns {{platform: string, table: string, description: string}[]}
+ * @returns {{platform: string, table: string, targetType: string, description: string}[]}
  */
 function fetchManualTriggerEndpoints_() {
   const url = `https://cloudscheduler.googleapis.com/v1/projects/${GCP_PROJECT_ID}/locations/${SCHEDULER_LOCATION}/jobs`;
@@ -86,15 +114,22 @@ function fetchManualTriggerEndpoints_() {
   }
 
   const jobs = JSON.parse(response.getContentText()).jobs || [];
-  const syncUriPattern = /\/sync\/([^/]+)\/([^/]+)$/;
 
   const endpoints = jobs
     .map(job => {
-      const uri = (job.httpTarget && job.httpTarget.uri) || '';
-      const match = uri.match(syncUriPattern);
-      if (!match) return null;
-      const [, platform, table] = match;
-      return { platform, table, description: describeManualTriggerEndpoint_(platform, table) };
+      const target = describeTarget_(job);
+      // describeTarget_() returns '' for an unmatched Service path, and
+      // a "(...)" placeholder (e.g. "(decode error)") for an
+      // undecodable Job body — neither is a usable trigger target.
+      const hasRealTarget = target.platform && target.table && !target.platform.startsWith('(');
+      if (!hasRealTarget || (target.targetType !== 'Service' && target.targetType !== 'Job')) return null;
+
+      return {
+        platform: target.platform,
+        table: target.table,
+        targetType: target.targetType,
+        description: describeManualTriggerEndpoint_(target.platform, target.table),
+      };
     })
     .filter(Boolean);
 
@@ -153,26 +188,28 @@ function setupManualTriggersSheet() {
   }
   sheet.clear();
 
-  const headers = ['Platform', 'Table', 'Description', 'Select', 'Last Result', 'Last Triggered (NZT)'];
+  const headers = ['Platform', 'Table', 'Target Type', 'Description', 'Select', 'Last Result', 'Last Triggered (NZT)'];
   sheet.getRange(1, 1, 1, MT_NUM_COLS).setValues([headers]).setFontWeight('bold');
   sheet.setFrozenRows(1);
 
-  const rows = endpoints.map(e => [e.platform, e.table, e.description, false, '', '']);
+  const rows = endpoints.map(e => [e.platform, e.table, e.targetType, e.description, false, '', '']);
   sheet.getRange(2, 1, rows.length, MT_NUM_COLS).setValues(rows);
 
   sheet.getRange(2, MT_COL_SELECT, rows.length, 1).insertCheckboxes();
 
   sheet.setColumnWidth(MT_COL_PLATFORM, 100);
   sheet.setColumnWidth(MT_COL_TABLE, 180);
+  sheet.setColumnWidth(MT_COL_TARGET_TYPE, 90);
   sheet.setColumnWidth(MT_COL_DESCRIPTION, 240);
   sheet.setColumnWidth(MT_COL_SELECT, 70);
   sheet.setColumnWidth(MT_COL_RESULT, 320);
   sheet.setColumnWidth(MT_COL_LAST_RUN, 160);
 
   // Warning-only protection on the non-editable columns — flags accidental
-  // edits to Platform/Table (which would silently point a selection at
-  // the wrong endpoint) without blocking anyone who genuinely needs to.
-  sheet.getRange(1, 1, rows.length + 1, MT_COL_TABLE).protect().setWarningOnly(true);
+  // edits to Platform/Table/Target Type (which would silently point a
+  // selection at the wrong endpoint, or fire it via the wrong mechanism)
+  // without blocking anyone who genuinely needs to.
+  sheet.getRange(1, 1, rows.length + 1, MT_COL_TARGET_TYPE).protect().setWarningOnly(true);
   sheet.getRange(2, MT_COL_RESULT, rows.length, 2).protect().setWarningOnly(true);
 
   cleanupLegacyEditTrigger_();
@@ -197,9 +234,11 @@ function cleanupLegacyEditTrigger_() {
 /**
  * Menu action — "Pipeline Tools > Run Selected Triggers". Reads every
  * checked row on the Manual Triggers sheet, confirms via a native
- * dialog listing exactly what's about to run, then fires triggerSync()
- * for each one and writes the result back. See file header doc for why
- * this is menu-driven rather than firing straight off a checkbox edit.
+ * dialog listing exactly what's about to run, then fires each one —
+ * via triggerSync() for "Service" rows or triggerJobRun() for "Job" rows
+ * (see the Target Type column and this file's header doc) — and writes
+ * the result back. See file header doc for why this is menu-driven
+ * rather than firing straight off a checkbox edit.
  */
 function runSelectedManualTriggers() {
   const ui = SpreadsheetApp.getUi();
@@ -219,7 +258,12 @@ function runSelectedManualTriggers() {
   const selectedRows = [];
   data.forEach((row, i) => {
     if (row[MT_COL_SELECT - 1] === true) {
-      selectedRows.push({ rowIndex: i + 2, platform: row[MT_COL_PLATFORM - 1], table: row[MT_COL_TABLE - 1] });
+      selectedRows.push({
+        rowIndex: i + 2,
+        platform: row[MT_COL_PLATFORM - 1],
+        table: row[MT_COL_TABLE - 1],
+        targetType: row[MT_COL_TARGET_TYPE - 1],
+      });
     }
   });
 
@@ -228,7 +272,7 @@ function runSelectedManualTriggers() {
     return;
   }
 
-  const summary = selectedRows.map(r => `${r.platform}/${r.table}`).join('\n');
+  const summary = selectedRows.map(r => `${r.platform}/${r.table} [${r.targetType}]`).join('\n');
   const response = ui.alert(
     'Confirm manual trigger',
     `About to trigger ${selectedRows.length} sync target(s):\n\n${summary}\n\nContinue?`,
@@ -248,7 +292,13 @@ function runSelectedManualTriggers() {
 
     let result;
     try {
-      result = triggerSync(String(r.platform), String(r.table));
+      // "Job" rows (the reconciliation targets, since 2026-07-06) run on
+      // wilderness-pipeline-job and need triggerJobRun() instead of
+      // triggerSync() — see both functions' doc comments in
+      // Health Check Reporting.js.
+      result = r.targetType === 'Job'
+        ? triggerJobRun(String(r.platform), String(r.table))
+        : triggerSync(String(r.platform), String(r.table));
     } catch (err) {
       result = `ERROR: ${err.message}`;
     }

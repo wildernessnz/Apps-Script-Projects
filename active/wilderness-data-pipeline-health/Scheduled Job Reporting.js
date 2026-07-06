@@ -54,6 +54,85 @@ function refreshScheduledJobs() {
   new ScheduledJobsReporting().refresh();
 }
 
+/**
+ * Derive target details for a Cloud Scheduler job's httpTarget: which
+ * kind of destination it hits, how it authenticates, and (best-effort)
+ * which platform/table it actually runs. Declared at TOP LEVEL (not
+ * inside ScheduledJobsReporting) so Manual Triggers.js can call it too —
+ * it needs the exact same Service-vs-Job decoding to know which
+ * mechanism (triggerSync() vs triggerJobRun(), see Health Check
+ * Reporting.js) to fire for a given row, not just to display in a sheet.
+ *
+ * Two destination shapes exist since the 2026-07-06 move of the 16
+ * reconciliation targets to a dedicated wilderness-pipeline-job Cloud
+ * Run Job:
+ *   - Service targets: uri is the wilderness-pipeline Cloud Run
+ *     service's own /sync/<platform>/<table> route, authenticated with
+ *     an oidcToken (mirrors triggerSync()'s own auth — see
+ *     Health Check Reporting.js). platform/table are read straight out
+ *     of the URI path.
+ *   - Job targets: uri is Cloud Run's Admin API
+ *     (".../jobs/wilderness-pipeline-job:run"), authenticated with an
+ *     oauthToken, not an oidcToken — Cloud Run's generic "run this Job"
+ *     endpoint doesn't encode which sync target it's for in the URL at
+ *     all; that only exists in httpTarget.body, a base64-encoded
+ *     RunJobRequest JSON whose overrides.containerOverrides[0].args
+ *     carries the actual "--platform=X --table=Y" arguments (e.g.
+ *     ["run-job.js","--platform=xero","--table=bills_reconciliation"]).
+ *     Without decoding body, every Job-targeted row would look identical
+ *     (same job resource, reused across all 16 targets).
+ *
+ * @param {Object} job - raw Cloud Scheduler job resource
+ * @returns {{targetType: string, uri: string, authType: string, platform: string, table: string}}
+ */
+function describeTarget_(job) {
+  const http = job.httpTarget;
+  if (!http || !http.uri) {
+    return { targetType: '(non-HTTP target)', uri: '', authType: '', platform: '', table: '' };
+  }
+
+  const uri = http.uri;
+  const isJobTarget = uri.indexOf('run.googleapis.com') !== -1;
+  const targetType = isJobTarget ? 'Job' : 'Service';
+  const authType = http.oidcToken ? 'oidcToken' : (http.oauthToken ? 'oauthToken' : '(none)');
+
+  if (!isJobTarget) {
+    // Service targets encode platform/table directly in the path:
+    // /sync/<platform>/<table>
+    const match = uri.match(/\/sync\/([^/]+)\/([^/?]+)/);
+    return {
+      targetType, uri, authType,
+      platform: match ? match[1] : '',
+      table: match ? match[2] : '',
+    };
+  }
+
+  // Job targets: decode httpTarget.body (base64 RunJobRequest JSON) to
+  // find the --platform=/--table= container override args.
+  if (!http.body) {
+    return { targetType, uri, authType, platform: '(no body)', table: '(no body)' };
+  }
+
+  try {
+    const decoded = Utilities.newBlob(Utilities.base64Decode(http.body)).getDataAsString();
+    const payload = JSON.parse(decoded);
+    const args = (payload.overrides && payload.overrides.containerOverrides
+      && payload.overrides.containerOverrides[0] && payload.overrides.containerOverrides[0].args) || [];
+
+    const platformArg = args.find(a => a.indexOf('--platform=') === 0);
+    const tableArg = args.find(a => a.indexOf('--table=') === 0);
+
+    return {
+      targetType, uri, authType,
+      platform: platformArg ? platformArg.split('=')[1] : '(unrecognized args)',
+      table: tableArg ? tableArg.split('=')[1] : '(unrecognized args)',
+    };
+  } catch (e) {
+    Logger.log(`[describeTarget_] failed to decode body for job=${job.name}: ${e}`);
+    return { targetType, uri, authType, platform: '(decode error)', table: '(decode error)' };
+  }
+}
+
 var ScheduledJobsReporting = function() {
 
   this.refresh = () => {
@@ -140,82 +219,6 @@ var ScheduledJobsReporting = function() {
 
     const data = JSON.parse(response.getContentText());
     return data.jobs || [];
-  }
-
-  /**
-   * Derive target details for a Cloud Scheduler job's httpTarget: which
-   * kind of destination it hits, how it authenticates, and (best-effort)
-   * which platform/table it actually runs.
-   *
-   * Two destination shapes exist since the 2026-07-06 move of the 16
-   * reconciliation targets to a dedicated wilderness-pipeline-job Cloud
-   * Run Job (see CLAUDE.md's "Cloud Run JOB for long-running targets"
-   * section):
-   *   - Service targets: uri is the wilderness-pipeline Cloud Run
-   *     service's own /sync/<platform>/<table> route, authenticated with
-   *     an oidcToken (mirrors triggerSync()'s own auth — see
-   *     Health Check Reporting.js). platform/table are read straight out
-   *     of the URI path.
-   *   - Job targets: uri is Cloud Run's Admin API
-   *     (".../jobs/wilderness-pipeline-job:run"), authenticated with an
-   *     oauthToken, not an oidcToken — Cloud Run's generic "run this Job"
-   *     endpoint doesn't encode which sync target it's for in the URL at
-   *     all; that only exists in httpTarget.body, a base64-encoded
-   *     RunJobRequest JSON whose overrides.containerOverrides[0].args
-   *     carries the actual "--platform=X --table=Y" arguments (e.g.
-   *     ["run-job.js","--platform=xero","--table=bills_reconciliation"]).
-   *     Without decoding body, every Job-targeted row in this sheet would
-   *     look identical (same job resource, reused across all 16 targets).
-   *
-   * @param {Object} job - raw Cloud Scheduler job resource
-   * @returns {{targetType: string, uri: string, authType: string, platform: string, table: string}}
-   */
-  function describeTarget_(job) {
-    const http = job.httpTarget;
-    if (!http || !http.uri) {
-      return { targetType: '(non-HTTP target)', uri: '', authType: '', platform: '', table: '' };
-    }
-
-    const uri = http.uri;
-    const isJobTarget = uri.indexOf('run.googleapis.com') !== -1;
-    const targetType = isJobTarget ? 'Job' : 'Service';
-    const authType = http.oidcToken ? 'oidcToken' : (http.oauthToken ? 'oauthToken' : '(none)');
-
-    if (!isJobTarget) {
-      // Service targets encode platform/table directly in the path:
-      // /sync/<platform>/<table>
-      const match = uri.match(/\/sync\/([^/]+)\/([^/?]+)/);
-      return {
-        targetType, uri, authType,
-        platform: match ? match[1] : '',
-        table: match ? match[2] : '',
-      };
-    }
-
-    // Job targets: decode httpTarget.body (base64 RunJobRequest JSON) to
-    // find the --platform=/--table= container override args.
-    if (!http.body) {
-      return { targetType, uri, authType, platform: '(no body)', table: '(no body)' };
-    }
-
-    try {
-      const decoded = Utilities.newBlob(Utilities.base64Decode(http.body)).getDataAsString();
-      const payload = JSON.parse(decoded);
-      const args = (payload.overrides && payload.overrides.containerOverrides
-        && payload.overrides.containerOverrides[0] && payload.overrides.containerOverrides[0].args) || [];
-
-      const platformArg = args.find(a => a.indexOf('--platform=') === 0);
-      const tableArg = args.find(a => a.indexOf('--table=') === 0);
-
-      return {
-        targetType, uri, authType,
-        platform: platformArg ? platformArg.split('=')[1] : '(unrecognized args)',
-        table: tableArg ? tableArg.split('=')[1] : '(unrecognized args)',
-      };
-    } catch (e) {
-      Logger.log(`[ScheduledJobsReporting.describeTarget_] failed to decode body for job=${job.name}: ${e}`);
-      return { targetType, uri, authType, platform: '(decode error)', table: '(decode error)' };
-    }
   }
 
   /**
