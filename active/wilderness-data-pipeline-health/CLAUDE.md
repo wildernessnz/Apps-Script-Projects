@@ -304,10 +304,11 @@ combining:
   duration isn't counted until it finishes, a minor known undercount at the
   tail of the month).
 
-Needs two new IAM grants beyond what this repo already required —
+Needed two new IAM grants beyond what this repo already required —
 `roles/run.viewer` (Cloud Run Admin API reads) and `roles/monitoring.viewer`
-(Cloud Monitoring API reads) on `wilderness-data`, neither made yet; see the
-file's header doc for the exact `gcloud` commands. Uses
+(Cloud Monitoring API reads) on `wilderness-data`, granted to
+`mark.lonergan@wilderness.co.nz` 2026-07-06 (see the file's header doc for
+the exact `gcloud` commands used). Uses
 `ScriptApp.getOAuthToken()` directly, same as `Scheduled Job Reporting.js`
 and `Pipeline Logs Reporting.js` — no impersonation needed, the existing
 `cloud-platform` scope already covers both APIs.

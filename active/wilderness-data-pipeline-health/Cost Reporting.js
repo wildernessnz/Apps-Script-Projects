@@ -60,12 +60,14 @@
  * Requires (in addition to what Scheduled Job Reporting.js / Health Check
  * Reporting.js already need):
  *   - roles/run.viewer on the project, to read Service/Job config and list
- *     Job executions via the Cloud Run Admin API:
+ *     Job executions via the Cloud Run Admin API — granted to
+ *     mark.lonergan@wilderness.co.nz 2026-07-06:
  *       gcloud projects add-iam-policy-binding wilderness-data \
  *         --member="user:YOUR_EMAIL@wilderness.co.nz" \
  *         --role="roles/run.viewer"
  *   - roles/monitoring.viewer on the project, to read the billable-
- *     instance-time metric via the Cloud Monitoring API:
+ *     instance-time metric via the Cloud Monitoring API — granted to
+ *     mark.lonergan@wilderness.co.nz 2026-07-06:
  *       gcloud projects add-iam-policy-binding wilderness-data \
  *         --member="user:YOUR_EMAIL@wilderness.co.nz" \
  *         --role="roles/monitoring.viewer"
