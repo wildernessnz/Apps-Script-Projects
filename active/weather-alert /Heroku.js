@@ -1,12 +1,12 @@
 function getOnRoadGuests()
 {  
-  //updateFromHerokDataSource(); 
+  updateFromHerokDataSource(); 
 }
 
 function updateFromHerokDataSource()
 {
-  //var sheetName=SpreadsheetApp.getActiveSpreadsheet().getName();  
-  //populateSheet("Raw - OnRoad Bookings",WildernessAppScriptLibrary.getSharedDataclipUrl("dcziibkbltmoagduzzhyscafdbtm",sheetName),0,0);
+  var sheetName=SpreadsheetApp.getActiveSpreadsheet().getName();  
+  populateSheet("Raw - OnRoad Bookings",WildernessAppScriptLibrary.getSharedDataclipUrl("dcziibkbltmoagduzzhyscafdbtm",sheetName),0,0);
   
 }
 
