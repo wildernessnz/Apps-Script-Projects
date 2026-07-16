@@ -1,0 +1,26 @@
+{
+  "timeZone": "Pacific/Auckland",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "WildernessAppScriptLibrary",
+        "version": "0",
+        "libraryId": "1qv1tezMhtuE_YyaIEhj4G1q-bjEYM43an4XH1qCgzllPKEHeQEggpUOS",
+        "developmentMode": true
+      }
+    ]
+  },
+  "oauthScopes": [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/userinfo.email",
+    "https://www.googleapis.com/auth/script.external_request",
+    "https://www.googleapis.com/auth/script.send_mail",
+    "https://www.googleapis.com/auth/script.container.ui"
+  ],
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "webapp": {
+    "executeAs": "USER_ACCESSING",
+    "access": "DOMAIN"
+  }
+}

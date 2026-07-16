@@ -1,0 +1,113 @@
+<style>
+  /* ── DESIGN TOKENS — ported from colors_and_type.css + internal-tools.css ── */
+  :root {
+    --color-dusk-sky:        #263450;
+    --color-electric-blue:   #006388;
+    --color-organic-green:   #67B65B;
+    --color-beige-60:        #FBF7EF;
+    --color-text-primary:    #263450;
+    --color-text-muted:      #939AA8;
+    --color-border-light:    #EBEBEB;
+    --color-border-form:     #CBD5E1;
+
+    --it-sidebar-width:      240px;
+    --it-sidebar-bg:         var(--color-dusk-sky);
+    --it-sidebar-radius:     24px;
+    --it-nav-item-radius:    12px;
+    --it-nav-item-active-bg: rgba(255,255,255,0.12);
+    --it-nav-item-hover-bg:  rgba(255,255,255,0.08);
+    --it-nav-item-color:     rgba(255,255,255,0.6);
+    --it-nav-item-active-color: #ffffff;
+    --it-nav-section-color:  rgba(255,255,255,0.35);
+    --it-nav-divider:        rgba(255,255,255,0.1);
+    --it-nav-font-size:      13px;
+
+    --it-card-radius:        16px;
+    --it-layout-padding:     12px;
+    --it-layout-gap:         12px;
+
+    /* NOTE: brand font is Averta (.otf, ~215KB x3 weights, not on Google
+       Fonts). Not embedded yet — needs a decision: base64-embed in this
+       file (~870KB, simplest, no external hosting) vs. host as WOFF2
+       somewhere reachable. Falling back to system-ui until that's settled. */
+    --font-brand: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  }
+
+  * , *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font-brand);
+    background: var(--color-beige-60);
+    color: var(--color-text-primary);
+  }
+
+  /* ── LAYOUT ── */
+  .it-layout {
+    display: flex;
+    gap: var(--it-layout-gap);
+    padding: var(--it-layout-padding);
+    min-height: 100vh;
+  }
+
+  /* ── SIDEBAR ── */
+  .it-sidebar {
+    width: var(--it-sidebar-width);
+    flex-shrink: 0;
+    background: var(--it-sidebar-bg);
+    border-radius: var(--it-sidebar-radius);
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .it-logo { height: 24px; width: auto; filter: brightness(0) invert(1); margin-bottom: 16px; }
+
+  .it-nav-section-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--it-nav-section-color);
+    padding: 8px 8px 6px;
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer;
+  }
+  .it-nav-items { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+
+  .it-nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 12px;
+    border-radius: var(--it-nav-item-radius);
+    color: var(--it-nav-item-color);
+    font-size: var(--it-nav-font-size);
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .it-nav-item:hover { background: var(--it-nav-item-hover-bg); }
+  .it-nav-item.active { background: var(--it-nav-item-active-bg); color: var(--it-nav-item-active-color); }
+  .it-nav-icon { width: 14px; height: 14px; flex-shrink: 0; }
+
+  .it-nav-footer {
+    margin-top: auto; padding-top: 12px;
+    border-top: 1px solid var(--it-nav-divider);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .it-avatar {
+    width: 26px; height: 26px; border-radius: 999px;
+    background: rgba(255,255,255,0.12);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #fff; flex-shrink: 0;
+  }
+  .it-user-email { font-size: 11px; color: rgba(255,255,255,0.5); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* ── CONTENT AREA ── */
+  .it-content { flex: 1; min-width: 0; padding: 4px 20px; }
+  .it-loading, .it-error { padding: 40px; color: var(--color-text-muted); font-size: 14px; }
+  .it-error { color: #B8860B; }
+
+  .it-placeholder {
+    background: #fff; border-radius: var(--it-card-radius); padding: 48px 32px; text-align: center;
+    max-width: 480px; margin: 40px auto;
+  }
+  .it-placeholder-icon { font-size: 32px; margin-bottom: 12px; }
+  .it-placeholder h2 { font-size: 20px; margin-bottom: 8px; color: var(--color-dusk-sky); }
+  .it-placeholder p { font-size: 13px; color: var(--color-text-muted); line-height: 1.6; }
+</style>

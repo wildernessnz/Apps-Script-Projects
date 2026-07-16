@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <?!= include('Styles'); ?>
+</head>
+<body>
+
+  <div class="it-layout">
+
+    <!-- Sidebar: built entirely from NAV_CONFIG server-side. Adding tool #5
+         means adding one entry in Config.gs — nothing here changes. -->
+    <nav class="it-sidebar">
+      <img class="it-logo" src="https://wilderness.co.nz/logo.svg" alt="Wilderness">
+
+      <? NAV_CONFIG.forEach(function(section) { ?>
+        <div class="it-nav-section" data-section="<?= section.section ?>">
+          <div class="it-nav-section-label">
+            <span><?= section.section ?></span>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none">
+              <polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="it-nav-items">
+            <? section.items.forEach(function(item, idx) { ?>
+              <div class="it-nav-item<?= (section === NAV_CONFIG[0] && idx === 0) ? ' active' : '' ?>"
+                   data-tool="<?= item.id ?>"
+                   onclick="ITRouter.navigate('<?= item.id ?>', '<?= item.partial ?>')">
+                <span class="it-nav-icon" data-icon="<?= item.icon ?>"></span>
+                <span><?= item.label ?></span>
+              </div>
+            <? }); ?>
+          </div>
+        </div>
+      <? }); ?>
+
+      <div class="it-nav-footer">
+        <div class="it-avatar"><?= (Session.getActiveUser().getEmail() || '??').substring(0,2).toUpperCase() ?></div>
+        <div class="it-user-email"><?= Session.getActiveUser().getEmail() ?></div>
+      </div>
+    </nav>
+
+    <!-- Content area: partials are fetched via google.script.run and swapped
+         in here client-side (see Router.html) — no full page reload. -->
+    <main class="it-content" id="itContent">
+      <div class="it-loading">Loading…</div>
+    </main>
+
+  </div>
+
+  <?!= include('Router'); ?>
+
+</body>
+</html>

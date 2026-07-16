@@ -1,0 +1,49 @@
+<script>
+  const ITRouter = (function () {
+
+    function setActiveNavItem(toolId) {
+      document.querySelectorAll('.it-nav-item').forEach(function (el) {
+        el.classList.toggle('active', el.dataset.tool === toolId);
+      });
+    }
+
+    function navigate(toolId, partialName) {
+      setActiveNavItem(toolId);
+
+      const content = document.getElementById('itContent');
+      content.innerHTML = '<div class="it-loading">Loading…</div>';
+
+      google.script.run
+        .withSuccessHandler(function (html) {
+          content.innerHTML = html;
+          // Re-run any partial-specific init exposed as window.ITTools[toolId]?.init()
+          if (window.ITTools && window.ITTools[toolId] && typeof window.ITTools[toolId].init === 'function') {
+            window.ITTools[toolId].init();
+          }
+        })
+        .withFailureHandler(function (err) {
+          content.innerHTML = '<div class="it-error">Could not load this tool: ' + err.message + '</div>';
+        })
+        .getToolContent(partialName);
+    }
+
+    return { navigate };
+  })();
+
+  // Load the first (active) nav item's content on initial page render.
+  document.addEventListener('DOMContentLoaded', function () {
+    const firstItem = document.querySelector('.it-nav-item.active');
+    if (firstItem) {
+      // data-tool is set; partial name comes back from server via the same
+      // NAV_CONFIG lookup so the client never needs to duplicate that map.
+      google.script.run
+        .withSuccessHandler(function (html) {
+          document.getElementById('itContent').innerHTML = html;
+        })
+        .withFailureHandler(function (err) {
+          document.getElementById('itContent').innerHTML = '<div class="it-error">Could not load this tool: ' + err.message + '</div>';
+        })
+        .getToolContentForNavId(firstItem.dataset.tool);
+    }
+  });
+</script>
