@@ -13,7 +13,7 @@
     <!-- Sidebar: built entirely from NAV_CONFIG server-side. Adding tool #5
          means adding one entry in Config.gs — nothing here changes. -->
     <nav class="it-sidebar">
-      <img class="it-logo" src="https://wilderness.co.nz/logo.svg" alt="Wilderness">
+      <img class="it-logo" src="https://1977632.fs1.hubspotusercontent-na1.net/hubfs/1977632/Images/Logos/logo-mobile@2x.png" alt="Wilderness">
 
       <? NAV_CONFIG.forEach(function(section) { ?>
         <div class="it-nav-section" data-section="<?= section.section ?>">
@@ -28,7 +28,7 @@
               <div class="it-nav-item<?= (section === NAV_CONFIG[0] && idx === 0) ? ' active' : '' ?>"
                    data-tool="<?= item.id ?>"
                    onclick="ITRouter.navigate('<?= item.id ?>', '<?= item.partial ?>')">
-                <span class="it-nav-icon" data-icon="<?= item.icon ?>"></span>
+                <span class="it-nav-icon"><?!= item.icon ?></span>
                 <span><?= item.label ?></span>
               </div>
             <? }); ?>
@@ -50,6 +50,23 @@
 
   </div>
 
+  <!-- Shared confirm/notify modal — lives here (not per-partial) so it
+       persists across tool navigation and every tool can use it via the
+       global ITModal object. Apps Script's IFRAME sandbox mode does not
+       support native alert()/confirm()/prompt() — they silently no-op —
+       so this replaces those everywhere in the app. -->
+  <div id="itModalOverlay" class="it-modal-overlay">
+    <div class="it-modal-card">
+      <h3 id="itModalTitle"></h3>
+      <p id="itModalMessage"></p>
+      <div class="it-modal-actions">
+        <button class="it-btn it-btn-ghost" id="itModalCancelBtn">Cancel</button>
+        <button class="it-btn it-btn-primary" id="itModalConfirmBtn">OK</button>
+      </div>
+    </div>
+  </div>
+
+  <?!= include('Modal'); ?>
   <?!= include('Router'); ?>
 
 </body>

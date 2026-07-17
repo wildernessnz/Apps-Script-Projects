@@ -1,0 +1,61 @@
+<script>
+  /**
+   * Replaces window.alert()/confirm() app-wide. Apps Script's HtmlService
+   * IFRAME sandbox mode does not support native alert(), confirm(), or
+   * prompt() — calls either silently no-op or never render, which is why
+   * dialogs appeared to "go missing" rather than throwing a visible error.
+   *
+   * Usage from any tool partial:
+   *   ITModal.notify('Something went wrong: ' + err.message, 'Error');
+   *   ITModal.confirm('Send this now?', 'Confirm send').then(function (ok) {
+   *     if (!ok) return;
+   *     // proceed
+   *   });
+   */
+  const ITModal = (function () {
+    const overlay    = document.getElementById('itModalOverlay');
+    const titleEl     = document.getElementById('itModalTitle');
+    const messageEl   = document.getElementById('itModalMessage');
+    const confirmBtn = document.getElementById('itModalConfirmBtn');
+    const cancelBtn   = document.getElementById('itModalCancelBtn');
+
+    function show(title, message, showCancel, confirmLabel) {
+      titleEl.textContent = title;
+      messageEl.textContent = message;
+      cancelBtn.style.display = showCancel ? 'inline-flex' : 'none';
+      confirmBtn.textContent = confirmLabel || 'OK';
+      overlay.style.display = 'flex';
+    }
+
+    function hide() {
+      overlay.style.display = 'none';
+    }
+
+    /**
+     * @param {string} message
+     * @param {string} [title]
+     * @returns {Promise<void>} resolves when dismissed
+     */
+    function notify(message, title) {
+      return new Promise(function (resolve) {
+        show(title || 'Notice', message, false, 'OK');
+        confirmBtn.onclick = function () { hide(); resolve(); };
+      });
+    }
+
+    /**
+     * @param {string} message
+     * @param {string} [title]
+     * @returns {Promise<boolean>} resolves true if confirmed, false if cancelled
+     */
+    function confirm(message, title) {
+      return new Promise(function (resolve) {
+        show(title || 'Confirm', message, true, 'Confirm');
+        confirmBtn.onclick = function () { hide(); resolve(true); };
+        cancelBtn.onclick  = function () { hide(); resolve(false); };
+      });
+    }
+
+    return { notify, confirm };
+  })();
+</script>

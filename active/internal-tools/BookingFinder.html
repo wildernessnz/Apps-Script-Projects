@@ -1,0 +1,108 @@
+<div class="it-tool-header">
+  <h1>Booking Finder</h1>
+  <p class="it-tool-subtitle">Search for bookings by travel date or vehicle registration.</p>
+</div>
+
+<div class="it-card">
+  <div class="it-card-body it-form-row">
+    <div class="it-field">
+      <label class="it-label" for="bfTravelDate">Travel Date</label>
+      <input type="date" id="bfTravelDate" class="it-input">
+    </div>
+    <div class="it-field">
+      <label class="it-label" for="bfRego">Rego</label>
+      <input type="text" id="bfRego" class="it-input" placeholder="e.g. QYU236">
+    </div>
+    <button class="it-btn it-btn-nav" id="bfSearchBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" stroke-width="2"/><line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="bfSearchBtnLabel">Search Bookings</span>
+    </button>
+  </div>
+</div>
+
+<div class="it-card" id="bfResultsCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header">
+    <span>Results</span>
+    <span class="it-badge" id="bfResultCount">0</span>
+  </div>
+  <table class="it-table">
+    <thead>
+      <tr>
+        <th>Booking Number</th>
+        <th>Guest</th>
+        <th>Rego</th>
+        <th>Vehicle</th>
+        <th>Pickup</th>
+        <th>Drop Off</th>
+      </tr>
+    </thead>
+    <tbody id="bfResultsBody"></tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const dateInput    = document.getElementById('bfTravelDate');
+  const regoInput    = document.getElementById('bfRego');
+  const searchBtn    = document.getElementById('bfSearchBtn');
+  const searchLabel  = document.getElementById('bfSearchBtnLabel');
+  const resultsCard  = document.getElementById('bfResultsCard');
+  const resultsBody  = document.getElementById('bfResultsBody');
+  const resultCount  = document.getElementById('bfResultCount');
+
+  // Default travel date to today — matches the original tool's behaviour.
+  dateInput.value = new Date().toISOString().slice(0, 10);
+
+  function formatDate(d) {
+    return new Date(d).toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
+  function renderResults(bookings) {
+    resultsBody.innerHTML = '';
+    resultCount.textContent = bookings.length;
+    resultsCard.style.display = 'block';
+
+    if (!bookings.length) {
+      resultsBody.innerHTML = '<tr><td colspan="6" class="it-error-cell" style="color: var(--color-text-muted);">No bookings found.</td></tr>';
+      return;
+    }
+
+    bookings.forEach(function (b) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><a href="' + b.link + '" target="_blank" class="it-link">' + b.bookingNumber + '</a></td>' +
+        '<td>' + b.guest + '</td>' +
+        '<td>' + b.rego + '</td>' +
+        '<td><span class="it-badge">' + b.vehicleType + '</span></td>' +
+        '<td>' + formatDate(b.startDate) + '</td>' +
+        '<td>' + formatDate(b.endDate) + '</td>';
+      resultsBody.appendChild(tr);
+    });
+  }
+
+  function search() {
+    const rego = regoInput.value.trim();
+    const travelDate = dateInput.value;
+    if (!rego || !travelDate) return;
+
+    searchBtn.disabled = true;
+    searchLabel.textContent = 'Searching…';
+
+    google.script.run
+      .withSuccessHandler(function (json) {
+        searchBtn.disabled = false;
+        searchLabel.textContent = 'Search Bookings';
+        renderResults(JSON.parse(json || '[]'));
+      })
+      .withFailureHandler(function (err) {
+        searchBtn.disabled = false;
+        searchLabel.textContent = 'Search Bookings';
+        resultsBody.innerHTML = '<tr><td colspan="6" class="it-error-cell">' + err.message + '</td></tr>';
+        resultsCard.style.display = 'block';
+      })
+      .searchBookings(rego, travelDate);
+  }
+
+  searchBtn.addEventListener('click', search);
+})();
+</script>

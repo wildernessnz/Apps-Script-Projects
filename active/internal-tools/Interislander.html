@@ -1,0 +1,156 @@
+<div class="it-tool-header">
+  <h1>Interislander Availability</h1>
+  <p class="it-tool-subtitle">Check scheduled sailings for a travel date, ±2 days either side.</p>
+</div>
+
+<div class="it-card">
+  <div class="it-card-body it-form-row">
+    <div class="it-field">
+      <label class="it-label" for="isTravelDate">Travel Date</label>
+      <input type="date" id="isTravelDate" class="it-input">
+    </div>
+    <div class="it-field">
+      <label class="it-label">Direction</label>
+      <div class="it-segmented" id="isDirection">
+        <button type="button" class="it-segment active" data-value="WP">Wellington → Picton</button>
+        <button type="button" class="it-segment" data-value="PW">Picton → Wellington</button>
+      </div>
+    </div>
+    <button class="it-btn it-btn-nav" id="isSearchBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" stroke-width="2"/><line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="isSearchBtnLabel">Get Scheduled Sailings</span>
+    </button>
+  </div>
+</div>
+
+<div class="it-card" id="isResultsCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header"><span>Scheduled sailings for <span id="isResultDate"></span></span></div>
+  <table class="it-table">
+    <thead>
+      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Can Book</th></tr>
+    </thead>
+    <tbody id="isCurrentBody"></tbody>
+  </table>
+</div>
+
+<div class="it-card" id="isExtendedCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header"><span>More sailings (± 2 days of original date)</span></div>
+  <div style="padding:10px 20px; background:var(--color-beige-60); display:flex; align-items:center; gap:8px;">
+    <div style="width:12px; height:12px; background:rgba(0,99,136,0.1); border-radius:3px; border:1px solid rgba(0,99,136,0.2);"></div>
+    <span style="font-size:12px; color:var(--color-text-muted);">Blue-tinted rows = originally requested date</span>
+  </div>
+  <table class="it-table">
+    <thead>
+      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Can Book</th></tr>
+    </thead>
+    <tbody id="isExtendedBody"></tbody>
+  </table>
+</div>
+
+<script>
+(function () {
+  const dateInput     = document.getElementById('isTravelDate');
+  const segButtons    = document.querySelectorAll('#isDirection .it-segment');
+  const searchBtn     = document.getElementById('isSearchBtn');
+  const searchLabel   = document.getElementById('isSearchBtnLabel');
+  const resultsCard   = document.getElementById('isResultsCard');
+  const resultDate    = document.getElementById('isResultDate');
+  const currentBody   = document.getElementById('isCurrentBody');
+  const extendedCard  = document.getElementById('isExtendedCard');
+  const extendedBody  = document.getElementById('isExtendedBody');
+
+  dateInput.value = new Date().toISOString().slice(0, 10);
+
+  let selectedDirection = 'WP';
+  segButtons.forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      segButtons.forEach(function (b) { b.classList.remove('active'); });
+      btn.classList.add('active');
+      selectedDirection = btn.dataset.value;
+    });
+  });
+
+  function fmtDayLabel(d)  { return new Date(d).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long' }); }
+  function fmtTime(d)      { return new Date(d).toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit', hour12: true }); }
+  function fmtFullDate(d)  { return new Date(d).toLocaleDateString('en-NZ', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }); }
+
+  function canBookBadge(canBook) {
+    return canBook
+      ? '<span class="it-badge it-badge-success">true</span>'
+      : '<span class="it-badge it-badge-muted">false</span>';
+  }
+
+  function rowHtml(s) {
+    return '<td>' + s.RouteCode + '</td>' +
+      '<td>' + fmtDayLabel(s.ScheduledDeparture) + '</td>' +
+      '<td>' + fmtTime(s.ScheduledDeparture) + '</td>' +
+      '<td>' + fmtTime(s.ScheduledArrival) + '</td>' +
+      '<td>' + s.ShipName + '</td>' +
+      '<td>' + canBookBadge(s.CanBook) + '</td>';
+  }
+
+  function renderResults(sailings, departureDate) {
+    const selectedFullDate = fmtFullDate(departureDate);
+    resultDate.textContent = selectedFullDate;
+
+    currentBody.innerHTML = '';
+    extendedBody.innerHTML = '';
+
+    if (!sailings || !sailings.length) {
+      currentBody.innerHTML = '<tr><td colspan="6" class="it-error-cell" style="color: var(--color-text-muted);">No sailings found.</td></tr>';
+      resultsCard.style.display = 'block';
+      extendedCard.style.display = 'none';
+      return;
+    }
+
+    let lastDayLabel = null;
+
+    sailings.forEach(function (s) {
+      const dayLabel = fmtDayLabel(s.ScheduledDeparture);
+      const isSelected = fmtFullDate(s.ScheduledDeparture) === selectedFullDate;
+
+      // Gray divider row between date groups in the extended table.
+      if (lastDayLabel !== null && dayLabel !== lastDayLabel) {
+        extendedBody.innerHTML += '<tr><td colspan="6" style="background:var(--color-border-light); padding:4px;"></td></tr>';
+      }
+      lastDayLabel = dayLabel;
+
+      if (isSelected) {
+        currentBody.innerHTML += '<tr>' + rowHtml(s) + '</tr>';
+      }
+
+      extendedBody.innerHTML += isSelected
+        ? '<tr style="background:rgba(0,99,136,0.1);">' + rowHtml(s) + '</tr>'
+        : '<tr>' + rowHtml(s) + '</tr>';
+    });
+
+    resultsCard.style.display = 'block';
+    extendedCard.style.display = 'block';
+  }
+
+  function search() {
+    const departureDate = dateInput.value;
+    if (!departureDate) return;
+
+    searchBtn.disabled = true;
+    searchLabel.textContent = 'Loading…';
+
+    google.script.run
+      .withSuccessHandler(function (sailings) {
+        searchBtn.disabled = false;
+        searchLabel.textContent = 'Get Scheduled Sailings';
+        renderResults(sailings, departureDate);
+      })
+      .withFailureHandler(function (err) {
+        searchBtn.disabled = false;
+        searchLabel.textContent = 'Get Scheduled Sailings';
+        currentBody.innerHTML = '<tr><td colspan="6" class="it-error-cell">' + err.message + '</td></tr>';
+        resultsCard.style.display = 'block';
+        extendedCard.style.display = 'none';
+      })
+      .getScheduledSailingsExtended(departureDate, selectedDirection);
+  }
+
+  searchBtn.addEventListener('click', search);
+})();
+</script>

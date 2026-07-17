@@ -1,0 +1,457 @@
+<div class="it-tool-header">
+  <h1>Weather Alert <span class="it-badge" id="waTestModeBadge" style="display:none; background:#FFFBEA; border:1px solid #F5C842; color:#7A5C00;">TEST MODE</span></h1>
+  <p class="it-tool-subtitle">Send a weather notification to on-road guests via email and WhatsApp.</p>
+</div>
+
+<div class="it-banner-warn" id="waTestModeBanner" style="display:none;">
+  <strong>Test mode active</strong> — only @wilderness.co.nz addresses will be contacted. Set <code>WEATHER_ALERT_TEST_MODE=false</code> in Script Properties to go live.
+</div>
+
+<div class="it-banner-warn" id="waLockedBanner" style="display:none;">
+  <strong>Already sent today</strong> — <span id="waLockedDetail"></span>
+  <button class="it-btn-utility" id="waResetLockBtn" style="display:none; margin-left:8px;" onclick="requestLockReset()">Reset today's lock</button>
+</div>
+
+<div class="it-card">
+  <div class="it-card-header">
+    <span>On-Road Guests <span class="it-badge" id="waGuestCount">0</span></span>
+    <span style="display:flex; align-items:center; gap:14px; text-transform:none; font-weight:400;">
+      <span id="waLockStatusInline" style="display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700;">
+        <span id="waLockDot" style="width:6px; height:6px; border-radius:50%; background:var(--color-organic-green);"></span>
+        <span id="waLockStatusText" style="color:var(--color-organic-green);">Daily lock clear</span>
+      </span>
+      <button id="waGuestShowMore" onclick="toggleGuestList()" style="display:none; background:none; border:none; color: var(--color-electric-blue); font-size:12px; font-weight:700; cursor:pointer;">Show all</button>
+    </span>
+  </div>
+  <div class="it-card-body">
+    <div id="waGuestAvatars" style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"></div>
+    <div id="waGuestPreview" style="font-size:13px; color: var(--color-text-muted);">Loading…</div>
+    <div id="waGuestListExpanded" style="display:none; flex-direction:column; gap:6px; margin-top:12px; max-height:280px; overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div class="it-card" style="margin-top: var(--it-content-gap);">
+  <div class="it-card-header"><span>Email Content</span></div>
+  <div class="it-card-body" style="display:flex; flex-direction:column; gap:16px;">
+    <div class="it-field">
+      <label class="it-label" for="waSubject">Subject Line</label>
+      <input type="text" id="waSubject" class="it-input" style="width:100%;" value="Important weather alert — your Wilderness journey">
+    </div>
+    <div class="it-field">
+      <label class="it-label" for="waBody">Alert Message — inserted into the <code>{{ alertBody }}</code> token in the email template</label>
+      <textarea id="waBody" rows="5" class="it-input" style="width:100%; height:auto; border-radius:16px; padding:12px 16px; font-family:var(--font-brand); resize:vertical;">New Zealand's official weather agency, MetService, has issued a weather warning for parts of the country. You can see the latest updates by clicking the button below.
+
+There's no need to worry, but we recommend checking the forecast and adjusting your travel plans if needed. We hope you're enjoying your adventure and making great memories out there! 🌿🚐</textarea>
+    </div>
+    <div style="display:flex; gap:12px;">
+      <button class="it-btn it-btn-ghost" id="waPreviewBtn" onclick="requestPreview()">Preview Email</button>
+      <button class="it-btn it-btn-ghost" id="waTestSendBtn" onclick="sendTestEmail()">Send Test Email to Me</button>
+    </div>
+  </div>
+</div>
+
+<div class="it-card" style="margin-top: var(--it-content-gap);">
+  <div class="it-card-header"><span>Channels</span></div>
+  <div class="it-card-body" style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+    <div class="it-channel-card active" id="waChannelEmail" data-channel="email">
+      <div class="it-channel-check"></div>
+      <div>
+        <strong>📧 Email</strong>
+        <p>Sends a personalised email to each guest</p>
+      </div>
+    </div>
+    <div class="it-channel-card active" id="waChannelWhatsApp" data-channel="whatsapp">
+      <div class="it-channel-check"></div>
+      <div>
+        <strong>💬 WhatsApp</strong>
+        <p>HubSpot workflow enrollment — uses its own fixed message template, not the email body above</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<button class="it-btn it-btn-primary" id="waSendBtn" style="width:100%; justify-content:center; margin-top: var(--it-content-gap); height:52px;" onclick="requestConfirm()">
+  <span id="waSendBtnLabel">Send Weather Alert</span>
+</button>
+
+<!-- Preview Modal -->
+<div class="wa-backdrop" id="waPreviewBackdrop">
+  <div class="wa-modal wa-modal-wide">
+    <div class="wa-modal-header">
+      <div class="wa-modal-header-title">👁 Email preview</div>
+      <button class="wa-modal-close" onclick="closePreview()">×</button>
+    </div>
+    <div class="wa-preview-body" id="waPreviewBody"></div>
+    <div class="wa-modal-footer">
+      <button class="it-btn it-btn-ghost" onclick="closePreview()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Confirm Send Modal -->
+<div class="wa-backdrop" id="waConfirmBackdrop">
+  <div class="wa-modal">
+    <div class="wa-modal-header">
+      <div class="wa-modal-header-title">⚠️ Confirm weather alert send</div>
+    </div>
+    <div class="wa-modal-body">
+      <div class="wa-detail-row"><span class="wa-detail-label">Mode</span><span class="wa-detail-value" id="waCMode"></span></div>
+      <div class="wa-detail-row"><span class="wa-detail-label">Recipients</span><span class="wa-detail-value" id="waCRecipients"></span></div>
+      <div class="wa-detail-row"><span class="wa-detail-label">Channels</span><span class="wa-detail-value" id="waCChannels"></span></div>
+      <div class="wa-detail-row"><span class="wa-detail-label">Subject</span><span class="wa-detail-value" id="waCSubject"></span></div>
+    </div>
+    <div class="wa-modal-footer">
+      <button class="it-btn it-btn-ghost" onclick="cancelConfirm()">Cancel</button>
+      <button class="it-btn it-btn-primary" id="waConfirmBtn" onclick="confirmSend()">Yes, send now</button>
+    </div>
+  </div>
+</div>
+
+<!-- Result Modal -->
+<div class="wa-backdrop" id="waResultBackdrop">
+  <div class="wa-modal">
+    <div class="wa-modal-header" id="waResultHeader">
+      <div class="wa-modal-header-title"><span id="waResultIcon"></span> <span id="waResultTitle"></span></div>
+    </div>
+    <div class="wa-modal-body" id="waResultBody"></div>
+    <div class="wa-modal-note" id="waResultNote" style="display:none;"></div>
+    <div class="wa-modal-footer">
+      <button class="it-btn it-btn-ghost" onclick="closeResult()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Lock Reset Confirm Modal -->
+<div class="wa-backdrop" id="waLockResetBackdrop">
+  <div class="wa-modal">
+    <div class="wa-modal-header">
+      <div class="wa-modal-header-title">🔓 Reset today's lock?</div>
+    </div>
+    <div class="wa-modal-body">
+      <div class="wa-detail-row"><span class="wa-detail-label">Sent today</span><span class="wa-detail-value" id="waLrDate"></span></div>
+      <div class="wa-detail-row"><span class="wa-detail-label">Sent by</span><span class="wa-detail-value" id="waLrBy"></span></div>
+      <div class="wa-detail-row"><span class="wa-detail-label">Effect</span><span class="wa-detail-value">Another alert can be sent today. This action will be logged.</span></div>
+    </div>
+    <div class="wa-modal-footer">
+      <button class="it-btn it-btn-ghost" onclick="closeLockReset()">Cancel</button>
+      <button class="it-btn it-btn-primary" onclick="confirmLockReset()">Reset lock</button>
+    </div>
+  </div>
+</div>
+
+<div class="wa-toast-container" id="waToastContainer"></div>
+
+<script>
+(function () {
+  let _waState = null;
+
+  const guestCountEl   = document.getElementById('waGuestCount');
+  const guestPreviewEl = document.getElementById('waGuestPreview');
+  const guestAvatarsEl = document.getElementById('waGuestAvatars');
+  const guestExpandedEl = document.getElementById('waGuestListExpanded');
+  const guestShowMoreBtn = document.getElementById('waGuestShowMore');
+  const lockDot        = document.getElementById('waLockDot');
+  const lockStatusText = document.getElementById('waLockStatusText');
+  const testModeBanner = document.getElementById('waTestModeBanner');
+  const testModeBadge  = document.getElementById('waTestModeBadge');
+  const lockedBanner   = document.getElementById('waLockedBanner');
+  const lockedDetail   = document.getElementById('waLockedDetail');
+  const resetLockBtn   = document.getElementById('waResetLockBtn');
+  const subjectInput   = document.getElementById('waSubject');
+  const bodyInput      = document.getElementById('waBody');
+  const sendBtn        = document.getElementById('waSendBtn');
+  const sendBtnLabel   = document.getElementById('waSendBtnLabel');
+  const channelEmail   = document.getElementById('waChannelEmail');
+  const channelWhatsApp = document.getElementById('waChannelWhatsApp');
+
+  const SHOW_MAX = 5;
+
+  [channelEmail, channelWhatsApp].forEach(function (card) {
+    card.addEventListener('click', function () { card.classList.toggle('active'); });
+  });
+
+  // ── Toast (lightweight validation messages) ───────────────────────────
+  window.toast = function (msg, type) {
+    const el = document.createElement('div');
+    el.className = 'wa-toast' + (type ? ' ' + type : '');
+    el.textContent = msg;
+    document.getElementById('waToastContainer').appendChild(el);
+    setTimeout(function () { el.remove(); }, 5000);
+  };
+
+  function initials(name) {
+    return (name || '').trim().split(/\s+/).map(function (p) { return p[0] || ''; }).join('').substring(0, 2).toUpperCase();
+  }
+
+  function renderGuestList(all) {
+    const contacts = (_waState && _waState.contacts) || [];
+    guestExpandedEl.innerHTML = contacts.slice(0, all ? contacts.length : SHOW_MAX).map(function (c) {
+      return '<div style="padding:8px 10px; border-radius:8px; background:var(--color-beige-60);">' +
+        '<div style="font-size:12px; font-weight:700;">' + c.name + '</div>' +
+        '<div style="font-size:11px; color:var(--color-text-muted);">' + c.email + ' · ' + c.bookingNumber + '</div></div>';
+    }).join('');
+  }
+
+  window.toggleGuestList = function () {
+    const contacts = (_waState && _waState.contacts) || [];
+    const expanded = guestExpandedEl.style.display !== 'none';
+    if (expanded) {
+      guestExpandedEl.style.display = 'none';
+      guestAvatarsEl.style.display = 'flex';
+      guestPreviewEl.style.display = 'block';
+      guestShowMoreBtn.textContent = 'Show all';
+    } else {
+      renderGuestList(true);
+      guestExpandedEl.style.display = 'flex';
+      guestAvatarsEl.style.display = 'none';
+      guestPreviewEl.style.display = 'none';
+      guestShowMoreBtn.textContent = 'Show fewer';
+    }
+  };
+
+  // ── Init: load guest preview + lock/test-mode state ───────────────────
+  function loadPreview() {
+    guestPreviewEl.textContent = 'Loading…';
+    google.script.run
+      .withSuccessHandler(onStateLoaded)
+      .withFailureHandler(function (e) { showResultModal('error', [['Error', 'Could not load guest list: ' + e.message]]); })
+      .getGuestPreview();
+  }
+
+  function onStateLoaded(s) {
+    _waState = s;
+    const contacts = s.contacts || [];
+
+    guestCountEl.textContent = contacts.length;
+    guestPreviewEl.textContent = contacts.length
+      ? contacts.length + ' guest(s) will be notified'
+      : (s.testMode ? 'No @wilderness.co.nz contacts found' : 'No on-road guests found');
+
+    // Avatar row — first 5 initials
+    guestAvatarsEl.innerHTML = contacts.slice(0, 5).map(function (c) {
+      return '<div class="it-avatar" style="background:var(--color-electric-blue);">' + initials(c.name) + '</div>';
+    }).join('');
+
+    guestShowMoreBtn.style.display = contacts.length > SHOW_MAX ? 'inline-block' : 'none';
+    renderGuestList(false);
+
+    testModeBanner.style.display = s.testMode ? 'block' : 'none';
+    testModeBadge.style.display  = s.testMode ? 'inline-block' : 'none';
+
+    if (s.sentToday) {
+      lockDot.style.background = 'var(--color-ruby-red)';
+      lockStatusText.textContent = 'Locked — sent today';
+      lockStatusText.style.color = 'var(--color-ruby-red)';
+      lockedBanner.style.display = 'block';
+      lockedDetail.textContent = `sent on ${s.lastSendDate} by ${s.lastSendBy || 'unknown'}.`;
+      resetLockBtn.style.display = s.canOverride ? 'inline-flex' : 'none';
+      sendBtn.disabled = true;
+    } else {
+      lockDot.style.background = 'var(--color-organic-green)';
+      lockStatusText.textContent = 'Daily lock clear';
+      lockStatusText.style.color = 'var(--color-organic-green)';
+      lockedBanner.style.display = 'none';
+      sendBtn.disabled = contacts.length === 0;
+    }
+  }
+
+  // ── Preview email ──────────────────────────────────────────────────────
+  window.requestPreview = function () {
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+    if (!subject || !body) { toast('Please fill in the subject and alert message before previewing.', 'error'); return; }
+
+    const previewBody = document.getElementById('waPreviewBody');
+    previewBody.innerHTML = '<div class="wa-preview-loading">Loading preview…</div>';
+    document.getElementById('waPreviewBackdrop').classList.add('open');
+
+    const btn = document.getElementById('waPreviewBtn');
+    btn.disabled = true;
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        btn.disabled = false;
+        if (!r.success) {
+          previewBody.innerHTML = '<div class="wa-preview-error"><strong>Could not load preview:</strong><br>' + r.message + '</div>';
+          return;
+        }
+        previewBody.innerHTML = '<iframe class="wa-preview-iframe" id="waPreviewIframe"></iframe>';
+        const iframe = document.getElementById('waPreviewIframe');
+        const doc = iframe.contentWindow.document;
+        doc.open(); doc.write(r.html); doc.close();
+        setTimeout(function () {
+          try { iframe.style.height = (doc.body.scrollHeight + 20) + 'px'; } catch (_) {}
+        }, 100);
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        previewBody.innerHTML = '<div class="wa-preview-error"><strong>Could not load preview:</strong><br>' + e.message + '</div>';
+      })
+      .previewEmail(subject, body);
+  };
+
+  window.closePreview = function () {
+    document.getElementById('waPreviewBackdrop').classList.remove('open');
+  };
+
+  // ── Send test email ────────────────────────────────────────────────────
+  window.sendTestEmail = function () {
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+    if (!subject || !body) { toast('Please fill in the subject and alert message before sending a test.', 'error'); return; }
+
+    const btn = document.getElementById('waTestSendBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending…';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        btn.disabled = false;
+        btn.textContent = 'Send Test Email to Me';
+        if (!r.success) { showResultModal('error', [['Error', r.message]]); return; }
+        toast('Test email sent to ' + r.sentTo, 'success');
+      })
+      .withFailureHandler(function (e) {
+        btn.disabled = false;
+        btn.textContent = 'Send Test Email to Me';
+        showResultModal('error', [['Error', e.message]]);
+      })
+      .sendTestEmail(subject, body);
+  };
+
+  // ── Step 1: validate + show confirm modal ─────────────────────────────
+  window.requestConfirm = function () {
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+    const email = channelEmail.classList.contains('active');
+    const wa = channelWhatsApp.classList.contains('active');
+
+    if (!subject || !body) { toast('Please fill in the subject and email body.', 'error'); return; }
+    if (!email && !wa)     { toast('Please select at least one channel.', 'error'); return; }
+
+    const channels = [email && 'Email', wa && 'WhatsApp'].filter(Boolean).join(' + ');
+    const guestCount = (_waState && _waState.contacts) ? _waState.contacts.length : '?';
+    const modeLabel = (_waState && _waState.testMode) ? '⚠️ TEST MODE — @wilderness.co.nz only' : 'LIVE — real guests';
+
+    document.getElementById('waCMode').textContent = modeLabel;
+    document.getElementById('waCRecipients').textContent = guestCount + ' guest(s)';
+    document.getElementById('waCChannels').textContent = channels;
+    document.getElementById('waCSubject').textContent = subject;
+
+    document.getElementById('waConfirmBackdrop').classList.add('open');
+  };
+
+  window.cancelConfirm = function () {
+    document.getElementById('waConfirmBackdrop').classList.remove('open');
+  };
+
+  // ── Step 2: confirmed, fire send ───────────────────────────────────────
+  window.confirmSend = function () {
+    const subject = subjectInput.value.trim();
+    const body = bodyInput.value.trim();
+    const email = channelEmail.classList.contains('active');
+    const wa = channelWhatsApp.classList.contains('active');
+
+    document.getElementById('waConfirmBackdrop').classList.remove('open');
+
+    sendBtn.disabled = true;
+    sendBtnLabel.textContent = 'Sending…';
+
+    // Pass as 1/0 — google.script.run can silently drop false boolean args.
+    google.script.run
+      .withSuccessHandler(onSendSuccess)
+      .withFailureHandler(onSendError)
+      .triggerWeatherAlert(subject, body, wa ? 1 : 0, email ? 1 : 0);
+  };
+
+  function onSendSuccess(r) {
+    sendBtn.disabled = true;
+    sendBtnLabel.textContent = 'Send Weather Alert';
+
+    if (!r.success) {
+      showResultModal('error', [['Reason', r.message]]);
+      sendBtn.disabled = false;
+      return;
+    }
+
+    const modeLabel = r.testMode ? 'TEST MODE — @wilderness.co.nz only' : 'LIVE';
+    const emailLabel = r.sendEmail ? (r.emailsSent + ' of ' + r.totalContacts) : 'Not selected';
+    const rows = [['Mode', modeLabel], ['Triggered by', r.triggeredBy], ['Emails sent', emailLabel]];
+    if (r.whatsApp) rows.push(['WhatsApp', r.whatsApp]);
+    if (r.emailErrors && r.emailErrors.length) {
+      rows.push(['Errors', r.emailErrors.map(function (e) { return e.email + ' — ' + e.error; }).join('<br>'), 'error']);
+    }
+    rows.push(['Sent at', new Date(r.timestamp).toLocaleTimeString('en-NZ')]);
+
+    showResultModal('success', rows, 'A summary email has been sent to you. Full log in the booking spreadsheet.');
+
+    lockDot.style.background = 'var(--color-ruby-red)';
+    lockStatusText.textContent = 'Locked — sent today';
+    lockStatusText.style.color = 'var(--color-ruby-red)';
+    lockedBanner.style.display = 'block';
+    lockedDetail.textContent = 'sent on ' + new Date().toLocaleDateString('en-NZ') + ' by ' + r.triggeredBy + '.';
+  }
+
+  function onSendError(e) {
+    sendBtn.disabled = false;
+    sendBtnLabel.textContent = 'Send Weather Alert';
+    showResultModal('error', [['Error', e.message]]);
+  }
+
+  function showResultModal(type, rows, note) {
+    const header = document.getElementById('waResultHeader');
+    header.className = 'wa-modal-header ' + type;
+    document.getElementById('waResultIcon').textContent = type === 'success' ? '✅' : '❌';
+    document.getElementById('waResultTitle').textContent = type === 'success' ? 'Alert sent' : 'Send failed';
+    document.getElementById('waResultBody').innerHTML = rows.map(function (row) {
+      const label = row[0], value = row[1], cls = row[2];
+      return '<div class="wa-detail-row"><span class="wa-detail-label">' + label + '</span>' +
+             '<span class="wa-detail-value' + (cls ? ' ' + cls : '') + '">' + value + '</span></div>';
+    }).join('');
+    const noteEl = document.getElementById('waResultNote');
+    if (note) { noteEl.textContent = note; noteEl.style.display = 'block'; }
+    else { noteEl.style.display = 'none'; }
+    document.getElementById('waResultBackdrop').classList.add('open');
+  }
+
+  window.closeResult = function () {
+    document.getElementById('waResultBackdrop').classList.remove('open');
+  };
+
+  // ── Lock reset ──────────────────────────────────────────────────────────
+  window.requestLockReset = function () {
+    if (!_waState || !_waState.sentToday) return;
+    document.getElementById('waLrDate').textContent = _waState.lastSendDate || '—';
+    document.getElementById('waLrBy').textContent = _waState.lastSendBy || 'unknown';
+    document.getElementById('waLockResetBackdrop').classList.add('open');
+  };
+
+  window.closeLockReset = function () {
+    document.getElementById('waLockResetBackdrop').classList.remove('open');
+  };
+
+  window.confirmLockReset = function () {
+    closeLockReset();
+    google.script.run
+      .withSuccessHandler(function (r) {
+        if (!r.success) { showResultModal('error', [['Error', r.message]]); return; }
+        lockDot.style.background = 'var(--color-organic-green)';
+        lockStatusText.textContent = 'Daily lock clear';
+        lockStatusText.style.color = 'var(--color-organic-green)';
+        lockedBanner.style.display = 'none';
+        resetLockBtn.style.display = 'none';
+        sendBtn.disabled = false;
+        if (_waState) { _waState.sentToday = false; _waState.lastSendDate = ''; _waState.lastSendBy = ''; }
+        toast('Daily lock cleared.', 'success');
+      })
+      .withFailureHandler(function (e) { showResultModal('error', [['Error', e.message]]); })
+      .resetLockFromWebApp();
+  };
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') { cancelConfirm(); closeResult(); closeLockReset(); closePreview(); }
+  });
+
+  loadPreview();
+})();
+</script>
