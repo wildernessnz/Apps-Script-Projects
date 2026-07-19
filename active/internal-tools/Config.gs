@@ -58,10 +58,10 @@ const NAV_CONFIG = [
   {
     section: 'Adventure Support',
     items: [
-      { id: 'weather-alert',  label: 'Weather Alert',              icon: ICON_ALERT_TRIANGLE, partial: 'WeatherAlert',  contentWidth: 'narrow' },
       { id: 'booking-finder', label: 'Booking Finder',              icon: ICON_CALENDAR,       partial: 'BookingFinder', contentWidth: 'wide' },
       { id: 'interislander',  label: 'Interislander Availability',  icon: ICON_FERRY,          partial: 'Interislander', contentWidth: 'wide' },
-      { id: 'relo-rates',     label: 'Relo Rates',                  icon: ICON_CLOCK,          partial: 'ReloRates',     contentWidth: 'narrow' },
+      { id: 'relo-rates',     label: 'Relo Rates',                  icon: ICON_CLOCK,          partial: 'ReloRates',     contentWidth: 'wide' },
+      { id: 'weather-alert',  label: 'Weather Alert',              icon: ICON_ALERT_TRIANGLE, partial: 'WeatherAlert',  contentWidth: 'wide' },
     ],
   },
 ];

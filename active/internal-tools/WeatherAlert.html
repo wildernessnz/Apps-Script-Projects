@@ -186,6 +186,13 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
     return (name || '').trim().split(/\s+/).map(function (p) { return p[0] || ''; }).join('').substring(0, 2).toUpperCase();
   }
 
+  // Backend stores lastSendDate as YYYY-MM-DD (for exact-match lock checks) — reformat to NZ DD/MM/YYYY for display only.
+  function formatNZDate(isoDate) {
+    if (!isoDate) return '';
+    const [y, m, d] = isoDate.split('-');
+    return d + '/' + m + '/' + y;
+  }
+
   // Guest details always show by default (up to SHOW_MAX) — the toggle only
   // controls whether the FULL list is shown beyond that, not whether details
   // show at all. Previously details were hidden behind a "Show all" button
@@ -244,7 +251,7 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
       lockStatusText.textContent = 'Locked — sent today';
       lockStatusText.style.color = 'var(--color-ruby-red)';
       lockedBanner.style.display = 'block';
-      lockedDetail.textContent = `sent on ${s.lastSendDate} by ${s.lastSendBy || 'unknown'}.`;
+      lockedDetail.textContent = `sent on ${formatNZDate(s.lastSendDate)} by ${s.lastSendBy || 'unknown'}.`;
       resetLockBtn.style.display = s.canOverride ? 'inline-flex' : 'none';
       sendBtn.disabled = true;
     } else {
@@ -422,7 +429,7 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
   // ── Lock reset ──────────────────────────────────────────────────────────
   window.requestLockReset = function () {
     if (!_waState || !_waState.sentToday) return;
-    document.getElementById('waLrDate').textContent = _waState.lastSendDate || '—';
+    document.getElementById('waLrDate').textContent = formatNZDate(_waState.lastSendDate) || '—';
     document.getElementById('waLrBy').textContent = _waState.lastSendBy || 'unknown';
     document.getElementById('waLockResetBackdrop').classList.add('open');
   };
