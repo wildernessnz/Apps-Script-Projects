@@ -1,6 +1,6 @@
 <div class="it-tool-header">
   <h1>Interislander Availability</h1>
-  <p class="it-tool-subtitle">Check scheduled sailings for a travel date, ±2 days either side.</p>
+  <p class="it-tool-subtitle">Check scheduled sailings and availability by travel date and direction.</p>
 </div>
 
 <div class="it-card">
@@ -24,24 +24,34 @@
 </div>
 
 <div class="it-card" id="isResultsCard" style="display:none; margin-top: var(--it-content-gap);">
-  <div class="it-card-header"><span>Scheduled sailings for <span id="isResultDate"></span></span></div>
+  <div class="it-card-header">
+    <span style="display:flex; align-items:center; gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="var(--color-dusk-sky)" stroke-width="2"/><line x1="16" y1="2" x2="16" y2="6" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="var(--color-dusk-sky)" stroke-width="2"/></svg>
+      <span>Scheduled sailings for <span id="isResultDate"></span></span>
+    </span>
+  </div>
   <table class="it-table">
     <thead>
-      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Can Book</th></tr>
+      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Bookable</th></tr>
     </thead>
     <tbody id="isCurrentBody"></tbody>
   </table>
 </div>
 
 <div class="it-card" id="isExtendedCard" style="display:none; margin-top: var(--it-content-gap);">
-  <div class="it-card-header"><span>More sailings (± 2 days of original date)</span></div>
-  <div style="padding:10px 20px; background:var(--color-beige-60); display:flex; align-items:center; gap:8px;">
-    <div style="width:12px; height:12px; background:rgba(0,99,136,0.1); border-radius:3px; border:1px solid rgba(0,99,136,0.2);"></div>
-    <span style="font-size:12px; color:var(--color-text-muted);">Blue-tinted rows = originally requested date</span>
+  <div class="it-card-header">
+    <span style="display:flex; align-items:center; gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 17l10 5 10-5" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 12l10 5 10-5" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span>More sailings <span style="color: var(--color-text-muted); font-weight: 400; text-transform: none; letter-spacing: normal;">(± 2 days of original date)</span></span>
+    </span>
+    <span style="display:flex; align-items:center; gap:6px; text-transform:none; font-weight:400; letter-spacing:normal; font-size:12px; color:var(--color-text-muted);">
+      <span style="width:12px; height:12px; background:rgba(0,99,136,0.1); border-radius:3px; border:1px solid rgba(0,99,136,0.2); flex-shrink:0;"></span>
+      Blue-tinted rows = originally requested date
+    </span>
   </div>
   <table class="it-table">
     <thead>
-      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Can Book</th></tr>
+      <tr><th>Route Code</th><th>Sailing Date</th><th>Departure</th><th>Arrival</th><th>Ship Name</th><th>Bookable</th></tr>
     </thead>
     <tbody id="isExtendedBody"></tbody>
   </table>
@@ -59,7 +69,14 @@
   const extendedCard  = document.getElementById('isExtendedCard');
   const extendedBody  = document.getElementById('isExtendedBody');
 
-  dateInput.value = new Date().toISOString().slice(0, 10);
+  // Default to today's date using LOCAL date parts — toISOString() converts
+  // to UTC first, which rolls back to the previous day in NZ time (UTC+12/+13)
+  // whenever it's called before midday.
+  function todayLocalISODate() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  dateInput.value = todayLocalISODate();
 
   let selectedDirection = 'WP';
   segButtons.forEach(function (btn) {
@@ -76,8 +93,8 @@
 
   function canBookBadge(canBook) {
     return canBook
-      ? '<span class="it-badge it-badge-success">true</span>'
-      : '<span class="it-badge it-badge-muted">false</span>';
+      ? '<span class="it-badge it-badge-success">Available</span>'
+      : '<span class="it-badge it-badge-muted">Unavailable</span>';
   }
 
   function rowHtml(s) {
@@ -103,17 +120,8 @@
       return;
     }
 
-    let lastDayLabel = null;
-
     sailings.forEach(function (s) {
-      const dayLabel = fmtDayLabel(s.ScheduledDeparture);
       const isSelected = fmtFullDate(s.ScheduledDeparture) === selectedFullDate;
-
-      // Gray divider row between date groups in the extended table.
-      if (lastDayLabel !== null && dayLabel !== lastDayLabel) {
-        extendedBody.innerHTML += '<tr><td colspan="6" style="background:var(--color-border-light); padding:4px;"></td></tr>';
-      }
-      lastDayLabel = dayLabel;
 
       if (isSelected) {
         currentBody.innerHTML += '<tr>' + rowHtml(s) + '</tr>';

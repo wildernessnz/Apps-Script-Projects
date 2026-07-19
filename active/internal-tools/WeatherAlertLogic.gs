@@ -15,10 +15,17 @@
  * it stays on the original Weather Alert spreadsheet's own script, separate
  * from this project.
  *
- * Script Properties required (Project Settings > Script Properties):
- *   HUBSPOT_WHATSAPP_FLOW_ID, SENDGRID_API_KEY, SENDGRID_TEMPLATE_ID,
- *   FROM_EMAIL, FROM_NAME, TEST_MODE, APPROVED_SENDERS, OVERRIDE_EMAILS,
- *   CONFIRMATION_CC, BCC_EMAIL — same set as the original tool.
+ * Script Properties required (Project Settings > Script Properties) —
+ * prefixed with WEATHER_ALERT_ since this project's Script Properties are
+ * now shared across all 4 tools (was implicit when this was its own
+ * project; not anymore):
+ *   WEATHER_ALERT_HUBSPOT_WHATSAPP_FLOW_ID, WEATHER_ALERT_SENDGRID_API_KEY,
+ *   WEATHER_ALERT_SENDGRID_TEMPLATE_ID, WEATHER_ALERT_FROM_EMAIL,
+ *   WEATHER_ALERT_FROM_NAME, WEATHER_ALERT_TEST_MODE,
+ *   WEATHER_ALERT_APPROVED_SENDERS, WEATHER_ALERT_OVERRIDE_EMAILS,
+ *   WEATHER_ALERT_CONFIRMATION_CC, WEATHER_ALERT_BCC_EMAIL
+ *   (WEATHER_ALERT_LAST_SEND_DATE / _BY were already prefixed in the
+ *   original — those two are unchanged.)
  */
 
 // ── Global wrappers — the only entry points exposed to google.script.run ────
@@ -38,7 +45,7 @@ function sendTestEmail(subject, body)                   { return new WeatherAler
 function isWeatherAlertApproved() {
   const email = Session.getActiveUser().getEmail()?.toLowerCase() || '';
   const props = PropertiesService.getScriptProperties();
-  const approved = (props.getProperty('APPROVED_SENDERS') ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  const approved = (props.getProperty('WEATHER_ALERT_APPROVED_SENDERS') ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
   return approved.includes(email);
 }
 
@@ -62,16 +69,16 @@ var WeatherAlert = function () {
   const getConfig = () => {
     const props = PropertiesService.getScriptProperties();
     return {
-      HUBSPOT_WHATSAPP_FLOW_ID: props.getProperty('HUBSPOT_WHATSAPP_FLOW_ID'),
-      SENDGRID_API_KEY:         props.getProperty('SENDGRID_API_KEY'),
-      SENDGRID_TEMPLATE_ID:     props.getProperty('SENDGRID_TEMPLATE_ID'),
-      FROM_EMAIL:               props.getProperty('FROM_EMAIL'),
-      FROM_NAME:                props.getProperty('FROM_NAME'),
-      TEST_MODE:                props.getProperty('TEST_MODE') === 'true',
-      APPROVED_SENDERS:         parseEmailList(props.getProperty('APPROVED_SENDERS')),
-      OVERRIDE_EMAILS:          parseEmailList(props.getProperty('OVERRIDE_EMAILS')),
-      CONFIRMATION_CC:          parseEmailList(props.getProperty('CONFIRMATION_CC')).join(','),
-      BCC_EMAIL:                parseEmailList(props.getProperty('BCC_EMAIL')),
+      HUBSPOT_WHATSAPP_FLOW_ID: props.getProperty('WEATHER_ALERT_HUBSPOT_WHATSAPP_FLOW_ID'),
+      SENDGRID_API_KEY:         props.getProperty('WEATHER_ALERT_SENDGRID_API_KEY'),
+      SENDGRID_TEMPLATE_ID:     props.getProperty('WEATHER_ALERT_SENDGRID_TEMPLATE_ID'),
+      FROM_EMAIL:               props.getProperty('WEATHER_ALERT_FROM_EMAIL'),
+      FROM_NAME:                props.getProperty('WEATHER_ALERT_FROM_NAME'),
+      TEST_MODE:                props.getProperty('WEATHER_ALERT_TEST_MODE') === 'true',
+      APPROVED_SENDERS:         parseEmailList(props.getProperty('WEATHER_ALERT_APPROVED_SENDERS')),
+      OVERRIDE_EMAILS:          parseEmailList(props.getProperty('WEATHER_ALERT_OVERRIDE_EMAILS')),
+      CONFIRMATION_CC:          parseEmailList(props.getProperty('WEATHER_ALERT_CONFIRMATION_CC')).join(','),
+      BCC_EMAIL:                parseEmailList(props.getProperty('WEATHER_ALERT_BCC_EMAIL')),
     };
   };
 
@@ -266,7 +273,7 @@ var WeatherAlert = function () {
 
     const seen = new Set();
 
-    return data.slice(1).reduce((contacts, row) => {
+    const result = data.slice(1).reduce((contacts, row) => {
       const vid   = row[idx.vid]?.toString().trim();
       const email = row[idx.email]?.toString().trim();
 
@@ -284,6 +291,29 @@ var WeatherAlert = function () {
 
       return contacts;
     }, []);
+
+    if (testMode) {
+      const currentEmail = (Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+      const alreadyPresent = result.some((c) => c.email.toLowerCase() === currentEmail);
+
+      if (currentEmail && !alreadyPresent) {
+        // Guarantees the person testing always appears in the guest list in
+        // test mode, even if they aren't a real on-road guest right now —
+        // otherwise verifying the full send flow needs a real @wilderness.co.nz
+        // booking to exist, which isn't always convenient to arrange.
+        const userInfo = getSidebarUserInfo(); // shared helper in WebApp.gs
+        const [firstName, ...rest] = userInfo.displayName.split(' ');
+        result.push({
+          vid: 'test-user-' + currentEmail,
+          email: currentEmail,
+          firstName: firstName || 'You',
+          lastName: rest.join(' '),
+          bookingNumber: 'TEST-USER',
+        });
+      }
+    }
+
+    return result;
   };
 
   // ── SendGrid API ───────────────────────────────────────────────────────────

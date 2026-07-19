@@ -58,4 +58,23 @@
 
     return { notify, confirm };
   })();
+
+  /**
+   * Positions .it-tooltip-content bubbles (fixed positioning, set via JS
+   * since fixed has no relative parent to anchor to). Uses event delegation
+   * on document rather than binding to individual .it-tooltip elements,
+   * since those get swapped in/out dynamically as tool content changes —
+   * binding at load time would miss any tooltip added after that.
+   */
+  function positionTooltip(e) {
+    const trigger = e.target.closest && e.target.closest('.it-tooltip');
+    if (!trigger) return;
+    const content = trigger.querySelector('.it-tooltip-content');
+    if (!content) return;
+    const rect = trigger.getBoundingClientRect();
+    content.style.left = (rect.left + rect.width / 2) + 'px';
+    content.style.top = rect.top + 'px';
+  }
+  document.addEventListener('mouseover', positionTooltip, true);
+  document.addEventListener('focusin', positionTooltip, true);
 </script>

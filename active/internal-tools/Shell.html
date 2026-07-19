@@ -27,7 +27,8 @@
             <? section.items.forEach(function(item, idx) { ?>
               <div class="it-nav-item<?= (section === NAV_CONFIG[0] && idx === 0) ? ' active' : '' ?>"
                    data-tool="<?= item.id ?>"
-                   onclick="ITRouter.navigate('<?= item.id ?>', '<?= item.partial ?>')">
+                   data-width="<?= item.contentWidth ?>"
+                   onclick="ITRouter.navigate('<?= item.id ?>', '<?= item.partial ?>', '<?= item.contentWidth ?>')">
                 <span class="it-nav-icon"><?!= item.icon ?></span>
                 <span><?= item.label ?></span>
               </div>
@@ -36,15 +37,19 @@
         </div>
       <? }); ?>
 
+      <? var currentUser = getSidebarUserInfo(); ?>
       <div class="it-nav-footer">
-        <div class="it-avatar"><?= (Session.getActiveUser().getEmail() || '??').substring(0,2).toUpperCase() ?></div>
-        <div class="it-user-email"><?= Session.getActiveUser().getEmail() ?></div>
+        <div class="it-avatar"><?= currentUser.initials ?></div>
+        <div class="it-user-info">
+          <div class="it-user-name"><?= currentUser.displayName ?></div>
+          <div class="it-user-email"><?= currentUser.email ?></div>
+        </div>
       </div>
     </nav>
 
     <!-- Content area: partials are fetched via google.script.run and swapped
          in here client-side (see Router.html) — no full page reload. -->
-    <main class="it-content" id="itContent">
+    <main class="it-content it-content-<?= NAV_CONFIG[0].items[0].contentWidth ?>" id="itContent">
       <div class="it-loading">Loading…</div>
     </main>
 

@@ -1,29 +1,28 @@
 <div class="it-tool-header">
   <h1>Booking Finder</h1>
-  <p class="it-tool-subtitle">Search for bookings by travel date or vehicle registration.</p>
+  <p class="it-tool-subtitle">Search for bookings by travel date and vehicle registration.</p>
 </div>
 
 <div class="it-card">
-  <div class="it-card-body it-form-row">
+  <form class="it-card-body it-form-row" id="bfForm">
     <div class="it-field">
       <label class="it-label" for="bfTravelDate">Travel Date</label>
-      <input type="date" id="bfTravelDate" class="it-input">
+      <input type="date" id="bfTravelDate" class="it-input" required>
     </div>
     <div class="it-field">
       <label class="it-label" for="bfRego">Rego</label>
-      <input type="text" id="bfRego" class="it-input" placeholder="e.g. QYU236">
+      <input type="text" id="bfRego" class="it-input" placeholder="e.g. QYU236" required>
     </div>
-    <button class="it-btn it-btn-nav" id="bfSearchBtn">
+    <button type="submit" class="it-btn it-btn-nav" id="bfSearchBtn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" stroke-width="2"/><line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
       <span id="bfSearchBtnLabel">Search Bookings</span>
     </button>
-  </div>
+  </form>
 </div>
 
 <div class="it-card" id="bfResultsCard" style="display:none; margin-top: var(--it-content-gap);">
   <div class="it-card-header">
-    <span>Results</span>
-    <span class="it-badge" id="bfResultCount">0</span>
+    <span>Results <span class="it-badge" id="bfResultCount">0</span></span>
   </div>
   <table class="it-table">
     <thead>
@@ -42,6 +41,7 @@
 
 <script>
 (function () {
+  const form         = document.getElementById('bfForm');
   const dateInput    = document.getElementById('bfTravelDate');
   const regoInput    = document.getElementById('bfRego');
   const searchBtn    = document.getElementById('bfSearchBtn');
@@ -51,7 +51,13 @@
   const resultCount  = document.getElementById('bfResultCount');
 
   // Default travel date to today — matches the original tool's behaviour.
-  dateInput.value = new Date().toISOString().slice(0, 10);
+  // Uses LOCAL date parts, not toISOString() (which converts to UTC first
+  // and rolls back to the previous day in NZ time before midday).
+  function todayLocalISODate() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  }
+  dateInput.value = todayLocalISODate();
 
   function formatDate(d) {
     return new Date(d).toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' });
@@ -80,10 +86,15 @@
     });
   }
 
-  function search() {
+  // Submit only fires once the browser's own required-field validation has
+  // passed — an empty Rego or Travel Date blocks submission and shows the
+  // native "Please fill in this field" tooltip automatically, no extra code
+  // needed for that part.
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
     const rego = regoInput.value.trim();
     const travelDate = dateInput.value;
-    if (!rego || !travelDate) return;
 
     searchBtn.disabled = true;
     searchLabel.textContent = 'Searching…';
@@ -101,8 +112,6 @@
         resultsCard.style.display = 'block';
       })
       .searchBookings(rego, travelDate);
-  }
-
-  searchBtn.addEventListener('click', search);
+  });
 })();
 </script>

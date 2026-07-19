@@ -14,19 +14,23 @@
 
 <div class="it-card">
   <div class="it-card-header">
-    <span>On-Road Guests <span class="it-badge" id="waGuestCount">0</span></span>
+    <span style="display:flex; align-items:center; gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="12" cy="7" r="4" stroke="var(--color-dusk-sky)" stroke-width="2"/></svg>
+      <span>On-Road Guests <span class="it-badge" id="waGuestCount">0</span></span>
+    </span>
     <span style="display:flex; align-items:center; gap:14px; text-transform:none; font-weight:400;">
       <span id="waLockStatusInline" style="display:flex; align-items:center; gap:5px; font-size:12px; font-weight:700;">
         <span id="waLockDot" style="width:6px; height:6px; border-radius:50%; background:var(--color-organic-green);"></span>
         <span id="waLockStatusText" style="color:var(--color-organic-green);">Daily lock clear</span>
       </span>
-      <button id="waGuestShowMore" onclick="toggleGuestList()" style="display:none; background:none; border:none; color: var(--color-electric-blue); font-size:12px; font-weight:700; cursor:pointer;">Show all</button>
+      <button id="waGuestShowMore" class="it-btn-ghost-sm" onclick="toggleGuestList()" style="display:none;">
+        <span id="waGuestShowMoreLabel">Show all</span>
+        <svg id="waGuestShowMoreIcon" width="10" height="10" viewBox="0 0 24 24" fill="none" style="transition: transform 0.15s ease;"><polyline points="6 9 12 15 18 9" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </span>
   </div>
   <div class="it-card-body">
-    <div id="waGuestAvatars" style="display:flex; align-items:center; gap:8px; margin-bottom:4px;"></div>
-    <div id="waGuestPreview" style="font-size:13px; color: var(--color-text-muted);">Loading…</div>
-    <div id="waGuestListExpanded" style="display:none; flex-direction:column; gap:6px; margin-top:12px; max-height:280px; overflow-y:auto;"></div>
+    <div id="waGuestListExpanded" style="display:flex; flex-direction:column; gap:10px; max-height:340px; overflow-y:auto;"></div>
   </div>
 </div>
 
@@ -146,8 +150,6 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
   let _waState = null;
 
   const guestCountEl   = document.getElementById('waGuestCount');
-  const guestPreviewEl = document.getElementById('waGuestPreview');
-  const guestAvatarsEl = document.getElementById('waGuestAvatars');
   const guestExpandedEl = document.getElementById('waGuestListExpanded');
   const guestShowMoreBtn = document.getElementById('waGuestShowMore');
   const lockDot        = document.getElementById('waLockDot');
@@ -165,6 +167,7 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
   const channelWhatsApp = document.getElementById('waChannelWhatsApp');
 
   const SHOW_MAX = 5;
+  let guestListShowingAll = false;
 
   [channelEmail, channelWhatsApp].forEach(function (card) {
     card.addEventListener('click', function () { card.classList.toggle('active'); });
@@ -183,35 +186,41 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
     return (name || '').trim().split(/\s+/).map(function (p) { return p[0] || ''; }).join('').substring(0, 2).toUpperCase();
   }
 
-  function renderGuestList(all) {
+  // Guest details always show by default (up to SHOW_MAX) — the toggle only
+  // controls whether the FULL list is shown beyond that, not whether details
+  // show at all. Previously details were hidden behind a "Show all" button
+  // that never appeared for lists of SHOW_MAX or fewer, so details were
+  // effectively unreachable for small guest lists.
+  function renderGuestList() {
     const contacts = (_waState && _waState.contacts) || [];
-    guestExpandedEl.innerHTML = contacts.slice(0, all ? contacts.length : SHOW_MAX).map(function (c) {
-      return '<div style="padding:8px 10px; border-radius:8px; background:var(--color-beige-60);">' +
-        '<div style="font-size:12px; font-weight:700;">' + c.name + '</div>' +
-        '<div style="font-size:11px; color:var(--color-text-muted);">' + c.email + ' · ' + c.bookingNumber + '</div></div>';
+    const showCount = guestListShowingAll ? contacts.length : Math.min(contacts.length, SHOW_MAX);
+
+    if (!contacts.length) {
+      guestExpandedEl.innerHTML = '<div style="font-size:13px; color: var(--color-text-muted);">' +
+        (_waState && _waState.testMode ? 'No @wilderness.co.nz contacts found' : 'No on-road guests found') + '</div>';
+      return;
+    }
+
+    guestExpandedEl.innerHTML = contacts.slice(0, showCount).map(function (c) {
+      return '<div class="it-guest-card">' +
+        '<div class="it-avatar" style="background:var(--color-electric-blue);">' + initials(c.name) + '</div>' +
+        '<div><div class="it-guest-name">' + c.name + '</div>' +
+        '<div class="it-guest-meta">' + c.email + ' · ' + c.bookingNumber + '</div></div></div>';
     }).join('');
   }
 
   window.toggleGuestList = function () {
-    const contacts = (_waState && _waState.contacts) || [];
-    const expanded = guestExpandedEl.style.display !== 'none';
-    if (expanded) {
-      guestExpandedEl.style.display = 'none';
-      guestAvatarsEl.style.display = 'flex';
-      guestPreviewEl.style.display = 'block';
-      guestShowMoreBtn.textContent = 'Show all';
-    } else {
-      renderGuestList(true);
-      guestExpandedEl.style.display = 'flex';
-      guestAvatarsEl.style.display = 'none';
-      guestPreviewEl.style.display = 'none';
-      guestShowMoreBtn.textContent = 'Show fewer';
-    }
+    guestListShowingAll = !guestListShowingAll;
+    const label = document.getElementById('waGuestShowMoreLabel');
+    const icon = document.getElementById('waGuestShowMoreIcon');
+    label.textContent = guestListShowingAll ? 'Collapse' : 'Show all';
+    icon.style.transform = guestListShowingAll ? 'rotate(180deg)' : 'rotate(0deg)';
+    renderGuestList();
   };
 
   // ── Init: load guest preview + lock/test-mode state ───────────────────
   function loadPreview() {
-    guestPreviewEl.textContent = 'Loading…';
+    guestExpandedEl.innerHTML = '<div style="font-size:13px; color: var(--color-text-muted);">Loading…</div>';
     google.script.run
       .withSuccessHandler(onStateLoaded)
       .withFailureHandler(function (e) { showResultModal('error', [['Error', 'Could not load guest list: ' + e.message]]); })
@@ -223,17 +232,9 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
     const contacts = s.contacts || [];
 
     guestCountEl.textContent = contacts.length;
-    guestPreviewEl.textContent = contacts.length
-      ? contacts.length + ' guest(s) will be notified'
-      : (s.testMode ? 'No @wilderness.co.nz contacts found' : 'No on-road guests found');
-
-    // Avatar row — first 5 initials
-    guestAvatarsEl.innerHTML = contacts.slice(0, 5).map(function (c) {
-      return '<div class="it-avatar" style="background:var(--color-electric-blue);">' + initials(c.name) + '</div>';
-    }).join('');
-
-    guestShowMoreBtn.style.display = contacts.length > SHOW_MAX ? 'inline-block' : 'none';
-    renderGuestList(false);
+    guestShowMoreBtn.style.display = contacts.length > SHOW_MAX ? 'inline-flex' : 'none';
+    guestListShowingAll = false;
+    renderGuestList();
 
     testModeBanner.style.display = s.testMode ? 'block' : 'none';
     testModeBadge.style.display  = s.testMode ? 'inline-block' : 'none';

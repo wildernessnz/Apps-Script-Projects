@@ -2,14 +2,14 @@
   <h1>Relo Job Calculator</h1>
   <p class="it-tool-subtitle">Learn how this calculator works <a href="https://wildernessnz.atlassian.net/wiki/spaces/AS/pages/4179197970/Info+Relocation+Rates+Calculator" target="_blank" class="it-link">here</a>.</p>
 </div>
- 
+
 <div class="it-card">
-  <div class="it-card-body" style="display:flex; flex-direction:column; gap:20px;">
- 
+  <form class="it-card-body" id="rrForm" style="display:flex; flex-direction:column; gap:20px;">
+
     <div class="it-form-row">
       <div class="it-field">
-        <label class="it-label" for="rrJobStart">Job start (arrival at base) <span title="Arrival at base" style="cursor:help; opacity:0.5;">ⓘ</span></label>
-        <input type="datetime-local" id="rrJobStart" class="it-input">
+        <label class="it-label" for="rrJobStart">Job start (arrival at base) <span class="it-tooltip" tabindex="0"><span class="it-tooltip-icon">ⓘ</span><span class="it-tooltip-content">Arrival at base</span></span></label>
+        <input type="datetime-local" id="rrJobStart" class="it-input" required>
       </div>
       <div style="display:flex; align-items:center; gap:10px; height:44px;">
         <button type="button" class="it-toggle" id="rrOvernight" data-on="false"><div class="it-toggle-thumb"></div></button>
@@ -20,16 +20,16 @@
         <span style="font-size:14px; font-weight:700;">Public holiday</span>
       </div>
     </div>
- 
+
     <div id="rrLegs">
       <div class="it-form-row rr-leg" id="rrLeg1" data-leg="1">
         <div class="it-field" style="flex:1;">
           <label class="it-label" for="rrDeparture1">Leaving from</label>
-          <input type="text" id="rrDeparture1" class="it-input" placeholder="Type name of location" style="width:100%;">
+          <input type="text" id="rrDeparture1" class="it-input" placeholder="Type name of location" style="width:100%;" required>
         </div>
         <div class="it-field" style="flex:1;">
           <label class="it-label" for="rrDestination1">Driving to</label>
-          <input type="text" id="rrDestination1" class="it-input" placeholder="Type name of location" style="width:100%;">
+          <input type="text" id="rrDestination1" class="it-input" placeholder="Type name of location" style="width:100%;" required>
         </div>
         <div class="it-field">
           <label class="it-label">Duration</label>
@@ -41,7 +41,7 @@
         </div>
         <button type="button" class="it-btn-utility" id="rrAddStopBtn">+ Add Stop</button>
       </div>
- 
+
       <div class="it-form-row rr-leg" id="rrLeg2" data-leg="2" style="display:none; margin-top:16px;">
         <div class="it-field" style="flex:1;">
           <label class="it-label" for="rrDeparture2">Departure</label>
@@ -61,7 +61,7 @@
         </div>
         <button type="button" class="it-btn-utility" id="rrRemoveStop2Btn">Remove</button>
       </div>
- 
+
       <div class="it-form-row rr-leg" id="rrLeg3" data-leg="3" style="display:none; margin-top:16px;">
         <div class="it-field" style="flex:1;">
           <label class="it-label" for="rrDeparture3">Departure</label>
@@ -82,7 +82,7 @@
         <button type="button" class="it-btn-utility" id="rrRemoveStop3Btn">Remove</button>
       </div>
     </div>
- 
+
     <div class="it-form-row" style="border-top:1px solid var(--color-border-light); padding-top:20px;">
       <div class="it-field">
         <label class="it-label">Flight bus/duration (if applicable)</label>
@@ -93,38 +93,43 @@
         </div>
       </div>
       <div class="it-field">
-        <label class="it-label">Delay (if applicable) <span title="Add extra time for delays etc" style="cursor:help; opacity:0.5;">ⓘ</span></label>
+        <label class="it-label">Delay (if applicable) <span class="it-tooltip" tabindex="0"><span class="it-tooltip-icon">ⓘ</span><span class="it-tooltip-content">Add extra time for delays etc</span></span></label>
         <div class="it-duration" data-duration="rrDelayDuration">
           <input type="number" min="0" value="0" class="it-duration-input" data-unit="h"><span>h</span>
           <span style="opacity:0.4;">:</span>
           <input type="number" min="0" max="59" value="0" class="it-duration-input" data-unit="m"><span>m</span>
         </div>
       </div>
-      <button class="it-btn it-btn-primary" id="rrCalculateBtn">
+      <button type="submit" class="it-btn it-btn-primary" id="rrCalculateBtn">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M22 2L11 13" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2L15 22l-4-9-9-4 20-7z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span id="rrCalculateBtnLabel">Calculate</span>
       </button>
     </div>
- 
-  </div>
+
+  </form>
 </div>
- 
+
 <div class="it-card" id="rrResultsCard" style="display:none; margin-top: var(--it-content-gap);">
-  <div class="it-card-header"><span>Relocation Job Offer</span></div>
+  <div class="it-card-header">
+    <span style="display:flex; align-items:center; gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="13" x2="16" y2="13" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="17" x2="16" y2="17" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round"/></svg>
+      <span>Relocation Job Offer</span>
+    </span>
+  </div>
   <div class="it-card-body" style="display:flex; flex-direction:column; gap:0;">
     <div class="rr-row"><span>Job start date and time</span><span id="rrOutJobStart"></span></div>
     <div class="rr-row"><span>Estimated hours of work (driving, public transport)</span><span id="rrOutEstimatedHours"></span></div>
     <div class="rr-row" id="rrRowPublicHoliday" style="display:none;"><span>Public holiday rate</span><span>1.5x</span></div>
-    <div class="rr-row"><span>Rest time</span><span id="rrOutRestDescription"></span></div>
-    <div class="rr-row"><span><strong>Base pay</strong></span><span id="rrOutPayOffered"></span></div>
+    <div class="rr-row"><span>Rest time</span><span id="rrOutRestDescription" class="rr-description"></span></div>
+    <div class="rr-row"><span><strong>Base pay</strong></span><span><strong id="rrOutPayOffered"></strong></span></div>
     <div class="rr-row"><span><strong>Extras</strong></span><span></span></div>
     <div class="rr-row" id="rrRowDelay" style="display:none;"><span>Delay</span><span id="rrOutDelay"></span></div>
     <div class="rr-row" id="rrRowMeal" style="display:none;"><span>Meal allowance</span><span id="rrOutMeal"></span></div>
     <div class="rr-row" id="rrRowRest" style="display:none;"><span>Rest break(s)</span><span id="rrOutRest"></span></div>
-    <div class="rr-row rr-row-total"><span><strong>Total pay</strong></span><span id="rrOutTotal"></span></div>
+    <div class="rr-row rr-row-total"><span><strong>Total pay</strong></span><span><strong id="rrOutTotal"></strong></span></div>
   </div>
 </div>
- 
+
 <script>
 (function () {
   function toggle(id) {
@@ -137,20 +142,20 @@
   }
   toggle('rrOvernight');
   toggle('rrPublicHoliday');
- 
+
   function getDurationMinutes(containerSelector) {
     const container = document.querySelector('[data-duration="' + containerSelector + '"]');
     const h = Number(container.querySelector('[data-unit="h"]').value) || 0;
     const m = Number(container.querySelector('[data-unit="m"]').value) || 0;
     return (h * 60) + m;
   }
- 
+
   // ── Add/remove stop legs ──────────────────────────────────────────────
   function updateAddButtonVisibility() {
     document.getElementById('rrAddStopBtn').style.display =
       document.getElementById('rrLeg2').style.display === 'none' ? 'inline-flex' : 'none';
   }
- 
+
   document.getElementById('rrAddStopBtn').addEventListener('click', function () {
     if (document.getElementById('rrLeg2').style.display === 'none') {
       document.getElementById('rrLeg2').style.display = 'flex';
@@ -159,7 +164,7 @@
     }
     updateAddButtonVisibility();
   });
- 
+
   // Resets a leg's inputs to blank/00 and hides it — matches the original's
   // hideRow(), so re-adding a stop after removing it doesn't show stale data.
   function resetLeg(legNum) {
@@ -168,7 +173,7 @@
     leg.querySelectorAll('input[type="text"]').forEach(function (input) { input.value = ''; });
     leg.querySelectorAll('.it-duration-input').forEach(function (input) { input.value = '0'; });
   }
- 
+
   document.getElementById('rrRemoveStop2Btn').addEventListener('click', function () {
     resetLeg(2);
     resetLeg(3);
@@ -176,17 +181,17 @@
     document.getElementById('rrLeg3').style.display = 'none';
     updateAddButtonVisibility();
   });
- 
+
   document.getElementById('rrRemoveStop3Btn').addEventListener('click', function () {
     resetLeg(3);
     document.getElementById('rrLeg3').style.display = 'none';
   });
- 
+
   // ── Calculate ──────────────────────────────────────────────────────────
   function formatDateTime(d) {
     return new Date(d).toLocaleString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true });
   }
- 
+
   function renderResults(jobRate) {
     document.getElementById('rrOutJobStart').textContent = formatDateTime(jobRate.startDate);
     document.getElementById('rrOutEstimatedHours').textContent = jobRate.estimatedHours + 'h';
@@ -196,34 +201,38 @@
     document.getElementById('rrOutRest').textContent = '$' + jobRate.restPay;
     document.getElementById('rrOutTotal').textContent = '$' + jobRate.totalPayOffered;
     document.getElementById('rrOutRestDescription').textContent = jobRate.restDescription || '—';
- 
+
     document.getElementById('rrRowMeal').style.display  = Number(jobRate.mealAllowance) > 0 ? 'flex' : 'none';
     document.getElementById('rrRowDelay').style.display = Number(jobRate.delayPay) > 0 ? 'flex' : 'none';
+    document.getElementById('rrRowRest').style.display  = Number(jobRate.restPay) > 0 ? 'flex' : 'none';
     document.getElementById('rrRowPublicHoliday').style.display = jobRate.publicHoliday ? 'flex' : 'none';
- 
+
     document.getElementById('rrResultsCard').style.display = 'block';
   }
- 
-  document.getElementById('rrCalculateBtn').addEventListener('click', function () {
+
+  // Submit only fires once the browser's own required-field validation has
+  // passed — an empty Job Start, Leaving From, or Driving To blocks
+  // submission and shows the native tooltip automatically.
+  document.getElementById('rrForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+
     const departureDate = document.getElementById('rrJobStart').value;
-    if (!departureDate) return;
- 
     const overnight     = document.getElementById('rrOvernight').dataset.on === 'true';
     const publicHoliday = document.getElementById('rrPublicHoliday').dataset.on === 'true';
     const departure      = document.getElementById('rrDeparture1').value;
     const destination     = document.getElementById('rrDestination1').value;
- 
+
     const tripDuration = getDurationMinutes('rrTripDuration1')
       + (document.getElementById('rrLeg2').style.display !== 'none' ? getDurationMinutes('rrTripDuration2') : 0)
       + (document.getElementById('rrLeg3').style.display !== 'none' ? getDurationMinutes('rrTripDuration3') : 0);
     const flightDuration = getDurationMinutes('rrFlightDuration');
     const delayDuration  = getDurationMinutes('rrDelayDuration');
- 
+
     const btn = document.getElementById('rrCalculateBtn');
     const label = document.getElementById('rrCalculateBtnLabel');
     btn.disabled = true;
     label.textContent = 'Calculating…';
- 
+
     google.script.run
       .withSuccessHandler(function (json) {
         btn.disabled = false;
@@ -239,6 +248,3 @@
   });
 })();
 </script>
- 
-
-

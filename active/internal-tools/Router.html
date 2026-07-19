@@ -23,8 +23,15 @@
       });
     }
 
-    function navigate(toolId, partialName) {
+    function setContentWidth(width) {
+      const content = document.getElementById('itContent');
+      content.classList.remove('it-content-narrow', 'it-content-wide');
+      if (width) content.classList.add('it-content-' + width);
+    }
+
+    function navigate(toolId, partialName, contentWidth) {
       setActiveNavItem(toolId);
+      setContentWidth(contentWidth);
       setContent('<div class="it-loading">Loading…</div>');
 
       google.script.run
@@ -35,13 +42,14 @@
         .getToolContent(partialName);
     }
 
-    return { navigate, setContent };
+    return { navigate, setContent, setContentWidth };
   })();
 
   // Load the first (active) nav item's content on initial page render.
   document.addEventListener('DOMContentLoaded', function () {
     const firstItem = document.querySelector('.it-nav-item.active');
     if (firstItem) {
+      ITRouter.setContentWidth(firstItem.dataset.width);
       google.script.run
         .withSuccessHandler(ITRouter.setContent)
         .withFailureHandler(function (err) {
