@@ -181,7 +181,13 @@ var Interislander = function () {
   this.getScheduledSailingsExtended = (departureDate, direction) => {
     Logger.log(`[Interislander.getScheduledSailingsExtended] departureDate=${departureDate} | direction=${direction}`);
 
+    // Normalised to local midnight — comparing this against dayMinus1/2
+    // (which carry a ~noon time-of-day from parsing a bare YYYY-MM-DD
+    // string) must be a calendar-day comparison, not a full-timestamp one.
+    // Using `new Date()` directly here made -1/-2 day inclusion flip
+    // depending on what time of day the search was run.
     const today = new Date();
+    today.setHours(0, 0, 0, 0);
     const dep = new Date(departureDate);
 
     const offsetDate_ = (n) => { const d = new Date(dep); d.setDate(d.getDate() + n); return d; };
@@ -192,8 +198,8 @@ var Interislander = function () {
     const day0  = getScheduledSailings_(formatDate_(offsetDate_(0)), direction);
     const dayP1 = getScheduledSailings_(formatDate_(offsetDate_(1)), direction);
     const dayP2 = getScheduledSailings_(formatDate_(offsetDate_(2)), direction);
-    const dayM1 = dayMinus1 > today ? getScheduledSailings_(formatDate_(dayMinus1), direction) : [];
-    const dayM2 = dayMinus2 > today ? getScheduledSailings_(formatDate_(dayMinus2), direction) : [];
+    const dayM1 = dayMinus1 >= today ? getScheduledSailings_(formatDate_(dayMinus1), direction) : [];
+    const dayM2 = dayMinus2 >= today ? getScheduledSailings_(formatDate_(dayMinus2), direction) : [];
 
     const combined = [...dayM2, ...dayM1, ...day0, ...dayP1, ...dayP2];
 

@@ -60,6 +60,20 @@
   })();
 
   /**
+   * Escapes HTML special characters. Shared across every tool partial since
+   * they render sheet/API/guest data into the DOM via string concatenation
+   * (see Router.html's note on createContextualFragment) — without this, a
+   * stray `<`/`&` in a name, rego, or ship name breaks the table markup.
+   * @param {*} str
+   * @returns {string}
+   */
+  function escapeHtml(str) {
+    return String(str ?? '').replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /**
    * Positions .it-tooltip-content bubbles (fixed positioning, set via JS
    * since fixed has no relative parent to anchor to). Uses event delegation
    * on document rather than binding to individual .it-tooltip elements,

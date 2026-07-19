@@ -203,9 +203,9 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
 
     guestExpandedEl.innerHTML = contacts.slice(0, showCount).map(function (c) {
       return '<div class="it-guest-card">' +
-        '<div class="it-avatar" style="background:var(--color-electric-blue);">' + initials(c.name) + '</div>' +
-        '<div><div class="it-guest-name">' + c.name + '</div>' +
-        '<div class="it-guest-meta">' + c.email + ' · ' + c.bookingNumber + '</div></div></div>';
+        '<div class="it-avatar" style="background:var(--color-electric-blue);">' + escapeHtml(initials(c.name)) + '</div>' +
+        '<div><div class="it-guest-name">' + escapeHtml(c.name) + '</div>' +
+        '<div class="it-guest-meta">' + escapeHtml(c.email) + ' · ' + escapeHtml(c.bookingNumber) + '</div></div></div>';
     }).join('');
   }
 
@@ -377,10 +377,10 @@ There's no need to worry, but we recommend checking the forecast and adjusting y
 
     const modeLabel = r.testMode ? 'TEST MODE — @wilderness.co.nz only' : 'LIVE';
     const emailLabel = r.sendEmail ? (r.emailsSent + ' of ' + r.totalContacts) : 'Not selected';
-    const rows = [['Mode', modeLabel], ['Triggered by', r.triggeredBy], ['Emails sent', emailLabel]];
-    if (r.whatsApp) rows.push(['WhatsApp', r.whatsApp]);
+    const rows = [['Mode', modeLabel], ['Triggered by', escapeHtml(r.triggeredBy)], ['Emails sent', emailLabel]];
+    if (r.whatsApp) rows.push(['WhatsApp', escapeHtml(r.whatsApp)]);
     if (r.emailErrors && r.emailErrors.length) {
-      rows.push(['Errors', r.emailErrors.map(function (e) { return e.email + ' — ' + e.error; }).join('<br>'), 'error']);
+      rows.push(['Errors', r.emailErrors.map(function (e) { return escapeHtml(e.email) + ' — ' + escapeHtml(e.error); }).join('<br>'), 'error']);
     }
     rows.push(['Sent at', new Date(r.timestamp).toLocaleTimeString('en-NZ')]);
 

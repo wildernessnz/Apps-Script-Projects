@@ -98,11 +98,11 @@
   }
 
   function rowHtml(s) {
-    return '<td>' + s.RouteCode + '</td>' +
+    return '<td>' + escapeHtml(s.RouteCode) + '</td>' +
       '<td>' + fmtDayLabel(s.ScheduledDeparture) + '</td>' +
       '<td>' + fmtTime(s.ScheduledDeparture) + '</td>' +
       '<td>' + fmtTime(s.ScheduledArrival) + '</td>' +
-      '<td>' + s.ShipName + '</td>' +
+      '<td>' + escapeHtml(s.ShipName) + '</td>' +
       '<td>' + canBookBadge(s.CanBook) + '</td>';
   }
 

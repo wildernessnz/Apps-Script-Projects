@@ -32,7 +32,8 @@ var BookingFinder = function () {
     const sheet = ss.getSheetByName(TAB_NAME);
     if (!sheet) throw new Error(`[BookingFinder.searchBookings] Sheet tab "${TAB_NAME}" not found`);
 
-    const rows = sheet.getRange(2, 1, sheet.getMaxRows() - 1, sheet.getMaxColumns()).getValues();
+    const lastRow = sheet.getLastRow();
+    const rows = lastRow < 2 ? [] : sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).getValues();
     const normalisedRego = (rego || '').trim().toUpperCase();
     const date = new Date(travelDate);
 
@@ -45,7 +46,7 @@ var BookingFinder = function () {
     Logger.log(`[BookingFinder.searchBookings] matchCount=${matches.length}`);
 
     const bookings = matches.map((row) => {
-      const bookingNumber = row[0].replace('R-', '');
+      const bookingNumber = String(row[0] || '').replace('R-', '');
       return {
         bookingNumber,
         guest:       row[10],

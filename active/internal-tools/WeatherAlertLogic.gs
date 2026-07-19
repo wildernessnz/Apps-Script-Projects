@@ -85,6 +85,13 @@ var WeatherAlert = function () {
   const parseEmailList = (raw) =>
     (raw ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
 
+  // Guest/booking data (names, error text pulled from external APIs) is
+  // interpolated into HTML strings below — escape it so a stray `<`/`&` in a
+  // guest's name or an API error message can't break the rendered email.
+  const escapeHtml_ = (str) => String(str ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
   const getTriggeredBy = () => Session.getActiveUser().getEmail()?.toLowerCase() || 'unknown';
 
   // ── One-send-per-day guard ─────────────────────────────────────────────────
@@ -185,21 +192,39 @@ var WeatherAlert = function () {
     if (!doEmail && !doWhatsApp) {
       return { success: false, message: 'No channel selected — nothing to send.' };
     }
-    if (alreadySentToday()) {
-      return {
-        success: false,
-        message: `A weather alert was already sent today (${getLastSendDate()}) by ${getLastSendBy() || 'unknown'}. Only one send per day is permitted.`,
-      };
-    }
 
-    const contacts = getOnRoadContacts(cfg.TEST_MODE);
-    if (!contacts.length) {
-      return {
-        success: false,
-        message: cfg.TEST_MODE
-          ? 'No @wilderness.co.nz contacts found — nothing sent. (Test mode active)'
-          : 'No on-road guests found in the sheet — nothing sent.',
-      };
+    // Check-then-reserve the daily lock atomically under a script lock —
+    // without this, two near-simultaneous sends (two people, or a double
+    // click) could both pass alreadySentToday() before either one calls
+    // recordSend(), resulting in two sends for the same day.
+    const lock = LockService.getScriptLock();
+    let contacts;
+    try {
+      lock.waitLock(10000);
+    } catch (err) {
+      return { success: false, message: 'Could not acquire the send lock — please try again in a moment.' };
+    }
+    try {
+      if (alreadySentToday()) {
+        return {
+          success: false,
+          message: `A weather alert was already sent today (${getLastSendDate()}) by ${getLastSendBy() || 'unknown'}. Only one send per day is permitted.`,
+        };
+      }
+
+      contacts = getOnRoadContacts(cfg.TEST_MODE);
+      if (!contacts.length) {
+        return {
+          success: false,
+          message: cfg.TEST_MODE
+            ? 'No @wilderness.co.nz contacts found — nothing sent. (Test mode active)'
+            : 'No on-road guests found in the sheet — nothing sent.',
+        };
+      }
+
+      recordSend(triggeredBy);
+    } finally {
+      lock.releaseLock();
     }
 
     const emailsSent = [];
@@ -229,7 +254,6 @@ var WeatherAlert = function () {
       }
     }
 
-    recordSend(triggeredBy);
     logSend({ subject, body, triggeredBy, testMode: cfg.TEST_MODE,
               totalContacts: contacts.length, emailsSent, errors, whatsAppResult, sendEmail: doEmail });
     sendConfirmationEmail({ triggeredBy, cc: cfg.CONFIRMATION_CC, testMode: cfg.TEST_MODE,
@@ -379,9 +403,12 @@ var WeatherAlert = function () {
     return active.html_content || '<p>(This template version has no HTML content.)</p>';
   };
 
+  // Replacement is passed as a function (not a plain string) so that $&, $$,
+  // $`, $' etc. inside subject/body/firstName are inserted literally instead
+  // of being interpreted as String.replace's special substitution patterns.
   const renderTemplate = (html, data) =>
     Object.entries(data).reduce(
-      (out, [key, value]) => out.replace(new RegExp(`\\{{2,3}\\s*${key}\\s*\\}{2,3}`, 'g'), value),
+      (out, [key, value]) => out.replace(new RegExp(`\\{{2,3}\\s*${key}\\s*\\}{2,3}`, 'g'), () => value),
       html
     );
 
@@ -516,17 +543,17 @@ var WeatherAlert = function () {
       const sentAt     = new Date(timestamp).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
       const errorBlock = errors.length
         ? `<tr><td style="padding:8px 0;color:#7a1a15;vertical-align:top"><strong>Errors (${errors.length})</strong></td>`
-          + `<td style="padding:8px 0;color:#7a1a15">${errors.map(e => `${e.email}: ${e.error}`).join('<br>')}</td></tr>`
+          + `<td style="padding:8px 0;color:#7a1a15">${errors.map(e => `${escapeHtml_(e.email)}: ${escapeHtml_(e.error)}`).join('<br>')}</td></tr>`
         : '';
       const waBlock = whatsAppResult
         ? `<tr><td style="padding:8px 0;color:#555;vertical-align:top"><strong>WhatsApp</strong></td>`
-          + `<td style="padding:8px 0">${whatsAppResult}</td></tr>`
+          + `<td style="padding:8px 0">${escapeHtml_(whatsAppResult)}</td></tr>`
         : '';
       const emailStatus = sendEmail ? `${emailsSent.length} of ${contacts.length}` : 'Not selected — email channel was off';
       const contactRows = contacts
-        .map(c => `<tr><td style="padding:3px 8px">${c.firstName} ${c.lastName}</td>`
-                + `<td style="padding:3px 8px;color:#555">${c.email}</td>`
-                + `<td style="padding:3px 8px;color:#555">${c.bookingNumber}</td></tr>`)
+        .map(c => `<tr><td style="padding:3px 8px">${escapeHtml_(c.firstName)} ${escapeHtml_(c.lastName)}</td>`
+                + `<td style="padding:3px 8px;color:#555">${escapeHtml_(c.email)}</td>`
+                + `<td style="padding:3px 8px;color:#555">${escapeHtml_(c.bookingNumber)}</td></tr>`)
         .join('');
 
       const htmlBody = `
@@ -537,8 +564,8 @@ var WeatherAlert = function () {
           <div style="border:1px solid #d0d0c8;border-top:none;padding:20px 24px;border-radius:0 0 8px 8px">
             <table style="width:100%;border-collapse:collapse;margin-bottom:20px">
               <tr><td style="padding:8px 0;width:140px;vertical-align:top"><strong>Sent at</strong></td><td style="padding:8px 0">${sentAt} (NZ time)</td></tr>
-              <tr><td style="padding:8px 0;vertical-align:top"><strong>Triggered by</strong></td><td style="padding:8px 0">${triggeredBy}</td></tr>
-              <tr><td style="padding:8px 0;vertical-align:top"><strong>Subject sent</strong></td><td style="padding:8px 0">${subject}</td></tr>
+              <tr><td style="padding:8px 0;vertical-align:top"><strong>Triggered by</strong></td><td style="padding:8px 0">${escapeHtml_(triggeredBy)}</td></tr>
+              <tr><td style="padding:8px 0;vertical-align:top"><strong>Subject sent</strong></td><td style="padding:8px 0">${escapeHtml_(subject)}</td></tr>
               <tr><td style="padding:8px 0;vertical-align:top"><strong>Emails sent</strong></td><td style="padding:8px 0">${emailStatus}</td></tr>
               ${waBlock}
               ${errorBlock}

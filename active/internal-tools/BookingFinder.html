@@ -76,10 +76,10 @@
     bookings.forEach(function (b) {
       const tr = document.createElement('tr');
       tr.innerHTML =
-        '<td><a href="' + b.link + '" target="_blank" class="it-link">' + b.bookingNumber + '</a></td>' +
-        '<td>' + b.guest + '</td>' +
-        '<td>' + b.rego + '</td>' +
-        '<td><span class="it-badge">' + b.vehicleType + '</span></td>' +
+        '<td><a href="' + escapeHtml(b.link) + '" target="_blank" class="it-link">' + escapeHtml(b.bookingNumber) + '</a></td>' +
+        '<td>' + escapeHtml(b.guest) + '</td>' +
+        '<td>' + escapeHtml(b.rego) + '</td>' +
+        '<td><span class="it-badge">' + escapeHtml(b.vehicleType) + '</span></td>' +
         '<td>' + formatDate(b.startDate) + '</td>' +
         '<td>' + formatDate(b.endDate) + '</td>';
       resultsBody.appendChild(tr);
