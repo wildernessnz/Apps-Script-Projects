@@ -114,7 +114,12 @@
     legs.forEach(function (leg, index) {
       leg.querySelector('.rr-leg-departure-label').textContent = index === 0 ? 'Leaving from' : 'Departure';
       leg.querySelector('.rr-leg-destination-label').textContent = index === 0 ? 'Driving to' : 'Destination';
-      leg.querySelector('.it-btn-icon-delete').disabled = legs.length === 1;
+      // The first row is the trip's fixed starting point and can't be removed.
+      // Kept in the layout (visibility:hidden, not display:none) so its
+      // fixed-width column still holds its place and columns stay aligned.
+      const deleteBtn = leg.querySelector('.it-btn-icon-delete');
+      deleteBtn.disabled = index === 0;
+      deleteBtn.style.visibility = index === 0 ? 'hidden' : 'visible';
     });
     document.getElementById('rrAddStopBtn').style.display = legs.length >= RR_MAX_LEGS ? 'none' : 'inline-flex';
   }
