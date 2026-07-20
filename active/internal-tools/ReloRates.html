@@ -21,66 +21,10 @@
       </div>
     </div>
 
-    <div id="rrLegs">
-      <div class="it-form-row rr-leg" id="rrLeg1" data-leg="1">
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDeparture1">Leaving from</label>
-          <input type="text" id="rrDeparture1" class="it-input" placeholder="Type name of location" style="width:100%;" required>
-        </div>
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDestination1">Driving to</label>
-          <input type="text" id="rrDestination1" class="it-input" placeholder="Type name of location" style="width:100%;" required>
-        </div>
-        <div class="it-field">
-          <label class="it-label">Duration</label>
-          <div class="it-duration" data-duration="rrTripDuration1">
-            <input type="number" min="0" value="0" class="it-duration-input" data-unit="h"><span>h</span>
-            <span style="opacity:0.4;">:</span>
-            <input type="number" min="0" max="59" value="0" class="it-duration-input" data-unit="m"><span>m</span>
-          </div>
-        </div>
-        <button type="button" class="it-btn-utility" id="rrAddStopBtn">+ Add Stop</button>
-      </div>
+    <div id="rrLegs"></div>
 
-      <div class="it-form-row rr-leg" id="rrLeg2" data-leg="2" style="display:none; margin-top:16px;">
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDeparture2">Departure</label>
-          <input type="text" id="rrDeparture2" class="it-input" placeholder="Type name of location" style="width:100%;">
-        </div>
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDestination2">Destination</label>
-          <input type="text" id="rrDestination2" class="it-input" placeholder="Type name of location" style="width:100%;">
-        </div>
-        <div class="it-field">
-          <label class="it-label">Duration</label>
-          <div class="it-duration" data-duration="rrTripDuration2">
-            <input type="number" min="0" value="0" class="it-duration-input" data-unit="h"><span>h</span>
-            <span style="opacity:0.4;">:</span>
-            <input type="number" min="0" max="59" value="0" class="it-duration-input" data-unit="m"><span>m</span>
-          </div>
-        </div>
-        <button type="button" class="it-btn-utility" id="rrRemoveStop2Btn">Remove</button>
-      </div>
-
-      <div class="it-form-row rr-leg" id="rrLeg3" data-leg="3" style="display:none; margin-top:16px;">
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDeparture3">Departure</label>
-          <input type="text" id="rrDeparture3" class="it-input" placeholder="Type name of location" style="width:100%;">
-        </div>
-        <div class="it-field" style="flex:1;">
-          <label class="it-label" for="rrDestination3">Destination</label>
-          <input type="text" id="rrDestination3" class="it-input" placeholder="Type name of location" style="width:100%;">
-        </div>
-        <div class="it-field">
-          <label class="it-label">Duration</label>
-          <div class="it-duration" data-duration="rrTripDuration3">
-            <input type="number" min="0" value="0" class="it-duration-input" data-unit="h"><span>h</span>
-            <span style="opacity:0.4;">:</span>
-            <input type="number" min="0" max="59" value="0" class="it-duration-input" data-unit="m"><span>m</span>
-          </div>
-        </div>
-        <button type="button" class="it-btn-utility" id="rrRemoveStop3Btn">Remove</button>
-      </div>
+    <div class="it-form-row">
+      <button type="button" class="it-btn-utility" id="rrAddStopBtn">+ Add Stop</button>
     </div>
 
     <div class="it-form-row" style="border-top:1px solid var(--color-border-light); padding-top:20px;">
@@ -150,42 +94,74 @@
     return (h * 60) + m;
   }
 
-  // ── Add/remove stop legs ──────────────────────────────────────────────
-  function updateAddButtonVisibility() {
-    document.getElementById('rrAddStopBtn').style.display =
-      document.getElementById('rrLeg2').style.display === 'none' ? 'inline-flex' : 'none';
+  function getDurationMinutesFromLeg(leg) {
+    const h = Number(leg.querySelector('[data-unit="h"]').value) || 0;
+    const m = Number(leg.querySelector('[data-unit="m"]').value) || 0;
+    return (h * 60) + m;
   }
 
-  document.getElementById('rrAddStopBtn').addEventListener('click', function () {
-    if (document.getElementById('rrLeg2').style.display === 'none') {
-      document.getElementById('rrLeg2').style.display = 'flex';
-    } else if (document.getElementById('rrLeg3').style.display === 'none') {
-      document.getElementById('rrLeg3').style.display = 'flex';
-    }
-    updateAddButtonVisibility();
-  });
+  // ── Add/remove stop legs ────────────────────────────────────────────────
+  // Legs are built dynamically, capped at 3 (matches the original: one base
+  // leg plus up to 2 extra stops). Every row shares the same trailing
+  // arrow/duration/delete-icon layout so columns stay aligned regardless of
+  // how many stops are currently shown.
+  const rrLegsContainer = document.getElementById('rrLegs');
+  const RR_MAX_LEGS = 3;
+  let rrLegUid = 0;
 
-  // Resets a leg's inputs to blank/00 and hides it — matches the original's
-  // hideRow(), so re-adding a stop after removing it doesn't show stale data.
-  function resetLeg(legNum) {
-    const leg = document.getElementById('rrLeg' + legNum);
-    if (!leg) return;
-    leg.querySelectorAll('input[type="text"]').forEach(function (input) { input.value = ''; });
-    leg.querySelectorAll('.it-duration-input').forEach(function (input) { input.value = '0'; });
+  function relabelLegs() {
+    const legs = rrLegsContainer.querySelectorAll('.rr-leg');
+    legs.forEach(function (leg, index) {
+      leg.querySelector('.rr-leg-departure-label').textContent = index === 0 ? 'Leaving from' : 'Departure';
+      leg.querySelector('.rr-leg-destination-label').textContent = index === 0 ? 'Driving to' : 'Destination';
+      leg.querySelector('.it-btn-icon-delete').disabled = legs.length === 1;
+    });
+    document.getElementById('rrAddStopBtn').style.display = legs.length >= RR_MAX_LEGS ? 'none' : 'inline-flex';
   }
 
-  document.getElementById('rrRemoveStop2Btn').addEventListener('click', function () {
-    resetLeg(2);
-    resetLeg(3);
-    document.getElementById('rrLeg2').style.display = 'none';
-    document.getElementById('rrLeg3').style.display = 'none';
-    updateAddButtonVisibility();
-  });
+  function addLeg() {
+    if (rrLegsContainer.querySelectorAll('.rr-leg').length >= RR_MAX_LEGS) return;
+    rrLegUid += 1;
+    const uid = rrLegUid;
+    const leg = document.createElement('div');
+    leg.className = 'rr-leg';
+    leg.innerHTML =
+      '<div class="it-field rr-leg-field">' +
+        '<label class="it-label rr-leg-departure-label" for="rrDeparture' + uid + '"></label>' +
+        '<input type="text" id="rrDeparture' + uid + '" class="it-input" placeholder="Type name of location" required>' +
+      '</div>' +
+      '<div class="rr-leg-arrow" aria-hidden="true">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</div>' +
+      '<div class="it-field rr-leg-field">' +
+        '<label class="it-label rr-leg-destination-label" for="rrDestination' + uid + '"></label>' +
+        '<input type="text" id="rrDestination' + uid + '" class="it-input" placeholder="Type name of location" required>' +
+      '</div>' +
+      '<div class="it-field">' +
+        '<label class="it-label">Duration</label>' +
+        '<div class="it-duration">' +
+          '<input type="number" min="0" value="0" class="it-duration-input" data-unit="h"><span>h</span>' +
+          '<span style="opacity:0.4;">:</span>' +
+          '<input type="number" min="0" max="59" value="0" class="it-duration-input" data-unit="m"><span>m</span>' +
+        '</div>' +
+      '</div>' +
+      '<button type="button" class="it-btn-icon-delete" aria-label="Remove stop">' +
+        '<svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+      '</button>';
 
-  document.getElementById('rrRemoveStop3Btn').addEventListener('click', function () {
-    resetLeg(3);
-    document.getElementById('rrLeg3').style.display = 'none';
-  });
+    leg.querySelector('.it-btn-icon-delete').addEventListener('click', function () {
+      if (rrLegsContainer.querySelectorAll('.rr-leg').length === 1) return;
+      leg.remove();
+      relabelLegs();
+    });
+
+    rrLegsContainer.appendChild(leg);
+    relabelLegs();
+  }
+
+  document.getElementById('rrAddStopBtn').addEventListener('click', addLeg);
+
+  addLeg();
 
   // ── Calculate ──────────────────────────────────────────────────────────
   function formatDateTime(d) {
@@ -219,12 +195,12 @@
     const departureDate = document.getElementById('rrJobStart').value;
     const overnight     = document.getElementById('rrOvernight').dataset.on === 'true';
     const publicHoliday = document.getElementById('rrPublicHoliday').dataset.on === 'true';
-    const departure      = document.getElementById('rrDeparture1').value;
-    const destination     = document.getElementById('rrDestination1').value;
 
-    const tripDuration = getDurationMinutes('rrTripDuration1')
-      + (document.getElementById('rrLeg2').style.display !== 'none' ? getDurationMinutes('rrTripDuration2') : 0)
-      + (document.getElementById('rrLeg3').style.display !== 'none' ? getDurationMinutes('rrTripDuration3') : 0);
+    const legs = Array.from(rrLegsContainer.querySelectorAll('.rr-leg'));
+    const departure    = legs[0].querySelector('input[type="text"]').value;
+    const destination  = legs[legs.length - 1].querySelectorAll('input[type="text"]')[1].value;
+    const tripDuration = legs.reduce(function (sum, leg) { return sum + getDurationMinutesFromLeg(leg); }, 0);
+
     const flightDuration = getDurationMinutes('rrFlightDuration');
     const delayDuration  = getDurationMinutes('rrDelayDuration');
 

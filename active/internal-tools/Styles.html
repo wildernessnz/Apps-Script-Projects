@@ -272,6 +272,28 @@
   }
   .it-btn-utility:hover { background: var(--color-beige-60); }
 
+  /* ── LEG ROW (Relo Rates route stops) ──
+     Every row shares the same fixed-width trailing controls (arrow, duration,
+     delete icon) so the two location fields always compute to the same width
+     across rows — a text button of varying width in that slot (eg. "Remove"
+     vs "+ Add Stop") throws off flexbox's remaining-space split and rows stop
+     lining up. */
+  .rr-leg { display: flex; align-items: flex-end; gap: 16px; }
+  .rr-leg + .rr-leg { margin-top: 16px; }
+  .rr-leg-field { flex: 1 1 0; min-width: 0; }
+  .rr-leg-arrow {
+    display: flex; align-items: center; justify-content: center;
+    width: 20px; height: var(--it-input-height); flex-shrink: 0; color: var(--color-text-muted);
+  }
+  .it-btn-icon-delete {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: var(--it-input-height); height: var(--it-input-height); flex-shrink: 0; padding: 0;
+    border-radius: 999px; border: 1px solid var(--color-border-light); background: #fff;
+    color: var(--color-text-muted); cursor: pointer;
+  }
+  .it-btn-icon-delete:hover { background: var(--color-beige-60); color: var(--color-dusk-sky); }
+  .it-btn-icon-delete:disabled { opacity: 0.35; cursor: not-allowed; }
+
   /* ── BREAKDOWN ROWS (Relo Rates job offer) ── */
   .rr-row {
     display: flex; justify-content: space-between; padding: 12px 0;
