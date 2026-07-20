@@ -139,8 +139,21 @@
   .it-content { flex: 1; min-width: 0; padding: 32px 40px 32px 56px; }
   .it-content-narrow { max-width: 860px; }
   .it-content-wide { max-width: 1000px; }
-  .it-loading, .it-error { padding: 40px; color: var(--color-text-muted); font-size: 14px; }
-  .it-error { color: #B8860B; }
+  .it-error { padding: 40px; color: #B8860B; font-size: 14px; }
+
+  /* ── LOADING STATE (tool switch, initial content fetch) ── */
+  .it-loading {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 72px 20px; color: var(--color-text-muted); font-size: 14px;
+    animation: it-fade-in 0.25s ease;
+  }
+  .it-spinner {
+    width: 28px; height: 28px; border-radius: 50%; flex-shrink: 0;
+    border: 3px solid var(--color-border-light); border-top-color: var(--color-dusk-sky);
+    animation: it-spin 0.7s linear infinite;
+  }
+  @keyframes it-spin { to { transform: rotate(360deg); } }
+  @keyframes it-fade-in { from { opacity: 0; } to { opacity: 1; } }
 
   .it-placeholder {
     background: #fff; border-radius: var(--it-card-radius); padding: 48px 32px; text-align: center;

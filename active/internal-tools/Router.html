@@ -32,7 +32,7 @@
     function navigate(toolId, partialName, contentWidth) {
       setActiveNavItem(toolId);
       setContentWidth(contentWidth);
-      setContent('<div class="it-loading">Loading…</div>');
+      setContent('<div class="it-loading"><div class="it-spinner"></div><span>Loading…</span></div>');
 
       google.script.run
         .withSuccessHandler(setContent)
