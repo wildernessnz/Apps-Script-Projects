@@ -17,6 +17,18 @@ var BookingFinder = function () {
   const SHEET_KEY = 'BOOKING_FINDER';
   const TAB_NAME  = 'Linked - Bookings';
 
+  // Column indices (0-based, matching getValues()'s row arrays) for the
+  // "Linked - Bookings" tab's header row:
+  // booking_number, hubspot_vid, state, vehicle_type, pick_up_location,
+  // pick_up_date, drop_off_location, drop_off_date, booking_type,
+  // vehicle_rego, customer_name, ...
+  const COL_BOOKING_NUMBER = 0;
+  const COL_VEHICLE_TYPE   = 3;
+  const COL_PICKUP_DATE    = 5;
+  const COL_DROPOFF_DATE   = 7;
+  const COL_REGO           = 9;
+  const COL_CUSTOMER_NAME  = 10;
+
   /**
    * Searches bookings by vehicle registration (prefix match) and travel date
    * (must fall within the booking's start/end date range). Matches the
@@ -38,22 +50,22 @@ var BookingFinder = function () {
     const date = new Date(travelDate);
 
     const matches = rows.filter((row) => {
-      const rowRego = (row[9] || '').toString().toUpperCase();
+      const rowRego = (row[COL_REGO] || '').toString().toUpperCase();
       if (!rowRego.startsWith(normalisedRego)) return false;
-      return date >= new Date(row[5]) && date <= new Date(row[7]);
+      return date >= new Date(row[COL_PICKUP_DATE]) && date <= new Date(row[COL_DROPOFF_DATE]);
     });
 
     Logger.log(`[BookingFinder.searchBookings] matchCount=${matches.length}`);
 
     const bookings = matches.map((row) => {
-      const bookingNumber = String(row[0] || '').replace('R-', '');
+      const bookingNumber = String(row[COL_BOOKING_NUMBER] || '').replace('R-', '');
       return {
         bookingNumber,
-        guest:       row[10],
-        startDate:   new Date(row[5]),
-        endDate:     new Date(row[7]),
-        rego:        row[9],
-        vehicleType: row[3],
+        guest:       row[COL_CUSTOMER_NAME],
+        startDate:   new Date(row[COL_PICKUP_DATE]),
+        endDate:     new Date(row[COL_DROPOFF_DATE]),
+        rego:        row[COL_REGO],
+        vehicleType: row[COL_VEHICLE_TYPE],
         link: `https://bookings.wilderness.co.nz/rata/bookings/${bookingNumber}`,
       };
     });

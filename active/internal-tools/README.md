@@ -61,6 +61,12 @@ Don't manually set `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY`
 - **File naming:** `<ToolName>Logic.gs` + `<ToolName>.html` — Apps Script
   doesn't allow a `.gs` and `.html` file to share a base name (learned this
   the hard way with `BookingFinder.gs` vs `BookingFinder.html`).
+- **Booking Finder reads sheet columns by position.** `BookingFinderLogic.gs`'s
+  `COL_*` constants map to the "Linked - Bookings" tab's header row:
+  `booking_number, hubspot_vid, state, vehicle_type, pick_up_location,
+  pick_up_date, drop_off_location, drop_off_date, booking_type, vehicle_rego,
+  customer_name, ...`. If that sheet's columns are ever reordered, update the
+  constants, not just the code that reads them.
 
 ## Hard-won gotchas — read before debugging something that looks like this
 
@@ -97,6 +103,36 @@ like one of these, it probably is:
 7. **`Styles.html` is ~875KB** (embedded Averta font, 3 weights, base64). This
    is intentional, not bloat to clean up — don't "optimize" it away without
    knowing that's what it is.
+8. **Comparing a `Date` object against `new Date()` to check "is this in the
+   past" compares full timestamps, not calendar days.** `InterislanderLogic.gs`'s
+   ±1/±2 day extended search used to skip or include a date depending on what
+   time of day the search was run, because `new Date()` carries the current
+   instant while a date built from a bare `YYYY-MM-DD` string carries a fixed
+   ~noon (NZT) time-of-day. Fixed by normalising the comparison date to local
+   midnight (`date.setHours(0,0,0,0)`) before comparing. Any new "is this date
+   in the past" check should do the same — don't compare raw `Date` instances
+   when you mean calendar days.
+9. **A "check then act" guard is not atomic across concurrent requests.**
+   Weather Alert's one-send-per-day lock used to read `alreadySentToday()`
+   and only record the send after all the email/WhatsApp work finished —
+   two near-simultaneous sends could both pass the check before either
+   recorded it. `triggerWeatherAlert` now wraps the check-and-reserve in
+   `LockService.getScriptLock()` (acquired only around the check + record,
+   released before the actual send work runs). Any future "only once" guard
+   should follow this pattern, not just read-then-write.
+10. **Sheet/API/guest data rendered into the DOM via string concatenation is
+    not HTML-escaped by the browser** — a stray `<`/`&` in a name, rego, or
+    ship name breaks table markup, and it's an XSS vector if that data is
+    ever attacker-influenced. `Modal.html` exposes a global `escapeHtml()`
+    helper (loaded on every page, since Modal.html is always included) — wrap
+    any interpolated sheet/API value in it before concatenating into
+    `innerHTML`. Server-side HTML (Weather Alert's confirmation email) has
+    its own `escapeHtml_()` in `WeatherAlertLogic.gs` for the same reason.
+11. **`String.replace(regex, someString)` treats `$&`, `$$`, `` $` ``, `$'` in
+    the replacement string as special patterns, not literal text.** If that
+    string is untrusted/user-typed (like Weather Alert's subject/body being
+    rendered into the SendGrid preview template), pass a function instead
+    (`.replace(regex, () => value)`) so the value is inserted literally.
 
 ## Resolved decisions (don't re-litigate these without a real reason)
 
@@ -106,8 +142,10 @@ like one of these, it probably is:
   PII shouldn't be visible to whoever has Relo Rates access).
 - Averta embedded as base64, not externally hosted.
 - Real Wilderness logo + inline SVG nav icons wired in.
-- Content width: capped per tool type (`it-content-narrow` for forms,
-  `it-content-wide` for tables), left-anchored not centered.
+- Content width: all 4 tools use `it-content-wide` (1000px, set per-item in
+  `NAV_CONFIG`) — originally split narrow/wide per tool type, unified so
+  every panel is the same size regardless of which tool is active. Content
+  stays left-anchored, not centered.
 
 ## Still open / deferred — genuinely unresolved, pick these up if relevant
 
@@ -124,6 +162,13 @@ like one of these, it probably is:
    matters to anyone.
 3. **Cutover** — the 3 old tool deployments are still live; nobody's been
    redirected off them yet.
+4. **Weather Alert's modal/toast UI doesn't use the shared `ITModal`
+   component** (`Modal.html`) — it built its own `wa-backdrop`/`wa-modal`
+   system plus a custom `window.toast()`, because its flow (preview / confirm
+   / result / lock-reset) needs richer content than `ITModal`'s binary
+   confirm/notify can hold. Left as-is deliberately: unifying it means
+   extending `ITModal` into a generic modal system, which isn't worth the
+   risk to a working tool unless a 5th tool needs similarly rich modals too.
 
 ## Known intentional deviations from the original tools
 
