@@ -13,10 +13,11 @@
 
 // Flip a tool's entry to true here once its real partial file exists.
 const PLACEHOLDER_PARTIALS = {
-  BookingFinder: false, // Phase 1 — done
-  Interislander: false, // Phase 2 — done
-  ReloRates:     false, // Phase 3 — done
-  WeatherAlert:  false, // Phase 4 — done
+  BookingFinder:  false, // Phase 1 — done
+  Interislander:  false, // Phase 2 — done
+  ReloRates:      false, // Phase 3 — done
+  WeatherAlert:   false, // Phase 4 — done
+  ServiceHistory: false, // Phase 5 — done
 };
 
 // Maps a partial name to a function that returns true/false for whether the
@@ -25,7 +26,8 @@ const PLACEHOLDER_PARTIALS = {
 // global object in Apps Script's V8 runtime, so string-based dispatch here
 // would be fragile.
 const ACCESS_GATES = {
-  WeatherAlert: () => isWeatherAlertApproved(),
+  WeatherAlert:   () => isWeatherAlertApproved(),
+  ServiceHistory: () => isServiceHistoryApproved(),
 };
 
 /**
@@ -36,6 +38,7 @@ const ACCESS_GATES = {
 function getToolContent(partialName) {
   const gateCheck = ACCESS_GATES[partialName];
   if (gateCheck && !gateCheck()) {
+    logEvent_('View: ' + partialName, 'Access denied');
     return HtmlService.createHtmlOutput(
       '<div class="it-placeholder">' +
       '<div class="it-placeholder-icon">🔒</div>' +
@@ -44,6 +47,8 @@ function getToolContent(partialName) {
       '</div>'
     ).getContent();
   }
+
+  logEvent_('View: ' + partialName);
 
   if (PLACEHOLDER_PARTIALS[partialName]) {
     return HtmlService.createTemplateFromFile('Placeholder')

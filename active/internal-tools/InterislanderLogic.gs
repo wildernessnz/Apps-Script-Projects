@@ -24,7 +24,14 @@
 
 // Global wrapper — the only entry point exposed to google.script.run from the client.
 function getScheduledSailingsExtended(departureDate, direction) {
-  return new Interislander().getScheduledSailingsExtended(departureDate, direction);
+  try {
+    const result = new Interislander().getScheduledSailingsExtended(departureDate, direction);
+    logEvent_('Interislander: Search', `departureDate=${departureDate} | direction=${direction} | results=${result.length}`);
+    return result;
+  } catch (err) {
+    logEvent_('Interislander: Search', `departureDate=${departureDate} | direction=${direction} | ERROR: ${err.message}`);
+    throw err;
+  }
 }
 
 var Interislander = function () {

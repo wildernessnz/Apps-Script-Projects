@@ -29,11 +29,30 @@
  */
 
 // ── Global wrappers — the only entry points exposed to google.script.run ────
+// getGuestPreview() and previewEmail() are read-only preview fetches with no
+// side effect — not logged. The others below can each change state (send an
+// alert, reset the daily lock, send a test) so they're logged.
 function getGuestPreview()                             { return new WeatherAlert().getGuestPreview(); }
-function triggerWeatherAlert(subject, body, sendWA, sendEmail) { return new WeatherAlert().triggerWeatherAlert(subject, body, sendWA, sendEmail); }
-function resetLockFromWebApp()                          { return new WeatherAlert().resetLockFromWebApp(); }
+
+function triggerWeatherAlert(subject, body, sendWA, sendEmail) {
+  const r = new WeatherAlert().triggerWeatherAlert(subject, body, sendWA, sendEmail);
+  logEvent_('Weather Alert: Send', `success=${r.success} | ${r.success ? `totalContacts=${r.totalContacts} | emailsSent=${r.emailsSent}` : `message=${r.message}`}`);
+  return r;
+}
+
+function resetLockFromWebApp() {
+  const r = new WeatherAlert().resetLockFromWebApp();
+  logEvent_('Weather Alert: Reset Lock', `success=${r.success} | ${r.message || ''}`);
+  return r;
+}
+
 function previewEmail(subject, body)                    { return new WeatherAlert().previewEmail(subject, body); }
-function sendTestEmail(subject, body)                   { return new WeatherAlert().sendTestEmail(subject, body); }
+
+function sendTestEmail(subject, body) {
+  const r = new WeatherAlert().sendTestEmail(subject, body);
+  logEvent_('Weather Alert: Send Test Email', `success=${r.success} | ${r.success ? `sentTo=${r.sentTo}` : `message=${r.message}`}`);
+  return r;
+}
 
 /**
  * Used by ContentLoader.gs to gate this tool's content behind APPROVED_SENDERS

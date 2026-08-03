@@ -1,24 +1,27 @@
 # Wilderness Internal Tools — As Built
 
 **Project:** Standalone Google Apps Script web app
-**Status:** Live — all 4 tools built, deployed, and confirmed working
+**Status:** Live — all 5 tools built, deployed, and confirmed working
 **Time zone:** Pacific/Auckland
 **Access:** Domain-restricted web app, executes as the accessing user
 
 ## 1. Purpose
 
-Unifies four previously-separate internal tools behind one sidebar-navigated
+Unifies five previously-separate internal tools behind one sidebar-navigated
 shell, as a single Apps Script project:
 
-| Tool | Nav id | Purpose |
-|---|---|---|
-| Booking Finder | `booking-finder` | Look up bookings |
-| Interislander Availability | `interislander` | Check ferry sailing availability |
-| Relo Rates | `relo-rates` | Vehicle relocation pay rates |
-| Weather Alert | `weather-alert` | Send weather alerts to on-road guests |
+| Tool | Nav id | Section | Purpose |
+|---|---|---|---|
+| Booking Finder | `booking-finder` | Adventure Support | Look up bookings |
+| Interislander Availability | `interislander` | Adventure Support | Check ferry sailing availability |
+| Relo Rates | `relo-rates` | Adventure Support | Vehicle relocation pay rates |
+| Weather Alert | `weather-alert` | Adventure Support | Send weather alerts to on-road guests |
+| Service History | `service-history` | Workshop | Generate a branded vehicle service history PDF from Fleetio |
 
 Each tool's underlying spreadsheet is untouched and unmerged — this project
-only adds a shared UI shell on top. No data migration occurred.
+only adds a shared UI shell on top. No data migration occurred. One
+exception: a dedicated cross-tool container spreadsheet (`SHEET_IDS.ACTIVITY_LOG`)
+holds the activity log shared by all 5 tools — see section 7.
 
 ## 2. Architecture overview
 
@@ -57,26 +60,31 @@ query-param routing.
 
 ## 3. File inventory
 
-The entire project is 17 files, no subfolders (Apps Script/clasp requirement):
+The entire project is 21 files, no subfolders (Apps Script/clasp requirement):
 
 ```
 appsscript.json        — manifest: scopes, timezone, WildernessAppScriptLibrary dependency
 Config.gs               — SHEET_IDS, NAV_CONFIG (nav structure, icons, content width)
 WebApp.gs               — doGet(), include(), getSidebarUserInfo()
-ContentLoader.gs        — getToolContent(), getToolContentForNavId(), access gating
+ContentLoader.gs        — getToolContent(), getToolContentForNavId(), access gating, view logging
+Logging.gs              — logEvent_() — cross-tool activity log, see section 7
 Shell.html               — sidebar + content area shell, built from NAV_CONFIG
 Styles.html              — all styling + embedded Averta font (~875KB, base64)
 Router.html              — client-side nav + content-swap logic (ITRouter)
 Modal.html               — shared ITModal (confirm/notify), tooltip positioning, escapeHtml()
-Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 4 live)
+Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 5 live)
 BookingFinderLogic.gs / BookingFinder.html
 InterislanderLogic.gs / Interislander.html
 ReloRatesLogic.gs / ReloRates.html
 WeatherAlertLogic.gs / WeatherAlert.html
+ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 ```
 
 File naming convention: `<ToolName>Logic.gs` + `<ToolName>.html`. Apps Script
 does not allow a `.gs` and `.html` file to share a base name.
+`ServiceHistoryTemplate.html` is a third file for that one tool — it's the
+PDF's internal layout (evaluated by `ServiceHistoryPdf`, itself defined in
+`ServiceHistoryLogic.gs`), not a sidebar UI partial.
 
 ## 4. Core mechanisms
 
@@ -140,12 +148,20 @@ const NAV_CONFIG = [
       { id: 'weather-alert',  label: 'Weather Alert', icon: ICON_ALERT_TRIANGLE, partial: 'WeatherAlert', contentWidth: 'wide' },
     ],
   },
+  {
+    section: 'Workshop',
+    items: [
+      { id: 'service-history', label: 'Service History', icon: ICON_WRENCH, partial: 'ServiceHistory', contentWidth: 'wide' },
+    ],
+  },
 ];
 ```
 
-This single array is the routing table — it drives both the server-rendered
-sidebar (`Shell.html`) and the server-side partial lookup
-(`ContentLoader.gs`). The client never duplicates it.
+This array (now 2 sections) is the routing table — it drives both the
+server-rendered sidebar (`Shell.html`) and the server-side partial lookup
+(`ContentLoader.gs`). The client never duplicates it. A new tool can either
+join an existing section's `items` array or start its own `{ section, items
+}` block, as Service History did with "Workshop".
 
 `Config.gs` also holds `SHEET_IDS` (each tool's spreadsheet ID) and
 `getSpreadsheet_(key)`, a wrapper around `SpreadsheetApp.openById` that
@@ -183,8 +199,12 @@ for init logic.
 function getToolContent(partialName) {
   const gateCheck = ACCESS_GATES[partialName];
   if (gateCheck && !gateCheck()) {
+    logEvent_('View: ' + partialName, 'Access denied');
     return /* "Access Denied" fragment */;
   }
+
+  logEvent_('View: ' + partialName);
+
   if (PLACEHOLDER_PARTIALS[partialName]) {
     return HtmlService.createTemplateFromFile('Placeholder')
       .evaluate().getContent().replace('{{TOOL_NAME}}', partialName);
@@ -201,17 +221,23 @@ function getToolContentForNavId(navId) {
 }
 ```
 
-Resolution order: **access gate → placeholder flag → real partial.**
+Resolution order: **access gate → view log → placeholder flag → real partial.**
 
 - `ACCESS_GATES` maps a partial name to a function returning true/false for
-  whether the current user may see that tool. Only `WeatherAlert` is gated
-  today (`isWeatherAlertApproved()`), since the original tool gated its
-  whole page at `doGet()` and now shares a page with 3 others. Stored as
-  direct function references (not string-keyed dynamic dispatch), since
-  top-level `this` isn't reliably the global object under Apps Script's V8
-  runtime.
+  whether the current user may see that tool. `WeatherAlert`
+  (`isWeatherAlertApproved()`) and `ServiceHistory`
+  (`isServiceHistoryApproved()`) are gated today, since both originally
+  gated their whole page at `doGet()` and now share a page with the other
+  tools. Stored as direct function references (not string-keyed dynamic
+  dispatch), since top-level `this` isn't reliably the global object under
+  Apps Script's V8 runtime.
+- `getToolContent()` is also the single chokepoint every tool view passes
+  through — initial page load (`getToolContentForNavId`) and every nav
+  click both route through it — so it's where cross-tool view logging
+  (`logEvent_`, defined in `Logging.gs`; see section 7) is hooked in. Access
+  denials are logged too, with a `'Access denied'` note.
 - `PLACEHOLDER_PARTIALS` is a per-tool feature flag for "not yet built."
-  All 4 are currently `false` (all tools shipped); flipping one to `true`
+  All 5 are currently `false` (all tools shipped); flipping one to `true`
   serves `Placeholder.html` instead, so the shell can run end-to-end before
   every tool is finished.
 - The fallback returns the raw partial file's content
@@ -224,9 +250,14 @@ Resolution order: **access gate → placeholder flag → real partial.**
 - `webapp.executeAs`: `USER_ACCESSING` — runs as whoever opens the app, not
   as the script owner
 - `webapp.access`: `DOMAIN` — restricted to the Wilderness Google Workspace domain
-- Depends on library `WildernessAppScriptLibrary` (development mode)
+- Depends on library `WildernessAppScriptLibrary` (development mode) — used
+  by Service History for Fleetio auth (`WildernessAppScriptLibrary.FleetioSecurity`,
+  must be instantiated with `new`)
 - OAuth scopes: `spreadsheets`, `userinfo.email`, `script.external_request`,
-  `script.send_mail`, `script.container.ui`
+  `script.send_mail`, `script.container.ui`, `drive`. The `drive` scope (not
+  the narrower `drive.file`) was added for Service History's
+  `DriveApp.createFile()` call — `drive.file` looked sufficient but Google's
+  own runtime error confirmed it wasn't, for this specific call pattern.
 
 ## 6. Configuration (Script Properties)
 
@@ -245,14 +276,21 @@ Properties:
 `KIWIRAIL_PROD_BASE64_HEADER`, `KIWIRAIL_UAT_API_KEY`,
 `KIWIRAIL_UAT_BASE64_HEADER`
 
+**Service History:** `SERVICE_HISTORY_ALLOWLIST` (comma-separated emails,
+gates the whole tool — same pattern as `WEATHER_ALERT_APPROVED_SENDERS`),
+`SERVICE_HISTORY_EXCLUDED_TASKS` (comma-separated Fleetio service task names
+excluded from every PDF, matched case-insensitively; defaults to
+`Rental Turnaround,Detailing` if unset).
+
 **Booking Finder / Relo Rates:** none required.
 
 `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY` are managed
 automatically by the send/reset-lock code — do not set manually.
 
-All properties share one store (one project now hosts what used to be 4
-separate projects), so every property is prefixed per tool
-(`WEATHER_ALERT_*`, `KIWIRAIL_PROD_*`/`KIWIRAIL_UAT_*`) to avoid collisions.
+All properties share one store (one project now hosts what used to be
+several separate projects), so every property is prefixed per tool
+(`WEATHER_ALERT_*`, `KIWIRAIL_PROD_*`/`KIWIRAIL_UAT_*`, `SERVICE_HISTORY_*`)
+to avoid collisions.
 
 ## 7. Data model
 
@@ -266,6 +304,37 @@ Booking Finder reads its sheet's "Linked - Bookings" tab by **column
 position** (`COL_*` constants in `BookingFinderLogic.gs`) — if that sheet's
 columns are ever reordered, the constants must be updated to match.
 
+### 7.1 Cross-tool activity log
+
+One exception to "every tool owns its own sheet": `SHEET_IDS.ACTIVITY_LOG`
+is a dedicated container spreadsheet shared by all 5 tools, holding a single
+"Activity Log" tab (`Timestamp | User | Event | Notes`). `Logging.gs`'s
+`logEvent_(event, notes)`:
+
+- Opens `SHEET_IDS.ACTIVITY_LOG` and lazily creates the "Activity Log" tab
+  (`insertSheet` + header row) on first write, matching Weather Alert's own
+  `getOrCreateLogSheet_` pattern.
+- Reads the writing user's email via `Session.getActiveUser()`.
+- Swallows any error (`Logger.log` only, never thrown) — a broken log write
+  must never break the tool action it's recording.
+
+Because the manifest runs `executeAs: USER_ACCESSING`, every log write
+executes under the *visiting user's own* Google identity — so this
+container spreadsheet needs edit access shared with everyone who uses any
+tool at all, not just a narrow group. This is a materially wider sharing
+requirement than any single tool's own sheet has ever needed (contrast with
+Weather Alert's log, which only needs access from its small
+`APPROVED_SENDERS` group).
+
+Two call sites populate it today:
+
+1. `ContentLoader.gs`'s `getToolContent()` — logs every tool view
+   (`View: <partial>`), including access-denied attempts.
+2. Each tool's `google.script.run` entry point — logs its primary action on
+   both success and failure (search / calculate / generate / send). Pure
+   read-only preview calls with no side effect are not logged (Weather
+   Alert's `getGuestPreview()`/`previewEmail()`).
+
 ## 8. Shared components
 
 - **`Modal.html`** — `ITModal.confirm()` / `ITModal.notify()`, used
@@ -276,6 +345,10 @@ columns are ever reordered, the constants must be updated to match.
 - **`Styles.html`** — all CSS plus the embedded Averta font (3 weights,
   base64), which accounts for its ~875KB size. This is intentional, not
   bloat.
+- **`Logging.gs`** — `logEvent_(event, notes)`, the cross-tool activity log
+  writer (see section 7.1). Called from `ContentLoader.gs` for every tool
+  view, and from each tool's own entry-point wrapper for its primary
+  action(s).
 
 ## 9. Known gaps / deferred work
 
@@ -288,12 +361,17 @@ columns are ever reordered, the constants must be updated to match.
    `openAlertDialog`, `ui.alert`-based `resetDailyLock`) depends on
    `SpreadsheetApp.getUi()` and only works inside a Sheet context — not
    ported. Still available on the original spreadsheet.
-3. **Cutover not done** — the 3 old standalone tool deployments are still
-   live; nobody has been redirected to this consolidated app yet.
+3. **Cutover not done** — the older standalone tool deployments (including
+   the original Service History POC project) are still live; nobody has
+   been redirected to this consolidated app yet.
 4. **Weather Alert doesn't use the shared `ITModal`** — it has its own
    `wa-backdrop`/`wa-modal` system and a custom `window.toast()`, because
    its preview/confirm/result/lock-reset flow needs richer content than
    `ITModal`'s binary confirm/notify supports. Left as-is deliberately.
+5. **Service History's activity log entry doesn't record which specific
+   entries were excluded** from the entry-selection preview — only the
+   selected/total count is logged on `Generate PDF`. Revisit if
+   per-checkbox audit detail is ever needed.
 
 ## 10. Known intentional deviations from the original tools
 
@@ -306,17 +384,28 @@ columns are ever reordered, the constants must be updated to match.
 - **Weather Alert:** the guest list guarantees the current user appears
   when `WEATHER_ALERT_TEST_MODE` is on, even without a real on-road
   booking, so the full send flow can be verified end-to-end.
+- **Service History:** adds an entry-selection preview step (load → tick/
+  untick → generate) the original POC never had — the POC always included
+  every fetched entry with no picker. Also relabels the PDF's "Water
+  Tightness" field as "Water Tightness Expiration" (confirmed to be an
+  expiration date, not a pass/fail result, unlike the POC's original label).
 
 ## 11. Extending the app
 
-To add a 5th tool:
+To add a 6th tool:
 
 1. Add one entry to `NAV_CONFIG` in `Config.gs` (id, label, icon SVG,
-   partial name, content width).
+   partial name, content width) — either into an existing section's `items`,
+   or as a new `{ section, items }` block (Service History got its own
+   "Workshop" section rather than joining "Adventure Support").
 2. Add `<Name>Logic.gs` + `<Name>.html`.
 3. Add/flip its `PLACEHOLDER_PARTIALS` entry in `ContentLoader.gs` to
    `false` once the partial exists.
+4. Wire up `logEvent_()` (from `Logging.gs`) in the new tool's own
+   `google.script.run` entry point(s), for its primary action(s). View
+   logging is automatic — it goes through `ContentLoader.gs`'s
+   `getToolContent()`, which every tool already routes through.
 
-No other file needs to change — this is a direct consequence of `NAV_CONFIG`
-being the single source of truth for both the sidebar and the content
-loader.
+No other file needs to change for steps 1–3 — this is a direct consequence
+of `NAV_CONFIG` being the single source of truth for both the sidebar and
+the content loader. Step 4 is the one thing that doesn't come for free.

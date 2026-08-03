@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <style>
+    @page {
+      size: A4;
+      margin: 20mm 18mm;
+    }
+    body {
+      font-family: 'Nunito Sans', Arial, sans-serif;
+      color: #1a1a1a;
+      font-size: 11pt;
+      line-height: 1.5;
+    }
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 3px solid #0f172a;
+      padding-bottom: 12px;
+      margin-bottom: 24px;
+    }
+    .header h1 {
+      font-size: 18pt;
+      margin: 0;
+      color: #0f172a;
+    }
+    .header .subtitle {
+      font-size: 9pt;
+      color: #64748b;
+      margin-top: 4px;
+    }
+    .brand {
+      font-weight: 700;
+      color: #22c55e;
+      font-size: 12pt;
+    }
+    h2 {
+      font-size: 12pt;
+      color: #0f172a;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 4px;
+      margin-top: 28px;
+      margin-bottom: 12px;
+    }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 24px;
+    }
+    .overview-item {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dotted #e2e8f0;
+      padding: 4px 0;
+      font-size: 10pt;
+    }
+    .overview-label {
+      color: #64748b;
+    }
+    .overview-value {
+      font-weight: 600;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 8px;
+    }
+    th {
+      text-align: left;
+      background: #0f172a;
+      color: #fff;
+      font-size: 9pt;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 8px 10px;
+    }
+    td {
+      font-size: 10pt;
+      padding: 8px 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+    .footer {
+      margin-top: 32px;
+      font-size: 8pt;
+      color: #94a3b8;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 8px;
+    }
+    .empty-state {
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 10pt;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>Service History</h1>
+      <div class="subtitle">Generated <?= generatedOn ?></div>
+    </div>
+    <div class="brand">Wilderness Motorhomes</div>
+  </div>
+
+  <h2>Vehicle Overview</h2>
+  <div class="overview-grid">
+    <div class="overview-item"><span class="overview-label">Name</span><span class="overview-value"><?= vehicle.name ?></span></div>
+    <div class="overview-item"><span class="overview-label">Make / Model</span><span class="overview-value"><?= vehicle.make ?> <?= vehicle.model ?></span></div>
+    <div class="overview-item"><span class="overview-label">VIN</span><span class="overview-value"><?= vehicle.vin ?></span></div>
+    <div class="overview-item"><span class="overview-label">Chassis Type</span><span class="overview-value"><?= vehicle.chassisType ?></span></div>
+    <div class="overview-item"><span class="overview-label">Odometer</span><span class="overview-value"><?= vehicle.odometer ?> km</span></div>
+    <div class="overview-item"><span class="overview-label">Registration Expiry</span><span class="overview-value"><?= vehicle.regoExpiry ?></span></div>
+    <div class="overview-item"><span class="overview-label">RUC Validity</span><span class="overview-value"><?= vehicle.rucValidity ?><?= vehicle.rucValidity !== '—' ? ' km' : '' ?></span></div>
+    <div class="overview-item"><span class="overview-label">Water Tightness Expiration</span><span class="overview-value"><?= vehicle.waterTightnessResult ?></span></div>
+    <div class="overview-item"><span class="overview-label">Water Tightness Warranty Expiry</span><span class="overview-value"><?= vehicle.waterTightnessWarrantyExpiry ?></span></div>
+    <div class="overview-item"><span class="overview-label">Water Tightness Warranty Status</span><span class="overview-value"><?= vehicle.waterTightnessWarrantyStatus ?></span></div>
+  </div>
+
+  <h2>Service History</h2>
+  <? if (entries.length === 0) { ?>
+    <div class="empty-state">No service history items selected.</div>
+  <? } else { ?>
+  <table>
+    <thead>
+      <tr>
+        <th>Date Completed</th>
+        <th>Vendor</th>
+        <th>Service Task</th>
+      </tr>
+    </thead>
+    <tbody>
+      <? for (var i = 0; i < entries.length; i++) { ?>
+      <tr>
+        <td><?= entries[i].completedAtFormatted ?></td>
+        <td><?= entries[i].vendor ?></td>
+        <td><?= entries[i].taskDescription ?></td>
+      </tr>
+      <? } ?>
+    </tbody>
+  </table>
+  <? } ?>
+
+  <div class="footer">
+    This service history reflects records held in Wilderness Motorhomes' fleet management system at the time of generation and may not capture every historical entry. Contact the sales team with any questions.
+  </div>
+
+</body>
+</html>

@@ -9,7 +9,15 @@
 
 // Global wrapper — the only entry point exposed to google.script.run from the client.
 function searchBookings(rego, travelDate) {
-  return new BookingFinder().searchBookings(rego, travelDate);
+  try {
+    const result = new BookingFinder().searchBookings(rego, travelDate);
+    const matches = JSON.parse(result || '[]').length;
+    logEvent_('Booking Finder: Search', `rego=${rego} | travelDate=${travelDate} | matches=${matches}`);
+    return result;
+  } catch (err) {
+    logEvent_('Booking Finder: Search', `rego=${rego} | travelDate=${travelDate} | ERROR: ${err.message}`);
+    throw err;
+  }
 }
 
 var BookingFinder = function () {

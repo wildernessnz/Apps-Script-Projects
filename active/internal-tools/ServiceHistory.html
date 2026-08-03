@@ -1,0 +1,156 @@
+<div class="it-tool-header">
+  <h1>Service History</h1>
+  <p class="it-tool-subtitle">Look up a vehicle's service history, choose which entries to include, then generate a branded PDF.</p>
+</div>
+
+<div class="it-card">
+  <form class="it-card-body it-form-row" id="shForm">
+    <div class="it-field">
+      <label class="it-label" for="shRego">Rego</label>
+      <input type="text" id="shRego" class="it-input" placeholder="e.g. PGA668" required>
+    </div>
+    <button type="submit" class="it-btn it-btn-primary" id="shLoadBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" stroke-width="2"/><line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="shLoadBtnLabel">Load Service History</span>
+    </button>
+  </form>
+</div>
+
+<div class="it-card" id="shEntriesCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header">
+    <span>Service Entries <span class="it-badge" id="shEntryCount">0</span></span>
+    <span>
+      <button type="button" class="it-btn-ghost-sm" id="shSelectAllBtn">Select All</button>
+      <button type="button" class="it-btn-ghost-sm" id="shSelectNoneBtn">Select None</button>
+    </span>
+  </div>
+  <table class="it-table">
+    <thead>
+      <tr>
+        <th style="width:32px;"></th>
+        <th>Date Completed</th>
+        <th>Vendor</th>
+        <th>Service Task</th>
+      </tr>
+    </thead>
+    <tbody id="shEntriesBody"></tbody>
+  </table>
+  <div class="it-card-body" style="display:flex; justify-content:flex-end;">
+    <button type="button" class="it-btn it-btn-primary" id="shGenerateBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="shGenerateBtnLabel">Generate PDF</span>
+    </button>
+  </div>
+</div>
+
+<div class="it-card" id="shResultCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-body" id="shResultBody"></div>
+</div>
+
+<script>
+(function () {
+  const form           = document.getElementById('shForm');
+  const regoInput      = document.getElementById('shRego');
+  const loadBtn        = document.getElementById('shLoadBtn');
+  const loadLabel      = document.getElementById('shLoadBtnLabel');
+  const entriesCard    = document.getElementById('shEntriesCard');
+  const entriesBody    = document.getElementById('shEntriesBody');
+  const entryCount     = document.getElementById('shEntryCount');
+  const selectAllBtn   = document.getElementById('shSelectAllBtn');
+  const selectNoneBtn  = document.getElementById('shSelectNoneBtn');
+  const generateBtn    = document.getElementById('shGenerateBtn');
+  const generateLabel  = document.getElementById('shGenerateBtnLabel');
+  const resultCard     = document.getElementById('shResultCard');
+  const resultBody     = document.getElementById('shResultBody');
+
+  let currentRego = '';
+
+  function formatDate(d) {
+    return d ? new Date(d).toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
+  }
+
+  function renderEntries(entries) {
+    entriesBody.innerHTML = '';
+    entryCount.textContent = entries.length;
+
+    if (!entries.length) {
+      entriesBody.innerHTML = '<tr><td colspan="4" class="it-error-cell" style="color: var(--color-text-muted);">No service history entries found.</td></tr>';
+      return;
+    }
+
+    entries.forEach(function (entry) {
+      const tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td><input type="checkbox" class="sh-entry-checkbox" data-entry-id="' + entry.id + '" checked></td>' +
+        '<td>' + formatDate(entry.completedAt) + '</td>' +
+        '<td>' + escapeHtml(entry.vendor) + '</td>' +
+        '<td>' + escapeHtml(entry.taskDescription) + '</td>';
+      entriesBody.appendChild(tr);
+    });
+  }
+
+  // Submit only fires once the browser's own required-field validation has
+  // passed — an empty Rego blocks submission and shows the native
+  // "Please fill in this field" tooltip automatically.
+  form.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const rego = regoInput.value.trim();
+    currentRego = rego;
+
+    loadBtn.disabled = true;
+    loadLabel.textContent = 'Loading…';
+    entriesCard.style.display = 'none';
+    resultCard.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function (json) {
+        loadBtn.disabled = false;
+        loadLabel.textContent = 'Load Service History';
+        renderEntries(JSON.parse(json).entries);
+        entriesCard.style.display = 'block';
+      })
+      .withFailureHandler(function (err) {
+        loadBtn.disabled = false;
+        loadLabel.textContent = 'Load Service History';
+        resultBody.innerHTML = '<p class="it-error-cell">' + escapeHtml(err.message) + '</p>';
+        resultCard.style.display = 'block';
+      })
+      .previewServiceHistory(rego);
+  });
+
+  selectAllBtn.addEventListener('click', function () {
+    entriesBody.querySelectorAll('.sh-entry-checkbox').forEach(function (cb) { cb.checked = true; });
+  });
+
+  selectNoneBtn.addEventListener('click', function () {
+    entriesBody.querySelectorAll('.sh-entry-checkbox').forEach(function (cb) { cb.checked = false; });
+  });
+
+  generateBtn.addEventListener('click', function () {
+    const selectedIds = Array.from(entriesBody.querySelectorAll('.sh-entry-checkbox:checked'))
+      .map(function (cb) { return Number(cb.dataset.entryId); });
+
+    generateBtn.disabled = true;
+    generateLabel.textContent = 'Generating…';
+    resultCard.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function (url) {
+        generateBtn.disabled = false;
+        generateLabel.textContent = 'Generate PDF';
+        resultBody.innerHTML =
+          '<p class="it-tool-subtitle" style="margin-bottom: 16px;">PDF generated for <strong>' + escapeHtml(currentRego) + '</strong> (' + selectedIds.length + ' entr' + (selectedIds.length === 1 ? 'y' : 'ies') + '). Saved to your Google Drive (My Drive).</p>' +
+          '<a href="' + escapeHtml(url) + '" target="_blank" class="it-btn it-btn-primary">Open PDF</a>';
+        resultCard.style.display = 'block';
+      })
+      .withFailureHandler(function (err) {
+        generateBtn.disabled = false;
+        generateLabel.textContent = 'Generate PDF';
+        resultBody.innerHTML = '<p class="it-error-cell">' + escapeHtml(err.message) + '</p>';
+        resultCard.style.display = 'block';
+      })
+      .generateServiceHistory(currentRego, selectedIds);
+  });
+})();
+</script>

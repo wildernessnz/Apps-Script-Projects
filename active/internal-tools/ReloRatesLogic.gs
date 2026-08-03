@@ -12,7 +12,14 @@
 
 // Global wrapper — the only entry point exposed to google.script.run from the client.
 function getJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday) {
-  return new JobRates().calculateJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday);
+  try {
+    const result = new JobRates().calculateJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday);
+    logEvent_('Relo Rates: Calculate', `departure=${departure} | destination=${destination} | departureDate=${departureDate}`);
+    return result;
+  } catch (err) {
+    logEvent_('Relo Rates: Calculate', `departure=${departure} | destination=${destination} | ERROR: ${err.message}`);
+    throw err;
+  }
 }
 
 var JobRates = function () {
