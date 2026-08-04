@@ -50,8 +50,11 @@ Before it'll actually work, Script Properties need setting (Project Settings
 **Service History:** `SERVICE_HISTORY_ALLOWLIST` (comma-separated emails —
 gates the whole tool, same pattern as Weather Alert's approved senders),
 `SERVICE_HISTORY_EXCLUDED_TASKS` (comma-separated Fleetio service task names
-to exclude from every PDF, matched case-insensitively; defaults to
-`Rental Turnaround,Detailing` if unset).
+to exclude from every PDF, matched case- and whitespace-insensitively;
+defaults to `Rental Turn Around,Detail` if unset). Matching tasks are
+dropped from a work order's task list rather than hiding the whole entry —
+a work order that mixes a rental turnaround with real service work still
+shows the real work.
 
 Booking Finder and Relo Rates need no properties.
 

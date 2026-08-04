@@ -71,10 +71,12 @@ function generateServiceHistory(rego, selectedEntryIds) {
 
 var ServiceHistoryFetcher = function() {
 
+  const normalizeTaskName_ = (name) => (name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+
   const EXCLUDED_TASKS_ = (PropertiesService.getScriptProperties()
-    .getProperty('SERVICE_HISTORY_EXCLUDED_TASKS') || 'Rental Turnaround,Detailing')
+    .getProperty('SERVICE_HISTORY_EXCLUDED_TASKS') || 'Rental Turn Around,Detail')
     .split(',')
-    .map(t => t.trim().toLowerCase());
+    .map(normalizeTaskName_);
 
   /**
    * Resolves a rego to a Fleetio vehicle, then fetches overview + history.
@@ -88,7 +90,9 @@ var ServiceHistoryFetcher = function() {
     if (!vehicle) throw new Error(`No Fleetio vehicle found for rego "${rego}"`);
 
     const allEntries = fetchAllServiceEntries_(vehicle.id);
-    const entries = allEntries.filter(e => !isExcluded_(e));
+    const entries = allEntries
+      .map(stripExcludedTasks_)
+      .filter(e => e.service_tasks.length > 0 || e.originalTaskCount === 0);
 
     Logger.log(`[ServiceHistoryFetcher.fetchByRego] vehicleId=${vehicle.id} | totalEntries=${allEntries.length} | afterExclusion=${entries.length}`);
 
@@ -128,12 +132,16 @@ var ServiceHistoryFetcher = function() {
   };
 
   /**
+   * Drops excluded tasks (e.g. rental turnarounds, detailing) from an
+   * entry's task list, without discarding real service work recorded
+   * on the same work order.
    * @param {Object} entry
-   * @returns {boolean}
+   * @returns {Object}
    */
-  const isExcluded_ = (entry) => {
-    const taskNames = (entry.service_tasks || []).map(t => t.name.toLowerCase());
-    return taskNames.some(name => EXCLUDED_TASKS_.includes(name));
+  const stripExcludedTasks_ = (entry) => {
+    const tasks = entry.service_tasks || [];
+    const kept = tasks.filter(t => !EXCLUDED_TASKS_.includes(normalizeTaskName_(t.name)));
+    return Object.assign({}, entry, { service_tasks: kept, originalTaskCount: tasks.length });
   };
 
   /**
