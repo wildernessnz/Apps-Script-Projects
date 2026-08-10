@@ -97,6 +97,14 @@
       font-size: 10pt;
       margin-top: 8px;
     }
+    .task-item:not(:first-child) {
+      margin-top: 6px;
+    }
+    .task-note {
+      color: #94a3b8;
+      font-size: 8.5pt;
+      margin-top: 1px;
+    }
   </style>
 </head>
 <body>
@@ -140,7 +148,18 @@
       <tr>
         <td><?= entries[i].completedAtFormatted ?></td>
         <td><?= entries[i].vendor ?></td>
-        <td><?= entries[i].taskDescription ?></td>
+        <td>
+          <? if (!entries[i].tasks || entries[i].tasks.length === 0) { ?>
+            —
+          <? } else { for (var j = 0; j < entries[i].tasks.length; j++) { ?>
+            <div class="task-item">
+              <div class="task-name"><?= entries[i].tasks[j].name ?></div>
+              <? if (entries[i].tasks[j].note) { ?>
+                <div class="task-note"><?= entries[i].tasks[j].note ?></div>
+              <? } ?>
+            </div>
+          <? } } ?>
+        </td>
       </tr>
       <? } ?>
     </tbody>

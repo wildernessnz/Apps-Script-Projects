@@ -53,10 +53,19 @@ function generateServiceHistory(rego, selectedEntryIds) {
   Logger.log(`[generateServiceHistory] rego=${rego} | selected=${Array.isArray(selectedEntryIds) ? selectedEntryIds.length : 'all'}`);
 
   try {
-    const data = new ServiceHistoryFetcher().fetchByRego(rego);
+    const fetcher = new ServiceHistoryFetcher();
+    const data = fetcher.fetchByRego(rego);
     const entryIds = Array.isArray(selectedEntryIds) ? selectedEntryIds : data.entries.map(e => e.id);
 
-    const pdfBlob = new ServiceHistoryPdf().build(data.vehicle, data.entries, entryIds);
+    // Per-task notes aren't in the list response used above — fetch them only
+    // for entries actually going into the PDF, so the preview step (which
+    // loads every entry) doesn't pay for a call per entry.
+    const selectedSet = new Set(entryIds);
+    const entriesWithTasks = data.entries.map(e =>
+      selectedSet.has(e.id) ? Object.assign({}, e, { tasks: fetcher.fetchTaskDetails(e.id) }) : e
+    );
+
+    const pdfBlob = new ServiceHistoryPdf().build(data.vehicle, entriesWithTasks, entryIds);
 
     const file = DriveApp.createFile(pdfBlob);
     Logger.log(`[generateServiceHistory] created file=${file.getUrl()}`);
@@ -100,6 +109,25 @@ var ServiceHistoryFetcher = function() {
       vehicle: mapVehicleOverview_(vehicle),
       entries: entries.map(mapEntry_)
     };
+  };
+
+  /**
+   * Fetches per-task notes for one service entry. The list endpoint used by
+   * fetchByRego only returns task names, not the free-text note recorded
+   * against each task — that lives on the entry's line items, which Fleetio
+   * only exposes via the single-entry v2 endpoint (no bulk/vehicle-scoped
+   * equivalent exists), hence one call per entry rather than a single fetch.
+   * @param {number} entryId
+   * @returns {{name: string, note: string|null}[]}
+   */
+  this.fetchTaskDetails = (entryId) => {
+    const full = fleetioFetch_(`/service_entries/${entryId}`, 'v2');
+    const lineItems = (full.service_entry_line_items || [])
+      .filter(li => li.type === 'ServiceEntryServiceTaskLineItem' && !li.service_entry_line_item_id);
+
+    return lineItems
+      .map(li => ({ name: (li.service_task && li.service_task.name) || '—', note: li.description || null }))
+      .filter(t => !EXCLUDED_TASKS_.includes(normalizeTaskName_(t.name)));
   };
 
   /**
@@ -178,18 +206,20 @@ var ServiceHistoryFetcher = function() {
 
   /**
    * @param {string} path
-   * @param {string} [apiVersion]
+   * @param {string} [urlVersion] - 'v1' (default) or 'v2'; selects which API
+   *   version's URL prefix to call. Fleetio's task-note data (see
+   *   fetchTaskDetails) only exists under v2's single-entry endpoint.
    * @returns {Object}
    */
-  const fleetioFetch_ = (path, apiVersion) => {
+  const fleetioFetch_ = (path, urlVersion) => {
     const security = new WildernessAppScriptLibrary.FleetioSecurity();
     const options = {
       method: 'GET',
       contentType: 'application/json',
-      headers: security.getAuthHeaders(apiVersion),
+      headers: security.getAuthHeaders(),
       muteHttpExceptions: true
     };
-    const response = UrlFetchApp.fetch(`https://secure.fleetio.com/api/v1${path}`, options);
+    const response = UrlFetchApp.fetch(`https://secure.fleetio.com/api/${urlVersion || 'v1'}${path}`, options);
     const code = response.getResponseCode();
     const body = response.getContentText();
 
