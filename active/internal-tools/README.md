@@ -2,14 +2,17 @@
 
 Single standalone Apps Script project unifying Booking Finder, Interislander
 Availability, Relo Rates, and Weather Alert (section "Adventure Support"),
-plus Service History (section "Workshop"), behind one sidebar-navigated
-shell. All 5 tools are built, deployed, and confirmed working as of this
-handoff. This doc is the orientation a fresh Claude Code session needs — read
-this before touching anything.
+Service History (section "Workshop"), and Recurring Tasks (section
+"Leadership"), behind one sidebar-navigated shell. All 6 tools are built and
+deployed. Recurring Tasks specifically still has open cutover steps (Script
+Properties, daily trigger, retiring the old standalone project) — see
+"Still open / deferred" below before assuming it's fully live. This doc is
+the orientation a fresh Claude Code session needs — read this before
+touching anything.
 
 ## Getting set up
 
-These 21 files are the entire project. Drop them into your local clasp
+These 23 files are the entire project. Drop them into your local clasp
 folder (matching filenames exactly, no subfolders) and `clasp push`.
 
 ```
@@ -23,12 +26,13 @@ Styles.html               — ALL styling + embedded Averta font (~875KB — thi
                              the file is large; don't be alarmed)
 Router.html               — client-side nav + content swap
 Modal.html               — shared ITModal (confirm/notify) + tooltip positioning + escapeHtml()
-Placeholder.html         — unused now (all 5 tools built) but harmless to keep
+Placeholder.html         — unused now (all 6 tools built) but harmless to keep
 BookingFinderLogic.gs / BookingFinder.html
 InterislanderLogic.gs / Interislander.html
 ReloRatesLogic.gs / ReloRates.html
 WeatherAlertLogic.gs / WeatherAlert.html
 ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
+RecurringTasksLogic.gs / RecurringTasks.html
 ```
 
 `ServiceHistoryTemplate.html` is a third file for that tool — it's the PDF's
@@ -56,6 +60,23 @@ dropped from a work order's task list rather than hiding the whole entry —
 a work order that mixes a rental turnaround with real service work still
 shows the real work.
 
+**Recurring Tasks:** `RECURRING_TASKS_JIRA_CLIENT_ID`,
+`RECURRING_TASKS_JIRA_CLIENT_SECRET`, `RECURRING_TASKS_JIRA_REDIRECT_URI`
+(Atlassian OAuth 2.0 app credentials — copy from the old standalone
+recurring-task-engine project's gitignored `Config.js`), and
+`RECURRING_TASKS_JIRA_REFRESH_TOKEN` (mint fresh in *this* project via
+`rtAuthoriseJira()` then `rtExchangeCodeForTokens(code)` from the Apps
+Script editor — rotates itself on every use after that, never set by
+hand again). **Not yet set as of this handoff** — until they are, the
+tool's own CRUD/pause/resume/delete/history all work fine (Sheet-only),
+but Run Now and the daily trigger fail with "No OAuth refresh token
+found." Access is a Google Group check (`ACCESS_GROUPS` in
+`RecurringTasksLogic.gs`, currently `leaders@wilderness.co.nz` and
+`jirataskengine@wilderness.co.nz` — membership in *either* grants
+access), not a Script Property allowlist like Weather Alert/Service
+History — same mechanism the standalone app used, just relocated into
+`ACCESS_GATES`.
+
 Booking Finder and Relo Rates need no properties.
 
 Don't manually set `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY`
@@ -71,13 +92,18 @@ Don't manually set `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY`
 - **One shell, swappable content.** `Shell.html` is the only thing `doGet()`
   serves. Everything else loads via `google.script.run` calls to
   `getToolContent(partialName)` and gets injected into `#itContent`.
-- **Adding tool #6:** one entry in `Config.gs`'s `NAV_CONFIG` (id, label, icon
-  SVG, partial name, contentWidth) — either in an existing section or a new
-  `{ section: '...', items: [...] }` block (see how Service History got its
-  own "Workshop" section, separate from "Adventure Support") — one new
-  `<Name>Logic.gs` + `<Name>.html` pair, flip its `PLACEHOLDER_PARTIALS` entry
-  in `ContentLoader.gs` to `false` once the partial exists. Nothing else
-  needs touching for the shell/routing itself.
+- **Adding a new tool:** one entry in `Config.gs`'s `NAV_CONFIG` (id, label,
+  icon SVG, partial name, contentWidth) — either in an existing section or a
+  new `{ section: '...', items: [...] }` block (Service History got its own
+  "Workshop" section; Recurring Tasks got its own "Leadership" section) —
+  one new `<Name>Logic.gs` + `<Name>.html` pair, flip its
+  `PLACEHOLDER_PARTIALS` entry in `ContentLoader.gs` to `false` once the
+  partial exists. Nothing else needs touching for the shell/routing itself.
+  If porting in an existing standalone Apps Script app (as both Service
+  History and Recurring Tasks were), rename every server function first —
+  see gotcha #15 below on why generic names like the source's `getSheet_`/
+  `saveSchedule`/`logAudit_` are a latent collision risk once everything
+  shares one script's global namespace.
 - **File naming:** `<ToolName>Logic.gs` + `<ToolName>.html` — Apps Script
   doesn't allow a `.gs` and `.html` file to share a base name (learned this
   the hard way with `BookingFinder.gs` vs `BookingFinder.html`).
@@ -200,6 +226,37 @@ like one of these, it probably is:
 14. **Fleetio's Service Entry vendor is a flat `vendor_name` string field**,
     not a nested `vendor: { name }` object — confirmed against Fleetio's live
     OpenAPI schema. `ServiceHistoryLogic.gs`'s `mapEntry_` reads it directly.
+15. **Generic global function names are a real collision risk once every
+    tool shares one script.** The standalone apps this project ports in were
+    each their own Apps Script project, so names like `getSheet_`,
+    `saveSchedule`, `logAudit_`, `rowToObject_`, `stripTime_` never collided
+    with anything. Here they would. When porting Recurring Tasks in,
+    every private helper got an `rt` prefix (`rtGetSheet_`, `rtLogAudit_`,
+    etc.) and every public `google.script.run` entry point got renamed to
+    something tool-specific (`getRecurringTaskSchedules`, not `getSchedules`)
+    — do the same for any future ported tool, not just the obviously
+    generic names.
+16. **`appsscript.json`'s `oauthScopes` list is explicit, not a starting
+    point Apps Script augments automatically.** Any built-in service call a
+    new tool makes that no existing tool already used needs its scope added
+    by hand, or it fails at runtime with "Specified permissions are not
+    sufficient..." — not at push/deploy time, only when that code path
+    actually runs. Recurring Tasks hit this twice after its first deploy:
+    `GroupsApp.getGroupByEmail()` needed `.../auth/groups`, and
+    `ScriptApp.getProjectTriggers()` (called on every page load, for the
+    trigger-status badge) needed `.../auth/script.scriptapp`. Neither was
+    caught by testing the happy path in the editor — both only surfaced from
+    the deployed web app's Executions log. Before deploying a tool that uses
+    a service no other tool here already exercises, check `Config.gs`'s
+    existing scope list against what that service actually needs.
+17. **A time-based trigger function needs to log that it ran, even when it
+    finds nothing to do.** `runRecurringTasksDailyCheck` originally only
+    logged individual failures — a normal 7am run that created tickets fine,
+    or found nothing due, left zero trace in Executions. Since nobody's
+    watching a UI when a trigger fires, "silent" and "broken" look
+    identical from the outside. Fixed by adding start/summary `Logger.log`
+    lines regardless of outcome. Any future unattended trigger should do
+    the same.
 
 ## Resolved decisions (don't re-litigate these without a real reason)
 
@@ -209,10 +266,23 @@ like one of these, it probably is:
   PII shouldn't be visible to whoever has Relo Rates access).
 - Averta embedded as base64, not externally hosted.
 - Real Wilderness logo + inline SVG nav icons wired in.
-- Content width: all tools use `it-content-wide` (1000px, set per-item in
-  `NAV_CONFIG`) — originally split narrow/wide per tool type, unified so
-  every panel is the same size regardless of which tool is active. Content
-  stays left-anchored, not centered.
+- Content width: originally split narrow/wide per tool type, then unified
+  so every tool used `it-content-wide` (1000px) — **no longer universal**.
+  Recurring Tasks' 7-column schedule table didn't fit `wide` even with
+  tighter cell padding, so `Styles.html` gained a third tier,
+  `it-content-xwide` (1100px, still capped rather than left unconstrained,
+  so it doesn't keep growing on very large monitors). Set per-item in
+  `NAV_CONFIG` same as the other two. Use `xwide` for any future tool whose
+  table genuinely needs more than 6 columns' worth of room; don't reach for
+  it by default. Content stays left-anchored, not centered, in all three
+  tiers.
+- **`Styles.html`'s shared `.it-table`/`.it-badge` cell rules didn't have
+  `white-space: nowrap`** — harmless for every existing tool's short,
+  single-word cell content, but Recurring Tasks' multi-word department
+  names ("Digital Experience") wrapped into ugly 2-line badges, and table
+  headers ("Recurs Every") wrapped too. Added `white-space: nowrap` to both
+  shared rules — a correctness fix, not a Recurring-Tasks-specific
+  override, so every tool's badges/headers benefit.
 - **Service History generates a Drive-hosted PDF + link, not a direct
   browser download.** Matches the original POC's behaviour; explicitly kept
   as-is rather than switched to a direct download.
@@ -245,8 +315,9 @@ like one of these, it probably is:
    ported. Still exists on the original spreadsheet if that access path
    matters to anyone.
 3. **Cutover** — the older standalone tool deployments (including the
-   original Service History POC project) are still live; nobody's been
-   redirected off them yet.
+   original Service History POC project and the standalone
+   recurring-task-engine project) are still live; nobody's been redirected
+   off them yet.
 4. **Weather Alert's modal/toast UI doesn't use the shared `ITModal`
    component** (`Modal.html`) — it built its own `wa-backdrop`/`wa-modal`
    system plus a custom `window.toast()`, because its flow (preview / confirm
@@ -259,6 +330,21 @@ like one of these, it probably is:
    per-checkbox level** — only the final selected/total count is recorded
    in the activity log's `Generate PDF` entry, not which specific entries a
    user excluded. Revisit if finer-grained audit detail is ever needed.
+6. **Recurring Tasks cutover checklist, specifically** — this one has more
+   open steps than the others since it involves live OAuth tokens and a
+   daily trigger, not just a URL redirect: (a) set the 4
+   `RECURRING_TASKS_JIRA_*` Script Properties in *this* project (see
+   "Script Properties" above); (b) run `rtInstallDailyTrigger()` here; (c)
+   only once that's confirmed working, run `uninstallDailyTrigger()` on the
+   **old** recurring-task-engine project — skipping this step means both
+   triggers fire at 7am and every due schedule gets a duplicate Jira ticket;
+   (d) retire the old project once its trigger is off.
+7. **Recurring Tasks only writes to the shared Activity Log on success**,
+   not on failure — its own `Audit Log` sheet tab and `Logger.log` cover
+   failures, but every other tool's `logEvent_()` calls fire on both success
+   and failure. Inconsistent; revisit if cross-tool failure visibility in
+   the Activity Log specifically (not just per-tool logs) turns out to
+   matter.
 
 ## Known intentional deviations from the original tools
 
@@ -274,3 +360,16 @@ like one of these, it probably is:
 - Service History: adds an entry-selection preview step (load → tick/untick
   → generate) that the original POC didn't have — the POC always included
   every fetched entry with no picker.
+- Recurring Tasks: access is a Google Group check, but now against **two**
+  groups (`leaders@wilderness.co.nz` OR `jirataskengine@wilderness.co.nz`)
+  rather than the standalone app's single `jirataskengine@wilderness.co.nz`
+  — changed post-migration at Mark's request, not carried over unmodified.
+- Recurring Tasks: dropped `updateNextDue(id, nextDue)` — confirmed dead
+  code in the standalone app; nothing in its UI ever called it (the edit
+  modal already folds next-due overrides into the general update call).
+- Recurring Tasks: the standalone app's own sidebar (Active/Paused nav
+  toggle + per-view department tree) doesn't exist here — replaced with a
+  single page showing both "Active Schedules" and "Paused Schedules" as
+  stacked cards, filtered by one shared row of department pills above
+  both. A deliberate redesign to fit the shared shell's one-sidebar model,
+  not a straight port.

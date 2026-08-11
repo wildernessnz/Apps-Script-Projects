@@ -139,6 +139,11 @@
   .it-content { flex: 1; min-width: 0; padding: 32px 40px 32px 56px; }
   .it-content-narrow { max-width: 860px; }
   .it-content-wide { max-width: 1000px; }
+  /* For tables with more columns than "wide" comfortably fits (e.g.
+     Recurring Tasks' 7-column schedule table) — still capped, so it
+     doesn't keep growing wider on very large monitors like an
+     unconstrained content area would. */
+  .it-content-xwide { max-width: 1100px; }
   .it-error { padding: 40px; color: #B8860B; font-size: 14px; }
 
   /* ── LOADING STATE (tool switch, initial content fetch) ── */
@@ -223,7 +228,7 @@
   .it-table thead th {
     background: var(--it-table-header-bg); color: rgba(255,255,255,0.7);
     font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-    text-align: left; padding: 10px 20px;
+    text-align: left; padding: 10px 20px; white-space: nowrap;
   }
   .it-table tbody td { padding: 14px 20px; border-bottom: 1px solid var(--color-border-light); color: var(--color-text-primary); }
   .it-table tbody tr:hover { background: var(--it-table-row-hover-bg); }
@@ -234,7 +239,7 @@
   /* ── BADGE ── */
   .it-badge {
     background: var(--it-badge-bg); color: var(--it-badge-color);
-    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px;
+    font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap;
   }
   /* Success/muted variants — e.g. Interislander "Can Book" true/false */
   .it-badge-success { background: rgba(103,182,91,0.12); color: #3a7d34; }
@@ -492,7 +497,7 @@
   }
   .it-form-modal-backdrop.open { display: flex; }
   .it-form-modal {
-    background: #fff; border-radius: var(--it-card-radius); width: 560px; max-width: calc(100vw - 40px);
+    background: #fff; border-radius: var(--it-card-radius); width: 600px; max-width: calc(100vw - 40px);
     max-height: calc(100vh - 40px); overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
     animation: waModalIn .18s ease;
   }
@@ -503,14 +508,17 @@
   .it-form-modal-title { font-size: 16px; font-weight: 700; color: #fff; }
   .it-form-modal-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 22px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 6px; }
   .it-form-modal-close:hover { color: #fff; background: rgba(255,255,255,.1); }
-  .it-form-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .it-form-modal-body { padding: 18px 24px; display: flex; flex-direction: column; gap: 12px; }
   .it-form-modal-body .it-section-label {
     font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
     color: var(--color-electric-blue); padding-bottom: 6px; border-bottom: 1px solid var(--color-border-light);
-    margin-top: 4px;
+    margin-top: 2px;
   }
   .it-form-modal-body .it-form-hint { font-size: 12px; color: var(--color-text-muted); line-height: 1.5; }
   .it-form-modal-body .it-inline-pair { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: end; }
+  /* Two fields side by side — keeps the form modal short enough to avoid an
+     internal scrollbar on typical viewport heights. */
+  .it-form-modal-body .it-form-row-2col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
   .it-form-modal-footer {
     padding: 16px 24px; border-top: 1px solid var(--color-border-light); display: flex; gap: 10px;
     justify-content: flex-end; background: var(--color-beige-60); border-radius: 0 0 var(--it-card-radius) var(--it-card-radius);
@@ -547,6 +555,14 @@
   .it-toast a { color: #fff; text-decoration: underline; font-weight: 700; }
   .it-toast.error   { background: var(--color-ruby-red); }
   .it-toast.success { background: var(--color-organic-green); }
+
+  /* ── RECURRING TASKS TABLE — tighter cell padding + horizontal scroll ──
+     7 data columns (vs. the 4-5 typical of other it-table users) don't fit
+     the shared 20px cell padding within the sidebar's remaining width on
+     smaller windows. Scoped to #rtRoot rather than changing .it-table
+     itself, which every other tool also uses. */
+  #rtRoot .it-table th, #rtRoot .it-table td { padding-left: 14px; padding-right: 14px; }
+  #rtRoot .it-table-scroll { overflow-x: auto; }
 
   /* ── NEXT-DUE STATUS COLORS (Recurring Tasks) ── */
   .rt-next-due { font-weight: 700; }

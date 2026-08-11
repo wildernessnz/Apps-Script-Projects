@@ -39,9 +39,9 @@ const RECURRING_TASKS_CONFIG = {
     'HR'
   ],
   NOTIFY_EMAIL: 'mark.lonergan@wilderness.co.nz',
-  // Google Group — only members can use this tool. Checked via
-  // isRecurringTasksApproved() below, same mechanism as the standalone app.
-  ACCESS_GROUP: 'jirataskengine@wilderness.co.nz',
+  // Google Groups — membership in any one of these grants access. Checked
+  // via isRecurringTasksApproved() below, same mechanism as the standalone app.
+  ACCESS_GROUPS: ['leaders@wilderness.co.nz', 'jirataskengine@wilderness.co.nz'],
 };
 
 
@@ -59,13 +59,14 @@ const RECURRING_TASKS_CONFIG = {
  */
 function isRecurringTasksApproved() {
   const email = Session.getActiveUser().getEmail();
-  try {
-    const group = GroupsApp.getGroupByEmail(RECURRING_TASKS_CONFIG.ACCESS_GROUP);
-    return group.hasUser(email);
-  } catch (e) {
-    Logger.log('[isRecurringTasksApproved] Group check failed for %s: %s', email, e.message);
-    return false;
-  }
+  return RECURRING_TASKS_CONFIG.ACCESS_GROUPS.some(function (groupEmail) {
+    try {
+      return GroupsApp.getGroupByEmail(groupEmail).hasUser(email);
+    } catch (e) {
+      Logger.log('[isRecurringTasksApproved] Group check failed for %s (%s): %s', email, groupEmail, e.message);
+      return false;
+    }
+  });
 }
 
 
@@ -198,6 +199,7 @@ function saveRecurringTaskSchedule(form) {
     ]);
 
     rtLogAudit_('Created', id, form.taskName, `Dept: ${form.department} | Recurs every ${form.recurrenceValue} ${form.recurrenceUnit}`);
+    logEvent_('Recurring Tasks: Create Schedule', `task=${form.taskName} | dept=${form.department}`);
     return { success: true, id };
   } catch (e) {
     Logger.log('[saveRecurringTaskSchedule] ERROR: %s', e.message);
@@ -215,6 +217,7 @@ function deleteRecurringTaskSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('FALSE');
         rtLogAudit_('Deleted', data[i][0], data[i][1], 'Soft-deleted (Active = FALSE)');
+        logEvent_('Recurring Tasks: Delete Schedule', `task=${data[i][1]}`);
         return { success: true };
       }
     }
@@ -240,6 +243,7 @@ function pauseRecurringTaskSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('PAUSED');
         rtLogAudit_('Paused', data[i][0], data[i][1], '');
+        logEvent_('Recurring Tasks: Pause Schedule', `task=${data[i][1]}`);
         return { success: true };
       }
     }
@@ -260,6 +264,7 @@ function resumeRecurringTaskSchedule(id) {
       if (data[i][0] === id) {
         sheet.getRange(i + 1, 11).setValue('TRUE');
         rtLogAudit_('Resumed', data[i][0], data[i][1], '');
+        logEvent_('Recurring Tasks: Resume Schedule', `task=${data[i][1]}`);
         return { success: true };
       }
     }
@@ -297,6 +302,7 @@ function runRecurringTaskScheduleNow(id) {
       const userEmail = Session.getActiveUser().getEmail();
       rtLogIssueCreated_(issue, schedule, 'Manual Run', userEmail);
       rtLogAudit_('Run Now', schedule.id, schedule.taskName, `Created ${issue.key} | Next due: ${Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd')}`);
+      logEvent_('Recurring Tasks: Run Now', `task=${schedule.taskName} | issue=${issue.key}`);
 
       return { success: true, issueKey: issue.key, issueUrl: `${RECURRING_TASKS_CONFIG.JIRA_BASE_URL}/browse/${issue.key}`, nextDue: Utilities.formatDate(newNextDue, tz, 'yyyy-MM-dd') };
     }
@@ -339,6 +345,7 @@ function updateRecurringTaskSchedule(form) {
       sheet.getRange(i + 1, 10).setValue(Utilities.formatDate(nextDue, tz, 'yyyy-MM-dd'));
       sheet.getRange(i + 1, 13).setValue(form.description || '');
       rtLogAudit_('Updated', form.id, form.taskName, `Dept: ${form.department} | Recurs every ${form.recurrenceValue} ${form.recurrenceUnit} | Offset: ${form.offsetValue} ${form.offsetUnit}`);
+      logEvent_('Recurring Tasks: Update Schedule', `task=${form.taskName} | dept=${form.department}`);
       return { success: true };
     }
 
@@ -637,6 +644,7 @@ function rtLogAudit_(action, scheduleId, taskName, detail) {
 function runRecurringTasksDailyCheck() {
   const today = rtStripTime_(new Date());
   const tz = Session.getScriptTimeZone();
+  Logger.log('[runRecurringTasksDailyCheck] ── Daily check started. Date: %s ──', Utilities.formatDate(today, tz, 'yyyy-MM-dd'));
 
   const sheet = rtGetSheet_();
   const data = sheet.getDataRange().getValues();
@@ -674,6 +682,9 @@ function runRecurringTasksDailyCheck() {
 
   const failures = log.filter(l => l.startsWith('❌'));
   const successes = log.filter(l => l.startsWith('✅'));
+
+  Logger.log('[runRecurringTasksDailyCheck] ── Run complete. Created: %s | Failed: %s ──', successes.length, failures.length);
+  logEvent_('Recurring Tasks: Daily Trigger', `created=${successes.length} | failed=${failures.length}`);
 
   if (log.length > 0 && RECURRING_TASKS_CONFIG.NOTIFY_EMAIL) {
     const hasFailures = failures.length > 0;
@@ -721,6 +732,7 @@ function rtUninstallDailyTrigger() {
 function getRecurringTaskTriggerStatus() {
   const trigger = ScriptApp.getProjectTriggers()
     .find(t => t.getHandlerFunction() === 'runRecurringTasksDailyCheck');
+  Logger.log('[getRecurringTaskTriggerStatus] %s', trigger ? 'Trigger is active' : 'No trigger installed');
   return trigger
     ? { active: true, description: 'Runs daily at 7:00 AM' }
     : { active: false, description: 'Not installed' };

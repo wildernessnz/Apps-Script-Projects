@@ -80,7 +80,7 @@ const NAV_CONFIG = [
   {
     section: 'Leadership',
     items: [
-      { id: 'recurring-tasks',  label: 'Recurring Tasks',              icon: ICON_REPEAT,         partial: 'RecurringTasks', contentWidth: 'wide' },
+      { id: 'recurring-tasks',  label: 'Recurring Tasks',              icon: ICON_REPEAT,         partial: 'RecurringTasks', contentWidth: 'xwide' },
     ],
   },
 ];
