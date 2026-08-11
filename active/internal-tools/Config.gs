@@ -23,6 +23,7 @@ const SHEET_IDS = {
   RELO_RATES:     '1Sh4HFBhFwW0ZZert6gMxPXyjub54_ico9-Zr_3rX7Wg',
   INTERISLANDER:  '1HFe6iabLeToK1yyDlwwSNqeyrnZ43KCRLEgiMJD4roM',
   WEATHER_ALERT:  '1rPypfI_m5t7tbLN1QiW_qjcAYTV3quCtmgjYu-I4VjQ',
+  RECURRING_TASKS: '1zwb6S63norFs5j5vOwKR6vxpfJN_84PaQM_ALcIMR_w',
   // Cross-tool container sheet — activity log lives here (Logging.gs),
   // shared edit-access to everyone who uses any tool since log writes run
   // as the visiting user (executeAs: USER_ACCESSING), not a service account.
@@ -58,6 +59,7 @@ const ICON_CALENDAR       = '<svg width="14" height="14" viewBox="0 0 24 24" fil
 const ICON_FERRY          = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M3 16h18l-2 4H5l-2-4z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 16V9a1 1 0 011-1h12a1 1 0 011 1v7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="12" y1="3" x2="12" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const ICON_CLOCK          = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M12 7v5l3 3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_WRENCH         = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const ICON_REPEAT         = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 2l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11V9a4 4 0 014-4h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 22l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const NAV_CONFIG = [
   {
@@ -73,6 +75,12 @@ const NAV_CONFIG = [
     section: 'Workshop',
     items: [
       { id: 'service-history',  label: 'Service History',             icon: ICON_WRENCH,         partial: 'ServiceHistory',  contentWidth: 'wide' },
+    ],
+  },
+  {
+    section: 'Leadership',
+    items: [
+      { id: 'recurring-tasks',  label: 'Recurring Tasks',              icon: ICON_REPEAT,         partial: 'RecurringTasks', contentWidth: 'wide' },
     ],
   },
 ];

@@ -429,4 +429,129 @@
   }
   .wa-toast.error   { background: var(--color-ruby-red); }
   .wa-toast.success { background: var(--color-organic-green); }
+
+  /* ── FILTER PILL — active state (department/category filter rows) ──
+     Reuses .it-btn-ghost-sm as the base; this just adds a filled variant
+     so a row of pills can show one as selected without a separate
+     component (e.g. Recurring Tasks' department filter). */
+  .it-btn-ghost-sm.active { background: var(--color-dusk-sky); color: #fff; border-color: var(--color-dusk-sky); }
+
+  /* ── SORTABLE TABLE HEADERS ── */
+  .it-table th.sortable { cursor: pointer; user-select: none; }
+  .it-table th.sortable:hover { color: #fff; }
+  .it-table th.sortable .sort-icon { display: inline-block; margin-left: 4px; opacity: .45; font-style: normal; }
+  .it-table th.sortable.asc .sort-icon::after  { content: '↑'; opacity: 1; }
+  .it-table th.sortable.desc .sort-icon::after { content: '↓'; opacity: 1; }
+  .it-table th.sortable:not(.asc):not(.desc) .sort-icon::after { content: '↕'; }
+
+  /* ── SELECT — chevron-decorated variant of .it-input for <select> ── */
+  .it-select {
+    height: var(--it-input-height); border: var(--it-input-border); border-radius: var(--it-input-radius);
+    padding: var(--it-input-padding); font-size: var(--it-input-font-size); font-family: var(--font-brand);
+    color: var(--color-text-primary); background: #fff; appearance: none; padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23939AA8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 16px center;
+  }
+  .it-select:focus { outline: none; border-color: var(--color-electric-blue); box-shadow: 0 0 0 3px rgba(0,99,136,0.1); }
+
+  /* ── ROW ACTIONS MENU (per-row "···" dropdown) ──
+     position:fixed and placed via JS (getBoundingClientRect) — same reasoning
+     as .it-tooltip-content: .it-table's row hover/overflow context has no
+     stable relative parent to anchor an absolutely-positioned dropdown to. */
+  .it-row-menu-btn {
+    background: transparent; border: 1px solid transparent; color: var(--color-text-muted);
+    padding: 5px 8px; border-radius: 6px; cursor: pointer; font-size: 16px; line-height: 1;
+    letter-spacing: 1px; transition: all .15s;
+  }
+  .it-row-menu-btn:hover { background: var(--color-beige-60); color: var(--color-text-primary); border-color: var(--color-border-light); }
+  .it-row-menu {
+    display: none; position: fixed; background: #fff; border: 1px solid var(--color-border-light);
+    border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.14); z-index: 1100; min-width: 170px; padding: 4px;
+  }
+  .it-row-menu.open { display: block; }
+  .it-row-menu-item {
+    display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 12px; border: none;
+    background: none; font-family: var(--font-brand); font-size: 13px; font-weight: 700;
+    color: var(--color-text-primary); cursor: pointer; border-radius: 8px; text-align: left; transition: background .1s;
+  }
+  .it-row-menu-item:hover { background: var(--color-beige-60); }
+  .it-row-menu-item.danger  { color: var(--color-ruby-red); }
+  .it-row-menu-item.warn    { color: #B8860B; }
+  .it-row-menu-item.success { color: var(--color-organic-green); }
+  .it-row-menu-item.danger:hover  { background: rgba(251,80,78,0.08); }
+  .it-row-menu-item.warn:hover    { background: rgba(184,134,11,0.08); }
+  .it-row-menu-item.success:hover { background: rgba(103,182,91,0.08); }
+  .it-row-menu-divider { height: 1px; background: var(--color-border-light); margin: 4px 0; }
+
+  /* ── FORM MODAL (larger than .it-modal-card — multi-field forms) ──
+     Header/footer visual language matches .wa-modal-header/-footer so every
+     "bigger than a confirm dialog" modal in the app looks the same. */
+  .it-form-modal-backdrop {
+    display: none; position: fixed; inset: 0; background: rgba(38,52,80,0.45);
+    align-items: center; justify-content: center; z-index: 1000;
+  }
+  .it-form-modal-backdrop.open { display: flex; }
+  .it-form-modal {
+    background: #fff; border-radius: var(--it-card-radius); width: 560px; max-width: calc(100vw - 40px);
+    max-height: calc(100vh - 40px); overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    animation: waModalIn .18s ease;
+  }
+  .it-form-modal-header {
+    background: var(--color-dusk-sky); padding: 18px 24px; border-radius: var(--it-card-radius) var(--it-card-radius) 0 0;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: 0;
+  }
+  .it-form-modal-title { font-size: 16px; font-weight: 700; color: #fff; }
+  .it-form-modal-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 22px; cursor: pointer; line-height: 1; padding: 2px 6px; border-radius: 6px; }
+  .it-form-modal-close:hover { color: #fff; background: rgba(255,255,255,.1); }
+  .it-form-modal-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .it-form-modal-body .it-section-label {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--color-electric-blue); padding-bottom: 6px; border-bottom: 1px solid var(--color-border-light);
+    margin-top: 4px;
+  }
+  .it-form-modal-body .it-form-hint { font-size: 12px; color: var(--color-text-muted); line-height: 1.5; }
+  .it-form-modal-body .it-inline-pair { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: end; }
+  .it-form-modal-footer {
+    padding: 16px 24px; border-top: 1px solid var(--color-border-light); display: flex; gap: 10px;
+    justify-content: flex-end; background: var(--color-beige-60); border-radius: 0 0 var(--it-card-radius) var(--it-card-radius);
+    position: sticky; bottom: 0;
+  }
+
+  /* ── HISTORY DRAWER (slide-in panel from the right) ── */
+  .it-drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(38,52,80,0.4); z-index: 1000; }
+  .it-drawer-backdrop.open { display: block; }
+  .it-drawer {
+    position: fixed; top: 0; right: -640px; width: 600px; max-width: 100vw; height: 100vh;
+    background: #fff; z-index: 1001; display: flex; flex-direction: column;
+    transition: right .25s cubic-bezier(.4,0,.2,1); box-shadow: -4px 0 24px rgba(38,52,80,.16);
+  }
+  .it-drawer.open { right: 0; }
+  .it-drawer-header {
+    background: var(--color-dusk-sky); padding: 18px 24px; display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 12px; flex-shrink: 0;
+  }
+  .it-drawer-title { font-size: 16px; font-weight: 700; color: #fff; }
+  .it-drawer-sub { font-size: 12px; color: rgba(255,255,255,.55); margin-top: 3px; }
+  .it-drawer-close { background: none; border: none; color: rgba(255,255,255,.6); font-size: 22px; cursor: pointer; padding: 2px 6px; border-radius: 6px; flex-shrink: 0; }
+  .it-drawer-close:hover { color: #fff; background: rgba(255,255,255,.1); }
+  .it-drawer-body { flex: 1; overflow-y: auto; padding: 20px 24px; }
+
+  /* ── TOAST (bottom-right, auto-dismiss — non-blocking success feedback) ──
+     Distinct from .it-modal-overlay/ITModal: modal is blocking and must be
+     dismissed, which is wrong for "action succeeded, here's a link" cases. */
+  .it-toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 1200; display: flex; flex-direction: column; gap: 8px; }
+  .it-toast {
+    background: var(--color-dusk-sky); color: #fff; font-size: 13px; font-weight: 600; padding: 12px 18px;
+    border-radius: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); animation: waModalIn .18s ease; max-width: 340px;
+  }
+  .it-toast a { color: #fff; text-decoration: underline; font-weight: 700; }
+  .it-toast.error   { background: var(--color-ruby-red); }
+  .it-toast.success { background: var(--color-organic-green); }
+
+  /* ── NEXT-DUE STATUS COLORS (Recurring Tasks) ── */
+  .rt-next-due { font-weight: 700; }
+  .rt-next-due.overdue { color: var(--color-ruby-red); }
+  .rt-next-due.soon    { color: #B8860B; }
+  .rt-next-due.ok      { color: var(--color-organic-green); }
+  .rt-next-due.paused  { color: var(--color-text-muted); font-weight: 400; }
 </style>

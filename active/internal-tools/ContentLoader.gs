@@ -18,6 +18,7 @@ const PLACEHOLDER_PARTIALS = {
   ReloRates:      false, // Phase 3 — done
   WeatherAlert:   false, // Phase 4 — done
   ServiceHistory: false, // Phase 5 — done
+  RecurringTasks: false, // Phase 6 — done
 };
 
 // Maps a partial name to a function that returns true/false for whether the
@@ -28,6 +29,7 @@ const PLACEHOLDER_PARTIALS = {
 const ACCESS_GATES = {
   WeatherAlert:   () => isWeatherAlertApproved(),
   ServiceHistory: () => isServiceHistoryApproved(),
+  RecurringTasks: () => isRecurringTasksApproved(),
 };
 
 /**

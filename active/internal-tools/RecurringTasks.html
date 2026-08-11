@@ -1,0 +1,617 @@
+<div id="rtRoot">
+
+  <div class="it-tool-header" style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px;">
+    <div>
+      <h1>Recurring Tasks</h1>
+      <p class="it-tool-subtitle">Schedules that automatically create Jira tickets for recurring company work. <span id="rtTriggerBadge"></span></p>
+    </div>
+    <button type="button" class="it-btn it-btn-primary" data-action="new">
+      <svg width="13" height="13" viewBox="0 0 20 20" fill="#fff"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd"/></svg>
+      New Schedule
+    </button>
+  </div>
+
+  <div id="rtDeptTabs" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom: var(--it-content-gap);"></div>
+
+  <div class="it-card" id="rtActiveCard">
+    <div class="it-card-header">
+      <span>Active Schedules <span class="it-badge" id="rtActiveCount">0</span></span>
+    </div>
+    <table class="it-table">
+      <thead>
+        <tr>
+          <th class="sortable" data-col="taskName">Task Name <i class="sort-icon"></i></th>
+          <th class="sortable" data-col="department">Department <i class="sort-icon"></i></th>
+          <th>Recurs Every</th>
+          <th>Due Offset</th>
+          <th class="sortable" data-col="nextDue">Next Run <i class="sort-icon"></i></th>
+          <th class="sortable" data-col="lastCreated">Last Created <i class="sort-icon"></i></th>
+          <th style="width:48px;"></th>
+        </tr>
+      </thead>
+      <tbody id="rtActiveBody">
+        <tr><td colspan="7" style="text-align:center; padding:32px; color: var(--color-text-muted);">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="it-card" id="rtPausedCard" style="margin-top: var(--it-content-gap);">
+    <div class="it-card-header">
+      <span>Paused Schedules <span class="it-badge" id="rtPausedCount">0</span></span>
+    </div>
+    <table class="it-table">
+      <thead>
+        <tr>
+          <th>Task Name</th>
+          <th>Department</th>
+          <th>Recurs Every</th>
+          <th>Due Offset</th>
+          <th>Next Run</th>
+          <th>Last Created</th>
+          <th style="width:48px;"></th>
+        </tr>
+      </thead>
+      <tbody id="rtPausedBody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+<!-- New / Edit Schedule modal -->
+<div class="it-form-modal-backdrop" id="rtFormBackdrop">
+  <div class="it-form-modal">
+    <div class="it-form-modal-header">
+      <div class="it-form-modal-title" id="rtFormTitle">New Schedule</div>
+      <button type="button" class="it-form-modal-close" data-action="close-form">&times;</button>
+    </div>
+    <div class="it-form-modal-body">
+      <input type="hidden" id="rtFormId">
+
+      <div class="it-section-label">Task Definition</div>
+      <div class="it-field">
+        <label class="it-label" for="rtFormTaskName">Task Name</label>
+        <input type="text" id="rtFormTaskName" class="it-input" placeholder="e.g. Monthly Finance Reconciliation">
+      </div>
+      <div class="it-field">
+        <label class="it-label" for="rtFormDepartment">Department</label>
+        <select id="rtFormDepartment" class="it-select"><option value="">Loading departments…</option></select>
+      </div>
+      <div class="it-field">
+        <label class="it-label" for="rtFormDescription">Description <span style="text-transform:none; font-weight:400; letter-spacing:0;">(optional — appears on the Jira issue)</span></label>
+        <textarea id="rtFormDescription" class="it-input" style="height:auto; padding:12px 16px; border-radius:16px; resize:vertical; min-height:70px;" placeholder="Describe what this task involves…"></textarea>
+      </div>
+      <div class="it-field">
+        <label class="it-label" for="rtFormStartDate" id="rtFormStartDateLabel">First Run Date</label>
+        <input type="date" id="rtFormStartDate" class="it-input">
+        <span class="it-form-hint" id="rtFormStartDateHint">The first Jira task will be created on this date.</span>
+      </div>
+
+      <div class="it-section-label">Recurrence</div>
+      <div class="it-field">
+        <label class="it-label">Repeat Every</label>
+        <div class="it-inline-pair">
+          <input type="number" id="rtFormRecurrenceValue" class="it-input" min="1" value="1">
+          <select id="rtFormRecurrenceUnit" class="it-select">
+            <option value="days">Days</option>
+            <option value="weeks">Weeks</option>
+            <option value="months" selected>Months</option>
+            <option value="years">Years</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="it-section-label">Due Date Offset</div>
+      <p class="it-form-hint">The Jira due date will be set this far <strong>ahead</strong> of the date each task is created.</p>
+      <div class="it-field">
+        <label class="it-label">Offset Amount</label>
+        <div class="it-inline-pair">
+          <input type="number" id="rtFormOffsetValue" class="it-input" min="1" value="2">
+          <select id="rtFormOffsetUnit" class="it-select">
+            <option value="days">Days</option>
+            <option value="weeks" selected>Weeks</option>
+            <option value="months">Months</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="it-form-modal-footer">
+      <button type="button" class="it-btn it-btn-ghost" data-action="close-form">Cancel</button>
+      <button type="button" class="it-btn it-btn-primary" id="rtFormSaveBtn" data-action="save-form"><span id="rtFormSaveBtnLabel">Save Schedule</span></button>
+    </div>
+  </div>
+</div>
+
+<!-- History drawer -->
+<div class="it-drawer-backdrop" id="rtDrawerBackdrop" data-action="close-drawer"></div>
+<div class="it-drawer" id="rtDrawer">
+  <div class="it-drawer-header">
+    <div>
+      <div class="it-drawer-title" id="rtDrawerTitle">Task History</div>
+      <div class="it-drawer-sub" id="rtDrawerSub"></div>
+    </div>
+    <button type="button" class="it-drawer-close" data-action="close-drawer">&times;</button>
+  </div>
+  <div class="it-drawer-body" id="rtDrawerBody"></div>
+</div>
+
+<div class="it-toast-container" id="rtToastContainer"></div>
+
+<script>
+(function () {
+  const ROW_MENU_ICONS = {
+    history: '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>',
+    edit:    '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>',
+    run:     '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clip-rule="evenodd"/></svg>',
+    pause:   '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>',
+    resume:  '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd"/></svg>',
+    delete:  '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>'
+  };
+
+  const root           = document.getElementById('rtRoot');
+  const deptTabsEl     = document.getElementById('rtDeptTabs');
+  const activeBody     = document.getElementById('rtActiveBody');
+  const pausedBody     = document.getElementById('rtPausedBody');
+  const activeCount    = document.getElementById('rtActiveCount');
+  const pausedCount    = document.getElementById('rtPausedCount');
+  const pausedCard     = document.getElementById('rtPausedCard');
+  const triggerBadge   = document.getElementById('rtTriggerBadge');
+  const toastContainer = document.getElementById('rtToastContainer');
+
+  const formBackdrop   = document.getElementById('rtFormBackdrop');
+  const formTitle      = document.getElementById('rtFormTitle');
+  const formId         = document.getElementById('rtFormId');
+  const formTaskName   = document.getElementById('rtFormTaskName');
+  const formDepartment = document.getElementById('rtFormDepartment');
+  const formDescription = document.getElementById('rtFormDescription');
+  const formStartDate  = document.getElementById('rtFormStartDate');
+  const formStartDateLabel = document.getElementById('rtFormStartDateLabel');
+  const formStartDateHint  = document.getElementById('rtFormStartDateHint');
+  const formRecurrenceValue = document.getElementById('rtFormRecurrenceValue');
+  const formRecurrenceUnit  = document.getElementById('rtFormRecurrenceUnit');
+  const formOffsetValue = document.getElementById('rtFormOffsetValue');
+  const formOffsetUnit  = document.getElementById('rtFormOffsetUnit');
+  const formSaveBtn     = document.getElementById('rtFormSaveBtn');
+  const formSaveBtnLabel = document.getElementById('rtFormSaveBtnLabel');
+
+  const drawerBackdrop = document.getElementById('rtDrawerBackdrop');
+  const drawer         = document.getElementById('rtDrawer');
+  const drawerTitle    = document.getElementById('rtDrawerTitle');
+  const drawerSub      = document.getElementById('rtDrawerSub');
+  const drawerBody     = document.getElementById('rtDrawerBody');
+
+  let _departments  = [];
+  let _schedules    = [];
+  let _scheduleMap  = {};
+  let _deptFilter   = null;
+  let _sortCol      = 'taskName';
+  let _sortDir      = 'asc';
+  let _openMenuId   = null;
+  let _formMode     = 'new'; // 'new' | 'edit'
+
+  // ── Helpers ─────────────────────────────────────────────────
+  function toast(msg, type) {
+    const el = document.createElement('div');
+    el.className = 'it-toast' + (type ? ' ' + type : '');
+    el.innerHTML = msg;
+    toastContainer.appendChild(el);
+    setTimeout(() => el.remove(), 6000);
+  }
+
+  function formatDate(val) {
+    if (!val) return '—';
+    const d = new Date(val);
+    if (isNaN(d)) return val;
+    return d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' });
+  }
+
+  function formatDateTime(val) {
+    if (!val) return '—';
+    const d = new Date(val);
+    if (isNaN(d)) return val;
+    return d.toLocaleString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function nextDueClass(val, paused) {
+    if (paused) return 'paused';
+    if (!val) return '';
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const diff = (new Date(val) - today) / 86400000;
+    if (diff < 0) return 'overdue';
+    if (diff <= 7) return 'soon';
+    return 'ok';
+  }
+
+  function setSelectValue(el, value) {
+    for (let i = 0; i < el.options.length; i++) {
+      if (el.options[i].value === String(value)) { el.selectedIndex = i; return; }
+    }
+  }
+
+  function populateDeptSelect(el, selectedValue) {
+    el.innerHTML = '<option value="">Select department…</option>';
+    _departments.forEach(function (d) {
+      const opt = document.createElement('option');
+      opt.value = d; opt.textContent = d;
+      if (d === selectedValue) opt.selected = true;
+      el.appendChild(opt);
+    });
+  }
+
+  // ── Load ────────────────────────────────────────────────────
+  function loadSchedules() {
+    google.script.run
+      .withSuccessHandler(function (schedules) {
+        if (schedules && schedules.error) {
+          activeBody.innerHTML = '<tr><td colspan="7" class="it-error-cell">Error: ' + escapeHtml(schedules.error) + '</td></tr>';
+          return;
+        }
+        _schedules = schedules || [];
+        _scheduleMap = {};
+        _schedules.forEach(function (s) { _scheduleMap[s.id] = s; });
+        renderDeptTabs();
+        renderTables();
+      })
+      .withFailureHandler(function (e) {
+        activeBody.innerHTML = '<tr><td colspan="7" class="it-error-cell">Failed to load: ' + escapeHtml(e.message) + '</td></tr>';
+      })
+      .getRecurringTaskSchedules();
+  }
+
+  function loadDepartments() {
+    google.script.run
+      .withSuccessHandler(function (data) {
+        _departments = data.departments || [];
+        populateDeptSelect(formDepartment);
+      })
+      .withFailureHandler(function () { ITModal.notify('Could not load departments.', 'Error'); })
+      .getRecurringTaskDepartmentOptions();
+  }
+
+  function loadTriggerStatus() {
+    google.script.run
+      .withSuccessHandler(function (status) {
+        triggerBadge.textContent = status.active ? '· ' + status.description : '· Daily trigger not installed';
+      })
+      .withFailureHandler(function () {})
+      .getRecurringTaskTriggerStatus();
+  }
+
+  // ── Department filter pills ────────────────────────────────
+  function renderDeptTabs() {
+    const depts = Array.from(new Set(_schedules.map(function (s) { return s.department; }))).sort();
+    if (_deptFilter && !depts.includes(_deptFilter)) _deptFilter = null;
+
+    const pills = [{ label: 'All', value: null }].concat(depts.map(function (d) { return { label: d, value: d }; }));
+    deptTabsEl.innerHTML = pills.map(function (p) {
+      const active = _deptFilter === p.value;
+      return '<button type="button" class="it-btn-ghost-sm' + (active ? ' active' : '') + '" data-action="filter-dept" data-dept="' + escapeHtml(p.value || '') + '">' + escapeHtml(p.label) + '</button>';
+    }).join('');
+  }
+
+  // ── Sorting ─────────────────────────────────────────────────
+  function sortSchedules(arr) {
+    return arr.slice().sort(function (a, b) {
+      let av = a[_sortCol] || '';
+      let bv = b[_sortCol] || '';
+      if (typeof av === 'number') return _sortDir === 'asc' ? av - bv : bv - av;
+      av = String(av).toLowerCase();
+      bv = String(bv).toLowerCase();
+      if (av < bv) return _sortDir === 'asc' ? -1 : 1;
+      if (av > bv) return _sortDir === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }
+
+  function updateSortHeaders() {
+    root.querySelectorAll('th.sortable').forEach(function (th) {
+      th.classList.remove('asc', 'desc');
+      if (th.dataset.col === _sortCol) th.classList.add(_sortDir);
+    });
+  }
+
+  // ── Render tables ───────────────────────────────────────────
+  function renderTables() {
+    const filtered = _schedules.filter(function (s) { return !_deptFilter || s.department === _deptFilter; });
+    const active = sortSchedules(filtered.filter(function (s) { return s.active; }));
+    const paused = sortSchedules(filtered.filter(function (s) { return s.paused; }));
+
+    activeCount.textContent = active.length;
+    pausedCount.textContent = paused.length;
+    pausedCard.style.display = paused.length ? '' : 'none';
+
+    activeBody.innerHTML = active.length
+      ? active.map(function (s) { return renderRow(s, false); }).join('')
+      : '<tr><td colspan="7" style="text-align:center; padding:32px; color: var(--color-text-muted);">No active schedules' + (_deptFilter ? ' for this department' : '') + '. Click "New Schedule" to get started.</td></tr>';
+
+    pausedBody.innerHTML = paused.map(function (s) { return renderRow(s, true); }).join('');
+
+    updateSortHeaders();
+  }
+
+  function renderRow(s, isPaused) {
+    const sid = escapeHtml(s.id);
+    const cls = nextDueClass(s.nextDue, isPaused);
+    const nextRunCell = '<span class="rt-next-due ' + cls + '">' + (isPaused ? 'Paused' : formatDate(s.nextDue)) + '</span>';
+    const pauseMenuItem = isPaused
+      ? '<button type="button" class="it-row-menu-item success" data-action="resume" data-id="' + sid + '">' + ROW_MENU_ICONS.resume + ' Resume</button>'
+      : '<button type="button" class="it-row-menu-item warn" data-action="pause" data-id="' + sid + '">' + ROW_MENU_ICONS.pause + ' Pause</button>';
+
+    return (
+      '<tr' + (isPaused ? ' style="opacity:.6;"' : '') + '>' +
+        '<td>' +
+          '<div style="font-weight:700;">' + escapeHtml(s.taskName) + '</div>' +
+          (s.description ? '<div style="font-size:11.5px; color:var(--color-text-muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:220px;" title="' + escapeHtml(s.description) + '">' + escapeHtml(s.description) + '</div>' : '') +
+        '</td>' +
+        '<td><span class="it-badge">' + escapeHtml(s.department) + '</span></td>' +
+        '<td>Every ' + s.recurrenceValue + ' ' + escapeHtml(s.recurrenceUnit) + '</td>' +
+        '<td>+' + s.offsetValue + ' ' + escapeHtml(s.offsetUnit) + '</td>' +
+        '<td>' + nextRunCell + '</td>' +
+        '<td>' + formatDate(s.lastCreated) + '</td>' +
+        '<td>' +
+          '<div style="position:relative;">' +
+            '<button type="button" class="it-row-menu-btn" data-action="open-menu" data-id="' + sid + '" title="Actions">&middot;&middot;&middot;</button>' +
+            '<div class="it-row-menu" id="rtMenu-' + sid + '">' +
+              '<button type="button" class="it-row-menu-item" data-action="history" data-id="' + sid + '">' + ROW_MENU_ICONS.history + ' View History</button>' +
+              '<button type="button" class="it-row-menu-item" data-action="edit" data-id="' + sid + '">' + ROW_MENU_ICONS.edit + ' Edit</button>' +
+              '<button type="button" class="it-row-menu-item success" data-action="run-now" data-id="' + sid + '">' + ROW_MENU_ICONS.run + ' Run Now</button>' +
+              pauseMenuItem +
+              '<div class="it-row-menu-divider"></div>' +
+              '<button type="button" class="it-row-menu-item danger" data-action="delete" data-id="' + sid + '">' + ROW_MENU_ICONS.delete + ' Delete</button>' +
+            '</div>' +
+          '</div>' +
+        '</td>' +
+      '</tr>'
+    );
+  }
+
+  // ── Row actions menu ────────────────────────────────────────
+  function openRowMenu(id, btn) {
+    closeRowMenu();
+    const menu = document.getElementById('rtMenu-' + id);
+    if (!menu) return;
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = (rect.bottom + 4) + 'px';
+    menu.style.right = (window.innerWidth - rect.right) + 'px';
+    menu.classList.add('open');
+    _openMenuId = id;
+    setTimeout(function () { document.addEventListener('click', closeRowMenuHandler); }, 0);
+  }
+
+  function closeRowMenu() {
+    if (_openMenuId) {
+      const menu = document.getElementById('rtMenu-' + _openMenuId);
+      if (menu) menu.classList.remove('open');
+      _openMenuId = null;
+    }
+    document.removeEventListener('click', closeRowMenuHandler);
+  }
+
+  function closeRowMenuHandler(e) {
+    if (!e.target.closest('.it-row-menu') && !e.target.closest('.it-row-menu-btn')) closeRowMenu();
+  }
+
+  // ── New / Edit form modal ──────────────────────────────────
+  function openNewModal() {
+    _formMode = 'new';
+    formTitle.textContent = 'New Schedule';
+    formId.value = '';
+    formTaskName.value = '';
+    formDescription.value = '';
+    formStartDate.valueAsDate = new Date();
+    formStartDateLabel.textContent = 'First Run Date';
+    formStartDateHint.textContent = 'The first Jira task will be created on this date.';
+    formRecurrenceValue.value = 1;
+    formOffsetValue.value = 2;
+    setSelectValue(formRecurrenceUnit, 'months');
+    setSelectValue(formOffsetUnit, 'weeks');
+    populateDeptSelect(formDepartment);
+    formSaveBtnLabel.textContent = 'Save Schedule';
+    formBackdrop.classList.add('open');
+    setTimeout(function () { formTaskName.focus(); }, 50);
+  }
+
+  function openEditModal(schedule) {
+    _formMode = 'edit';
+    formTitle.textContent = 'Edit Schedule';
+    formId.value = schedule.id;
+    formTaskName.value = schedule.taskName;
+    formDescription.value = schedule.description || '';
+    formStartDate.value = schedule.nextDue ? schedule.nextDue.substring(0, 10) : '';
+    formStartDateLabel.textContent = 'Next Run Date';
+    formStartDateHint.textContent = 'When the next Jira task should be created.';
+    formRecurrenceValue.value = schedule.recurrenceValue;
+    formOffsetValue.value = schedule.offsetValue;
+    populateDeptSelect(formDepartment, schedule.department);
+    setSelectValue(formRecurrenceUnit, schedule.recurrenceUnit);
+    setSelectValue(formOffsetUnit, schedule.offsetUnit);
+    formSaveBtnLabel.textContent = 'Save Changes';
+    formBackdrop.classList.add('open');
+  }
+
+  function closeFormModal() {
+    formBackdrop.classList.remove('open');
+  }
+
+  function saveForm() {
+    const taskName = formTaskName.value.trim();
+    const department = formDepartment.value;
+    const description = formDescription.value.trim();
+    const startDate = formStartDate.value;
+    const recurrenceValue = parseInt(formRecurrenceValue.value, 10);
+    const recurrenceUnit = formRecurrenceUnit.value;
+    const offsetValue = parseInt(formOffsetValue.value, 10);
+    const offsetUnit = formOffsetUnit.value;
+
+    if (!taskName) return ITModal.notify('Please enter a task name.', 'Error');
+    if (!department) return ITModal.notify('Please select a department.', 'Error');
+    if (!startDate) return ITModal.notify('Please select a date.', 'Error');
+    if (!recurrenceValue || recurrenceValue < 1) return ITModal.notify('Recurrence must be at least 1.', 'Error');
+    if (!offsetValue || offsetValue < 1) return ITModal.notify('Due date offset must be at least 1.', 'Error');
+
+    formSaveBtn.disabled = true;
+    formSaveBtnLabel.textContent = 'Saving…';
+
+    const done = function (result) {
+      formSaveBtn.disabled = false;
+      formSaveBtnLabel.textContent = _formMode === 'edit' ? 'Save Changes' : 'Save Schedule';
+      if (result.error) { ITModal.notify(result.error, 'Error'); return; }
+      closeFormModal();
+      toast(_formMode === 'edit' ? 'Schedule updated.' : 'Schedule saved successfully.', 'success');
+      loadSchedules();
+    };
+    const fail = function (e) {
+      formSaveBtn.disabled = false;
+      formSaveBtnLabel.textContent = _formMode === 'edit' ? 'Save Changes' : 'Save Schedule';
+      ITModal.notify(e.message, 'Save failed');
+    };
+
+    if (_formMode === 'edit') {
+      google.script.run.withSuccessHandler(done).withFailureHandler(fail)
+        .updateRecurringTaskSchedule({ id: formId.value, taskName, department, description, nextDue: startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+    } else {
+      google.script.run.withSuccessHandler(done).withFailureHandler(fail)
+        .saveRecurringTaskSchedule({ taskName, department, description, startDate, recurrenceValue, recurrenceUnit, offsetValue, offsetUnit });
+    }
+  }
+
+  // ── History drawer ──────────────────────────────────────────
+  function openDrawer(schedule) {
+    drawerTitle.textContent = schedule.taskName;
+    drawerSub.textContent = schedule.department + ' · Every ' + schedule.recurrenceValue + ' ' + schedule.recurrenceUnit;
+    drawerBody.innerHTML = '<div class="it-loading"><div class="it-spinner"></div></div>';
+    drawerBackdrop.classList.add('open');
+    drawer.classList.add('open');
+
+    google.script.run
+      .withSuccessHandler(function (logs) {
+        if (logs && logs.error) { drawerBody.innerHTML = '<p class="it-error-cell">Error: ' + escapeHtml(logs.error) + '</p>'; return; }
+        if (!logs || !logs.length) {
+          drawerBody.innerHTML = '<div style="text-align:center; padding:60px 20px; color:var(--color-text-muted);"><div style="font-size:28px; margin-bottom:10px;">📭</div><p style="font-size:14px; font-weight:700;">No tasks created yet</p><small style="font-size:12px; display:block; margin-top:4px;">Tasks appear here after the daily trigger or a manual run.</small></div>';
+          return;
+        }
+        logs.sort(function (a, b) { return new Date(b.timestamp) - new Date(a.timestamp); });
+        drawerBody.innerHTML = logs.map(function (log) {
+          const isManual = log.triggeredBy === 'Manual Run';
+          const createdByText = log.createdBy && log.createdBy !== 'Daily Trigger' ? ' · by ' + escapeHtml(log.createdBy) : '';
+          return (
+            '<div class="it-card" style="margin-bottom:10px;">' +
+              '<div class="it-card-body">' +
+                '<div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">' +
+                  '<div>' +
+                    '<a class="it-link" href="' + escapeHtml(log.issueUrl) + '" target="_blank">' + escapeHtml(log.issueKey) + '</a>' +
+                    ' <span class="it-badge' + (isManual ? ' it-badge-success' : '') + '" style="margin-left:6px;">' + escapeHtml(log.triggeredBy) + '</span>' +
+                    '<div style="font-size:12px; color:var(--color-text-muted); margin-top:4px;">' + escapeHtml(log.taskName) + ' · ' + escapeHtml(log.department) + '</div>' +
+                  '</div>' +
+                  '<div style="font-size:12px; font-weight:700; white-space:nowrap;">Due ' + formatDate(log.dueDate) + '</div>' +
+                '</div>' +
+                '<div style="font-size:11px; color:var(--color-text-muted); margin-top:8px;">Created ' + formatDateTime(log.timestamp) + createdByText + '</div>' +
+              '</div>' +
+            '</div>'
+          );
+        }).join('');
+      })
+      .withFailureHandler(function (e) { drawerBody.innerHTML = '<p class="it-error-cell">Failed to load history: ' + escapeHtml(e.message) + '</p>'; })
+      .getRecurringTaskScheduleLogs(schedule.id);
+  }
+
+  function closeDrawer() {
+    drawerBackdrop.classList.remove('open');
+    drawer.classList.remove('open');
+  }
+
+  // ── Actions requiring confirmation ─────────────────────────
+  function runNow(schedule, id) {
+    ITModal.confirm('A Jira task will be created immediately and the next run date will advance.', 'Run Now').then(function (ok) {
+      if (!ok) return;
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result.error) { ITModal.notify(result.error, 'Error'); return; }
+          toast('Created <a href="' + escapeHtml(result.issueUrl) + '" target="_blank">' + escapeHtml(result.issueKey) + '</a> — next run: ' + formatDate(result.nextDue), 'success');
+          loadSchedules();
+        })
+        .withFailureHandler(function (e) { ITModal.notify(e.message, 'Run failed'); })
+        .runRecurringTaskScheduleNow(id);
+    });
+  }
+
+  function togglePause(id, pause) {
+    ITModal.confirm(
+      pause ? 'No tasks will be created until the schedule is resumed.' : 'The schedule will resume on the next due date.',
+      pause ? 'Pause Schedule' : 'Resume Schedule'
+    ).then(function (ok) {
+      if (!ok) return;
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result.error) { ITModal.notify(result.error, 'Error'); return; }
+          toast('Schedule ' + (pause ? 'paused.' : 'resumed.'), 'success');
+          loadSchedules();
+        })
+        .withFailureHandler(function (e) { ITModal.notify(e.message, 'Failed'); })
+        [pause ? 'pauseRecurringTaskSchedule' : 'resumeRecurringTaskSchedule'](id);
+    });
+  }
+
+  function deleteSchedule(id) {
+    ITModal.confirm('Future tasks will no longer be created. This cannot be undone.', 'Delete Schedule').then(function (ok) {
+      if (!ok) return;
+      google.script.run
+        .withSuccessHandler(function (result) {
+          if (result.error) { ITModal.notify(result.error, 'Error'); return; }
+          toast('Schedule deleted.', 'success');
+          loadSchedules();
+        })
+        .withFailureHandler(function (e) { ITModal.notify(e.message, 'Delete failed'); })
+        .deleteRecurringTaskSchedule(id);
+    });
+  }
+
+  // ── Event delegation (bound to #rtRoot, destroyed with it on navigate-away) ──
+  root.addEventListener('click', function (e) {
+    const target = e.target.closest('[data-action]');
+    if (!target) return;
+    const action = target.dataset.action;
+    const id = target.dataset.id;
+    const schedule = id ? _scheduleMap[id] : null;
+
+    switch (action) {
+      case 'new': openNewModal(); break;
+      case 'filter-dept':
+        _deptFilter = target.dataset.dept || null;
+        renderDeptTabs();
+        renderTables();
+        break;
+      case 'open-menu': openRowMenu(id, target); break;
+      case 'history': closeRowMenu(); if (schedule) openDrawer(schedule); break;
+      case 'edit': closeRowMenu(); if (schedule) openEditModal(schedule); break;
+      case 'run-now': closeRowMenu(); if (schedule) runNow(schedule, id); break;
+      case 'pause': closeRowMenu(); togglePause(id, true); break;
+      case 'resume': closeRowMenu(); togglePause(id, false); break;
+      case 'delete': closeRowMenu(); deleteSchedule(id); break;
+    }
+  });
+
+  root.querySelectorAll('th.sortable').forEach(function (th) {
+    th.addEventListener('click', function () {
+      const col = th.dataset.col;
+      if (_sortCol === col) { _sortDir = _sortDir === 'asc' ? 'desc' : 'asc'; }
+      else { _sortCol = col; _sortDir = 'asc'; }
+      renderTables();
+    });
+  });
+
+  // Form modal + drawer chrome (close buttons, backdrop click, save) —
+  // these live outside #rtRoot so they aren't covered by the delegated
+  // listener above.
+  formBackdrop.addEventListener('click', function (e) {
+    if (e.target === formBackdrop || e.target.closest('[data-action="close-form"]')) closeFormModal();
+  });
+  formSaveBtn.addEventListener('click', saveForm);
+  drawerBackdrop.addEventListener('click', closeDrawer);
+  document.getElementById('rtDrawer').querySelector('[data-action="close-drawer"]').addEventListener('click', closeDrawer);
+
+  // ── Init ────────────────────────────────────────────────────
+  loadSchedules();
+  loadDepartments();
+  loadTriggerStatus();
+})();
+</script>
