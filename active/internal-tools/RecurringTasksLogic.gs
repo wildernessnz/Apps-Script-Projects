@@ -63,7 +63,7 @@ function isRecurringTasksApproved() {
     try {
       return GroupsApp.getGroupByEmail(groupEmail).hasUser(email);
     } catch (e) {
-      Logger.log('[isRecurringTasksApproved] Group check failed for %s (%s): %s', email, groupEmail, e.message);
+      logEvent_('Recurring Tasks: Access Check', `email=${email} | group=${groupEmail} | ERROR: ${e.message}`);
       return false;
     }
   });
@@ -152,7 +152,7 @@ function rtLogIssueCreated_(issue, schedule, triggeredBy, createdBy) {
     ]);
   } catch (e) {
     // Non-fatal — don't let a logging failure break the main flow
-    Logger.log('[rtLogIssueCreated_] WARNING: Failed to write log row: %s', e.message);
+    logEvent_('Recurring Tasks: Creation Log Write Failed', `schedule=${schedule.taskName} | ERROR: ${e.message}`);
   }
 }
 
@@ -165,7 +165,7 @@ function getRecurringTaskSchedules() {
     const nonBlank = rows.filter(r => r[0]);
     return nonBlank.map(rtRowToObject_);
   } catch (e) {
-    Logger.log('[getRecurringTaskSchedules] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Get Schedules', `ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -202,7 +202,7 @@ function saveRecurringTaskSchedule(form) {
     logEvent_('Recurring Tasks: Create Schedule', `task=${form.taskName} | dept=${form.department}`);
     return { success: true, id };
   } catch (e) {
-    Logger.log('[saveRecurringTaskSchedule] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Create Schedule', `task=${form.taskName} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -223,7 +223,7 @@ function deleteRecurringTaskSchedule(id) {
     }
     return { error: 'Schedule not found.' };
   } catch (e) {
-    Logger.log('[deleteRecurringTaskSchedule] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Delete Schedule', `id=${id} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -249,7 +249,7 @@ function pauseRecurringTaskSchedule(id) {
     }
     return { error: 'Schedule not found.' };
   } catch (e) {
-    Logger.log('[pauseRecurringTaskSchedule] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Pause Schedule', `id=${id} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -270,7 +270,7 @@ function resumeRecurringTaskSchedule(id) {
     }
     return { error: 'Schedule not found.' };
   } catch (e) {
-    Logger.log('[resumeRecurringTaskSchedule] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Resume Schedule', `id=${id} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -309,7 +309,7 @@ function runRecurringTaskScheduleNow(id) {
 
     return { error: 'Schedule not found.' };
   } catch (e) {
-    Logger.log('[runRecurringTaskScheduleNow] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Run Now', `id=${id} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -351,7 +351,7 @@ function updateRecurringTaskSchedule(form) {
 
     return { error: 'Schedule not found.' };
   } catch (e) {
-    Logger.log('[updateRecurringTaskSchedule] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Update Schedule', `id=${form.id} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -389,7 +389,7 @@ function getRecurringTaskScheduleLogs(scheduleId) {
         createdBy:   toStr(r[9])
       }));
   } catch (e) {
-    Logger.log('[getRecurringTaskScheduleLogs] ERROR: %s', e.message);
+    logEvent_('Recurring Tasks: Get Schedule Logs', `scheduleId=${scheduleId} | ERROR: ${e.message}`);
     return { error: e.message };
   }
 }
@@ -455,7 +455,7 @@ function rtCallJira_(method, url, body) {
 
   if (code >= 400) {
     const errorBody = response.getContentText();
-    Logger.log('[rtCallJira_] ERROR %s %s → %s: %s', method, url, code, errorBody);
+    logEvent_('Recurring Tasks: Jira API Error', `${method} ${url} → ${code}: ${errorBody}`);
     throw new Error(`Jira API error ${code}: ${errorBody}`);
   }
 
@@ -496,7 +496,7 @@ function rtGetOAuthAccessToken_() {
   const data = JSON.parse(response.getContentText());
 
   if (!data.access_token) {
-    Logger.log('[rtGetOAuthAccessToken_] ERROR: %s', response.getContentText());
+    logEvent_('Recurring Tasks: OAuth Token Refresh Failed', response.getContentText());
     throw new Error('Failed to refresh OAuth access token. Run rtAuthoriseJira() again to re-authenticate.');
   }
 
@@ -628,7 +628,7 @@ function rtLogAudit_(action, scheduleId, taskName, detail) {
     ]);
   } catch (e) {
     // Non-fatal — audit failure should never break the main operation
-    Logger.log('[rtLogAudit_] WARNING: Failed to write audit row: %s', e.message);
+    logEvent_('Recurring Tasks: Audit Log Write Failed', `action=${action} | task=${taskName} | ERROR: ${e.message}`);
   }
 }
 
@@ -675,7 +675,7 @@ function runRecurringTasksDailyCheck() {
       rtLogIssueCreated_(issue, schedule, 'Daily Trigger', 'Daily Trigger');
       log.push(`✅ Created ${issue.key} for "${schedule.taskName}"`);
     } catch (e) {
-      Logger.log('[runRecurringTasksDailyCheck] ❌ Failed for "%s": %s', schedule.taskName, e.message);
+      logEvent_('Recurring Tasks: Daily Trigger Failure', `task=${schedule.taskName} | ERROR: ${e.message}`);
       log.push(`❌ Failed for "${schedule.taskName}": ${e.message}`);
     }
   }
