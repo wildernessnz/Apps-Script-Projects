@@ -51,22 +51,96 @@ const RECURRING_TASKS_CONFIG = {
 
 /**
  * Used by ContentLoader.gs to gate this tool's content behind Google Group
- * membership before the sidebar-shared shell renders it — same access
- * mechanism as the standalone app (GroupsApp membership, not an email
- * allowlist Script Property like Weather Alert/Service History), since
- * this only changes the shell, not the tool's own access rules.
+ * membership before the sidebar-shared shell renders it. Reads from the
+ * "Group Members" tab (kept fresh by rtSyncGroupMembers, below) rather than
+ * calling GroupsApp.hasUser() live — that call requires the *visiting* user
+ * to have permission to view the group's member list, which most staff
+ * (and even some group members, e.g. scripts@) don't have, and throws
+ * instead of just returning false. Reading a cached list only needs Viewer
+ * access to the RECURRING_TASKS spreadsheet.
  * @returns {boolean}
  */
 function isRecurringTasksApproved() {
-  const email = Session.getActiveUser().getEmail();
-  return RECURRING_TASKS_CONFIG.ACCESS_GROUPS.some(function (groupEmail) {
+  const email = (Session.getActiveUser().getEmail() || '').toLowerCase();
+  if (!email) return false;
+  try {
+    const sheet = rtGetGroupMembersSheet_();
+    const rows = sheet.getDataRange().getValues().slice(1);
+    return rows.some(r => String(r[0]).toLowerCase() === email);
+  } catch (e) {
+    logEvent_('Recurring Tasks: Access Check', `email=${email} | ERROR: ${e.message}`);
+    return false;
+  }
+}
+
+// Returns the Group Members sheet, creating it with headers on first run.
+// Populated by rtSyncGroupMembers — never written to directly elsewhere.
+function rtGetGroupMembersSheet_() {
+  const ss = getSpreadsheet_('RECURRING_TASKS');
+  let sheet = ss.getSheetByName('Group Members');
+  if (!sheet) {
+    sheet = ss.insertSheet('Group Members');
+    sheet.appendRow(['Email', 'Group', 'Synced At']);
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// Fetches current membership of every RECURRING_TASKS_CONFIG.ACCESS_GROUPS
+// group and overwrites the "Group Members" tab. Run manually from the Apps
+// Script editor to test, then install rtInstallGroupSyncTrigger() — since
+// time-based triggers run as whoever installed them (not as the visiting
+// user), this only works if that account can actually view the groups'
+// member lists (e.g. a Workspace/Groups admin or a group owner). If this
+// throws the same "permission to view member list" error GroupsApp throws
+// at request time, the installing account needs elevated Groups access —
+// no amount of code here can work around that.
+function rtSyncGroupMembers() {
+  const sheet = rtGetGroupMembersSheet_();
+  const now = new Date();
+  const rows = [];
+
+  RECURRING_TASKS_CONFIG.ACCESS_GROUPS.forEach(function (groupEmail) {
     try {
-      return GroupsApp.getGroupByEmail(groupEmail).hasUser(email);
+      const users = GroupsApp.getGroupByEmail(groupEmail).getUsers();
+      users.forEach(function (user) {
+        rows.push([user.getEmail().toLowerCase(), groupEmail, now]);
+      });
     } catch (e) {
-      logEvent_('Recurring Tasks: Access Check', `email=${email} | group=${groupEmail} | ERROR: ${e.message}`);
-      return false;
+      logEvent_('Recurring Tasks: Group Sync Failed', `group=${groupEmail} | ERROR: ${e.message}`);
     }
   });
+
+  const lastRow = sheet.getMaxRows();
+  if (lastRow > 1) sheet.getRange(2, 1, lastRow - 1, 3).clearContent();
+  if (rows.length) sheet.getRange(2, 1, rows.length, 3).setValues(rows);
+
+  logEvent_('Recurring Tasks: Group Sync', `members=${rows.length}`);
+}
+
+// Installs a 6-hourly trigger for rtSyncGroupMembers. Run this manually,
+// signed in as the account that should own the sync (see rtSyncGroupMembers
+// doc comment for the permission requirement) — safe to run multiple times.
+function rtInstallGroupSyncTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'rtSyncGroupMembers')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+
+  ScriptApp.newTrigger('rtSyncGroupMembers')
+    .timeBased()
+    .everyHours(6)
+    .create();
+
+  Logger.log('[rtInstallGroupSyncTrigger] Group sync trigger installed — runs every 6 hours');
+}
+
+// Removes the group-sync trigger. The "Group Members" tab is left as-is —
+// isRecurringTasksApproved() will keep using whatever it last synced.
+function rtUninstallGroupSyncTrigger() {
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'rtSyncGroupMembers')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+  Logger.log('[rtUninstallGroupSyncTrigger] Group sync trigger removed');
 }
 
 
