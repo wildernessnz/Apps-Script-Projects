@@ -63,6 +63,7 @@
     }
     table {
       width: 100%;
+      table-layout: fixed;
       border-collapse: collapse;
       margin-top: 8px;
     }
@@ -73,15 +74,19 @@
       font-size: 9pt;
       text-transform: uppercase;
       letter-spacing: 0.03em;
-      padding: 8px 10px;
+      padding: 6px 8px;
     }
     td {
       font-size: 9pt;
-      padding: 6px 10px;
+      line-height: 1.25;
+      padding: 4px 8px;
       border-bottom: 1px solid #e2e8f0;
     }
     tr:nth-child(even) td {
       background: #f8fafc;
+    }
+    tbody tr:last-child td {
+      border-bottom: none;
     }
     .footer {
       margin-top: 32px;
@@ -97,11 +102,12 @@
       margin-top: 8px;
     }
     .task-item:not(:first-child) {
-      margin-top: 6px;
+      margin-top: 3px;
     }
     .task-note {
       color: #94a3b8;
       font-size: 8pt;
+      line-height: 1.25;
       margin-top: 1px;
     }
   </style>
@@ -122,9 +128,9 @@
     <div class="overview-item"><span class="overview-label">Make / Model</span><span class="overview-value"><?= vehicle.make ?> <?= vehicle.model ?></span></div>
     <div class="overview-item"><span class="overview-label">VIN</span><span class="overview-value"><?= vehicle.vin ?></span></div>
     <div class="overview-item"><span class="overview-label">Chassis Type</span><span class="overview-value"><?= vehicle.chassisType ?></span></div>
-    <div class="overview-item"><span class="overview-label">Odometer</span><span class="overview-value"><?= vehicle.odometer ?> km</span></div>
+    <div class="overview-item"><span class="overview-label">Odometer</span><span class="overview-value"><?= vehicle.odometer ?>km</span></div>
     <div class="overview-item"><span class="overview-label">Registration Expiry</span><span class="overview-value"><?= vehicle.regoExpiry ?></span></div>
-    <div class="overview-item"><span class="overview-label">RUC Validity</span><span class="overview-value"><?= vehicle.rucValidity ?><?= vehicle.rucValidity !== '—' ? ' km' : '' ?></span></div>
+    <div class="overview-item"><span class="overview-label">RUC Validity</span><span class="overview-value"><?= vehicle.rucValidity ?><?= vehicle.rucValidity !== '—' ? 'km' : '' ?></span></div>
     <div class="overview-item"><span class="overview-label">Water Tightness Expiration</span><span class="overview-value"><?= vehicle.waterTightnessResult ?></span></div>
     <div class="overview-item"><span class="overview-label">Water Tightness Warranty Expiry</span><span class="overview-value"><?= vehicle.waterTightnessWarrantyExpiry ?></span></div>
     <div class="overview-item"><span class="overview-label">Water Tightness Warranty Status</span><span class="overview-value"><?= vehicle.waterTightnessWarrantyStatus ?></span></div>
@@ -135,9 +141,15 @@
     <div class="empty-state">No service history items selected.</div>
   <? } else { ?>
   <table>
+    <colgroup>
+      <col style="width: 13%;">
+      <col style="width: 31%;">
+      <col style="width: 16%;">
+      <col style="width: 40%;">
+    </colgroup>
     <thead>
       <tr>
-        <th>Date Completed</th>
+        <th>Completed</th>
         <th>Vendor</th>
         <th>Odometer</th>
         <th>Service Task</th>
@@ -145,20 +157,22 @@
     </thead>
     <tbody>
       <? for (var i = 0; i < entries.length; i++) { ?>
+      <? var isLastRow = i === entries.length - 1; ?>
+      <? var rowBorder = isLastRow ? 'border-bottom: none;' : ''; ?>
       <tr>
-        <td><?= entries[i].completedAtFormatted ?></td>
-        <td><?= entries[i].vendor ?></td>
-        <td>
+        <td style="<?= rowBorder ?>"><?= entries[i].completedAtFormatted ?></td>
+        <td style="<?= rowBorder ?>"><?= entries[i].vendor ?></td>
+        <td style="<?= rowBorder ?>">
           <? if (!entries[i].odometer || entries[i].odometer.value === '—') { ?>
             —
           <? } else { ?>
-            <?= entries[i].odometer.value ?> km
+            <?= entries[i].odometer.value ?>km
             <? if (entries[i].odometer.isEstimated) { ?>
               <div class="task-note">as at <?= entries[i].odometer.dateFormatted ?></div>
             <? } ?>
           <? } ?>
         </td>
-        <td>
+        <td style="<?= rowBorder ?>">
           <? if (!entries[i].tasks || entries[i].tasks.length === 0) { ?>
             —
           <? } else { for (var j = 0; j < entries[i].tasks.length; j++) { ?>

@@ -367,12 +367,15 @@ var ServiceHistoryPdf = function() {
         completedAtFormatted: formatDate_(e.completedAt),
         odometer: e.odometer && {
           ...e.odometer,
+          value: formatKm_(e.odometer.value),
           dateFormatted: e.odometer.isEstimated ? formatDate_(e.odometer.date) : null
         }
       }));
 
     const formattedVehicle = {
       ...vehicle,
+      odometer: formatKm_(vehicle.odometer),
+      rucValidity: formatKm_(vehicle.rucValidity),
       regoExpiry: formatDate_(vehicle.regoExpiry),
       waterTightnessResult: formatDate_(vehicle.waterTightnessResult),
       waterTightnessWarrantyExpiry: formatDate_(vehicle.waterTightnessWarrantyExpiry)
@@ -402,5 +405,19 @@ var ServiceHistoryPdf = function() {
     const parsed = new Date(date);
     if (isNaN(parsed.getTime())) return date;
     return Utilities.formatDate(parsed, 'Pacific/Auckland', 'dd/MM/yyyy');
+  };
+
+  /**
+   * Rounds a km reading (Fleetio returns these as strings, sometimes with a
+   * trailing decimal, e.g. "110872.0") to a whole number for display.
+   * Non-numeric values (e.g. '—') are returned unchanged.
+   * @param {string|number} value
+   * @returns {string|number}
+   */
+  const formatKm_ = (value) => {
+    if (value == null) return value;
+    const num = parseFloat(value);
+    if (isNaN(num)) return value;
+    return String(Math.round(num));
   };
 };
