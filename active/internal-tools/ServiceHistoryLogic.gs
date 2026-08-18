@@ -51,29 +51,38 @@ function previewServiceHistory(rego) {
  */
 function generateServiceHistory(rego, selectedEntryIds) {
   Logger.log(`[generateServiceHistory] rego=${rego} | selected=${Array.isArray(selectedEntryIds) ? selectedEntryIds.length : 'all'}`);
+  const startedAt = Date.now();
 
   try {
     const fetcher = new ServiceHistoryFetcher();
     const data = fetcher.fetchByRego(rego);
     const entryIds = Array.isArray(selectedEntryIds) ? selectedEntryIds : data.entries.map(e => e.id);
 
-    // Per-task notes aren't in the list response used above — fetch them only
-    // for entries actually going into the PDF, so the preview step (which
-    // loads every entry) doesn't pay for a call per entry.
+    // Per-task notes and the odometer reading aren't in the list response
+    // used above — fetch them only for entries actually going into the PDF,
+    // so the preview step (which loads every entry) doesn't pay for a call
+    // per entry. Fetched as one batch (see fetchEntryDetailsBatch) rather
+    // than one-by-one.
     const selectedSet = new Set(entryIds);
+    const selectedEntries = data.entries.filter(e => selectedSet.has(e.id));
+    const detailsById = new Map(
+      fetcher.fetchEntryDetailsBatch(selectedEntries, data.vehicleId).map(d => [d.id, d])
+    );
     const entriesWithTasks = data.entries.map(e =>
-      selectedSet.has(e.id) ? Object.assign({}, e, { tasks: fetcher.fetchTaskDetails(e.id) }) : e
+      detailsById.has(e.id) ? Object.assign({}, e, detailsById.get(e.id)) : e
     );
 
     const pdfBlob = new ServiceHistoryPdf().build(data.vehicle, entriesWithTasks, entryIds);
 
     const file = DriveApp.createFile(pdfBlob);
-    Logger.log(`[generateServiceHistory] created file=${file.getUrl()}`);
+    const durationMs = Date.now() - startedAt;
+    Logger.log(`[generateServiceHistory] created file=${file.getUrl()} | durationMs=${durationMs}`);
 
-    logEvent_('Service History: Generate PDF', `rego=${rego} | selected=${entryIds.length}/${data.entries.length} | file=${file.getUrl()}`);
+    logEvent_('Service History: Generate PDF', `rego=${rego} | selected=${entryIds.length}/${data.entries.length} | file=${file.getUrl()} | duration=${(durationMs / 1000).toFixed(2)}s`);
     return file.getUrl();
   } catch (err) {
-    logEvent_('Service History: Generate PDF', `rego=${rego} | ERROR: ${err.message}`);
+    const durationMs = Date.now() - startedAt;
+    logEvent_('Service History: Generate PDF', `rego=${rego} | ERROR: ${err.message} | duration=${(durationMs / 1000).toFixed(2)}s`);
     throw err;
   }
 }
@@ -107,27 +116,114 @@ var ServiceHistoryFetcher = function() {
 
     return {
       vehicle: mapVehicleOverview_(vehicle),
+      vehicleId: vehicle.id,
       entries: entries.map(mapEntry_)
     };
   };
 
   /**
-   * Fetches per-task notes for one service entry. The list endpoint used by
-   * fetchByRego only returns task names, not the free-text note recorded
-   * against each task — that lives on the entry's line items, which Fleetio
-   * only exposes via the single-entry v2 endpoint (no bulk/vehicle-scoped
-   * equivalent exists), hence one call per entry rather than a single fetch.
-   * @param {number} entryId
-   * @returns {{name: string, note: string|null}[]}
+   * Fetches per-task notes and the odometer reading for a batch of service
+   * entries — one round trip (via UrlFetchApp.fetchAll) instead of one
+   * sequential call per entry. The list endpoint used by fetchByRego only
+   * returns task names, not the free-text note recorded against each task —
+   * that lives on the entry's line items, which Fleetio only exposes via
+   * the single-entry v2 endpoint (no bulk/vehicle-scoped equivalent
+   * exists). The same v2 response also carries the entry's own meter
+   * reading, so the odometer is resolved here for free when present.
+   *
+   * If any entry in the batch lacks its own meter reading, the vehicle's
+   * full Meter Entry history is fetched once (not per entry) and reused
+   * in memory to find each such entry's nearest reading — entries sharing
+   * the same gap in meter data (the common case) no longer trigger
+   * duplicate lookups of the same record.
+   * @param {{id: number, completedAt: string}[]} entries
+   * @param {number} vehicleId
+   * @returns {{id: number, tasks: {name: string, note: string|null}[], odometer: {value: string, date: (string|null), isEstimated: boolean}}[]}
    */
-  this.fetchTaskDetails = (entryId) => {
-    const full = fleetioFetch_(`/service_entries/${entryId}`, 'v2');
-    const lineItems = (full.service_entry_line_items || [])
-      .filter(li => li.type === 'ServiceEntryServiceTaskLineItem' && !li.service_entry_line_item_id);
+  this.fetchEntryDetailsBatch = (entries, vehicleId) => {
+    if (!entries.length) return [];
 
-    return lineItems
-      .map(li => ({ name: (li.service_task && li.service_task.name) || '—', note: li.description || null }))
-      .filter(t => !EXCLUDED_TASKS_.includes(normalizeTaskName_(t.name)));
+    const requests = entries.map(e => buildFleetioRequest_(`/service_entries/${e.id}`, 'v2'));
+    const responses = UrlFetchApp.fetchAll(requests);
+    const fullEntries = responses.map((res, i) => parseFleetioResponse_(res, `/service_entries/${entries[i].id}`));
+
+    const needsFallback = fullEntries.some(full => !full.meter_entry || full.meter_entry.value == null);
+    const meterEntries = needsFallback ? fetchAllMeterEntries_(vehicleId) : [];
+
+    return fullEntries.map((full, i) => {
+      const lineItems = (full.service_entry_line_items || [])
+        .filter(li => li.type === 'ServiceEntryServiceTaskLineItem' && !li.service_entry_line_item_id);
+
+      const tasks = lineItems
+        .map(li => ({ name: (li.service_task && li.service_task.name) || '—', note: li.description || null }))
+        .filter(t => !EXCLUDED_TASKS_.includes(normalizeTaskName_(t.name)));
+
+      const odometer = resolveOdometer_(full.meter_entry, entries[i].completedAt, meterEntries);
+
+      return { id: entries[i].id, tasks, odometer };
+    });
+  };
+
+  /**
+   * Resolves the odometer reading to show for a service entry: its own
+   * recorded meter reading if it has one, otherwise the nearest reading
+   * from the vehicle's already-fetched Meter Entry history.
+   * @param {Object|null} meterEntry - the entry's own primary meter_entry, if any
+   * @param {string} completedAt
+   * @param {Object[]} meterEntries - the vehicle's full Meter Entry history
+   *   (only consulted when meterEntry is absent)
+   * @returns {{value: string, date: (string|null), isEstimated: boolean}}
+   */
+  const resolveOdometer_ = (meterEntry, completedAt, meterEntries) => {
+    if (meterEntry && meterEntry.value != null) {
+      return { value: meterEntry.value, date: null, isEstimated: false };
+    }
+    const targetIso = Utilities.formatDate(new Date(completedAt), 'UTC', 'yyyy-MM-dd');
+    const nearest = findNearestMeterEntry_(meterEntries, targetIso);
+    if (!nearest) return { value: '—', date: null, isEstimated: false };
+    return { value: nearest.value, date: nearest.date, isEstimated: true };
+  };
+
+  /**
+   * Finds the Meter Entry nearest a target date from an already-fetched,
+   * in-memory list — no API call.
+   * @param {Object[]} meterEntries
+   * @param {string} targetIso
+   * @returns {Object|null}
+   */
+  const findNearestMeterEntry_ = (meterEntries, targetIso) => {
+    if (!meterEntries.length) return null;
+    const target = new Date(targetIso).getTime();
+    let nearest = meterEntries[0];
+    let nearestDiff = Math.abs(new Date(nearest.date).getTime() - target);
+    for (let i = 1; i < meterEntries.length; i++) {
+      const diff = Math.abs(new Date(meterEntries[i].date).getTime() - target);
+      if (diff < nearestDiff) {
+        nearest = meterEntries[i];
+        nearestDiff = diff;
+      }
+    }
+    return nearest;
+  };
+
+  /**
+   * Fetches the vehicle's entire Meter Entry history (paginated, same
+   * pattern as fetchAllServiceEntries_) — called at most once per PDF
+   * generation, only when at least one selected entry needs the fallback.
+   * @param {number} vehicleId
+   * @returns {Object[]}
+   */
+  const fetchAllMeterEntries_ = (vehicleId) => {
+    let all = [];
+    let page = 1;
+    while (true) {
+      const res = fleetioFetch_(`/meter_entries?q[vehicle_id_eq]=${vehicleId}&q[s]=date+asc&page=${page}&per=100`);
+      const records = res.records || res;
+      all = all.concat(records);
+      if (!records.length || records.length < 100) break;
+      page++;
+    }
+    return all;
   };
 
   /**
@@ -178,7 +274,7 @@ var ServiceHistoryFetcher = function() {
    */
   const mapEntry_ = (entry) => ({
     id: entry.id,
-    vendor: entry.vendor_name || '—',
+    vendor: entry.vendor_name || 'Wilderness Motorhomes Auckland',
     taskDescription: (entry.service_tasks || []).map(t => t.name).join(', ') || '—',
     completedAt: entry.completed_at
   });
@@ -205,21 +301,32 @@ var ServiceHistoryFetcher = function() {
   };
 
   /**
+   * Builds a UrlFetchApp request descriptor for one Fleetio call — shared by
+   * fleetioFetch_ (single call) and fetchEntryDetailsBatch's UrlFetchApp.fetchAll
+   * (many calls in one round trip).
    * @param {string} path
    * @param {string} [urlVersion] - 'v1' (default) or 'v2'; selects which API
    *   version's URL prefix to call. Fleetio's task-note data (see
-   *   fetchTaskDetails) only exists under v2's single-entry endpoint.
+   *   fetchEntryDetailsBatch) only exists under v2's single-entry endpoint.
    * @returns {Object}
    */
-  const fleetioFetch_ = (path, urlVersion) => {
+  const buildFleetioRequest_ = (path, urlVersion) => {
     const security = new WildernessAppScriptLibrary.FleetioSecurity();
-    const options = {
+    return {
+      url: `https://secure.fleetio.com/api/${urlVersion || 'v1'}${path}`,
       method: 'GET',
       contentType: 'application/json',
       headers: security.getAuthHeaders(),
       muteHttpExceptions: true
     };
-    const response = UrlFetchApp.fetch(`https://secure.fleetio.com/api/${urlVersion || 'v1'}${path}`, options);
+  };
+
+  /**
+   * @param {HTTPResponse} response
+   * @param {string} path - only used for the error message on failure
+   * @returns {Object}
+   */
+  const parseFleetioResponse_ = (response, path) => {
     const code = response.getResponseCode();
     const body = response.getContentText();
 
@@ -227,6 +334,17 @@ var ServiceHistoryFetcher = function() {
       throw new Error(`[ServiceHistoryFetcher.fleetioFetch_] ${path} → HTTP ${code}: ${body}`);
     }
     return JSON.parse(body);
+  };
+
+  /**
+   * @param {string} path
+   * @param {string} [urlVersion] - 'v1' (default) or 'v2'
+   * @returns {Object}
+   */
+  const fleetioFetch_ = (path, urlVersion) => {
+    const request = buildFleetioRequest_(path, urlVersion);
+    const response = UrlFetchApp.fetch(request.url, request);
+    return parseFleetioResponse_(response, path);
   };
 };
 
@@ -244,7 +362,14 @@ var ServiceHistoryPdf = function() {
     const selectedSet = new Set(selectedEntryIds);
     const filteredEntries = entries
       .filter(e => selectedSet.has(e.id))
-      .map(e => ({ ...e, completedAtFormatted: formatDate_(e.completedAt) }));
+      .map(e => ({
+        ...e,
+        completedAtFormatted: formatDate_(e.completedAt),
+        odometer: e.odometer && {
+          ...e.odometer,
+          dateFormatted: e.odometer.isEstimated ? formatDate_(e.odometer.date) : null
+        }
+      }));
 
     const formattedVehicle = {
       ...vehicle,

@@ -141,6 +141,15 @@ setup needed beyond the container spreadsheet existing already. Log write
 failures are swallowed (`Logger.log` only, never thrown) — an audit write
 should never block or break the action it's recording.
 
+**Service History's `Generate PDF` entry also logs wall-clock duration**
+(2026-08-18) — `generateServiceHistory` times itself from entry to the
+Drive file being created and appends `duration=X.XXs` to the `Notes` field
+(on both the success and error paths), e.g. `rego=ABC123 | selected=8/12 |
+file=<url> | duration=2.14s`. This piggybacks on the existing free-text
+`Notes` column rather than adding a dedicated column to the shared sheet
+schema, since that schema is used by every tool's log line, not just
+Service History's.
+
 ## Hard-won gotchas — read before debugging something that looks like this
 
 These cost real back-and-forth to figure out. If you hit something that looks
@@ -257,6 +266,19 @@ like one of these, it probably is:
     identical from the outside. Fixed by adding start/summary `Logger.log`
     lines regardless of outcome. Any future unattended trigger should do
     the same.
+18. **Fleetio's published OpenAPI schema (the dated `2025-05-05.yaml`) does
+    not describe what's actually live at `/api/v2/meter_entries`.** That
+    schema documents `filter[...]`/`sort[...]` deepObject query params with
+    cursor pagination — but calling `/api/v2/meter_entries` with that exact
+    shape returns a flat `HTTP 404 {"status":404,"error":"not found"}`
+    against this account, discovered only once Service History's odometer
+    fallback ran for real. The fix was dropping back to `/api/v1/` with the
+    same Ransack-style params (`q[vehicle_id_eq]`, `q[date_lteq]`,
+    `q[s]=date+desc`, `page`/`per`) every other list call in
+    `ServiceHistoryLogic.gs` already uses successfully. Don't trust the
+    published schema over this file's own proven-working call shape when
+    the two disagree — verify any new Fleetio endpoint against a real call
+    before relying on the docs.
 
 ## Resolved decisions (don't re-litigate these without a real reason)
 
@@ -296,10 +318,23 @@ like one of these, it probably is:
   "Water Tightness Expiration" accordingly (was previously "Water Tightness
   Result", flagged as unconfirmed in the original POC).
 - Service History's "Cost" column (Fleetio's `total_amount` on Service Entry)
-  and the Odometer/Notes columns remain deliberately **excluded** from the
-  PDF — Cost is on hold pending a decision on exposing spend data to
-  customers; Odometer/Notes come back empty for real entries in this
-  account. Don't add either back without checking first.
+  remains deliberately **excluded** from the PDF, pending a decision on
+  exposing spend data to customers. (Odometer used to be excluded here too,
+  on the belief it came back empty for real entries — added back
+  2026-08-18 once it turned out `service_entries` just doesn't carry it
+  *directly*; see the Odometer bullet under "Known intentional deviations"
+  below.)
+- **Per-entry Fleetio detail calls in `generateServiceHistory` are batched
+  via `UrlFetchApp.fetchAll()`, not looped one call at a time**, and the
+  vehicle's Meter Entry history is fetched at most **once per PDF**
+  (`fetchAllMeterEntries_`) and searched in memory for each entry's nearest
+  reading, rather than re-querying Fleetio per entry. Added 2026-08-18 after
+  the original per-entry `fetchNearestMeterEntry_` implementation was found
+  to redundantly re-fetch the same Meter Entry (2 calls) for every selected
+  entry sharing the same gap in meter data — the common case, since most
+  service entries on a vehicle cluster around the same handful of odometer
+  readings. Don't revert to a sequential per-entry loop without re-checking
+  this reasoning.
 
 ## Still open / deferred — genuinely unresolved, pick these up if relevant
 
@@ -345,6 +380,18 @@ like one of these, it probably is:
    and failure. Inconsistent; revisit if cross-tool failure visibility in
    the Activity Log specifically (not just per-tool logs) turns out to
    matter.
+8. **`previewServiceHistory` and `generateServiceHistory` each independently
+   call `fetcher.fetchByRego()`** — the preview step (shown so staff can
+   tick/untick entries) already does the vehicle lookup + full paginated
+   service-entries fetch, and `generateServiceHistory` repeats that same
+   round of Fleetio calls from scratch seconds later rather than reusing
+   what the client already received from the preview. Passing that
+   previewed data back into the generate call (instead of just `rego` +
+   `selectedEntryIds`) would drop this duplicated fetch. Flagged
+   2026-08-18 during a performance pass that fixed two related issues
+   (batching per-entry detail calls, caching the vehicle's meter-entry
+   history) but left this one as a follow-up rather than changing the
+   client/server call contract in the same pass.
 
 ## Known intentional deviations from the original tools
 
@@ -360,6 +407,22 @@ like one of these, it probably is:
 - Service History: adds an entry-selection preview step (load → tick/untick
   → generate) that the original POC didn't have — the POC always included
   every fetched entry with no picker.
+- Service History (2026-08-18): the PDF header brand is now the real
+  Wilderness logo (JPEG, embedded as a base64 data URI directly in
+  `ServiceHistoryTemplate.html` — this is a flat clasp project with no
+  binary-asset support, so that's the only way to ship an image with the
+  template) instead of a plain-text "Wilderness Motorhomes" wordmark.
+- Service History (2026-08-18): a Service Entry with no `vendor_name` in
+  Fleetio now displays as **"Wilderness Motorhomes Auckland"** rather than
+  "—" — unattributed work is assumed done in-house, per Mark. See
+  `mapEntry_` in `ServiceHistoryLogic.gs`.
+- Service History (2026-08-18): added an **Odometer** column to the PDF's
+  service table. Uses the Service Entry's own `meter_entry.value` when
+  Fleetio has one recorded against it; otherwise falls back to the
+  vehicle's Meter Entry nearest that service's date (`GET /meter_entries`)
+  and labels it "as at `<date>`" in the PDF so it's clear the reading isn't
+  from the exact service date. See the `fetchEntryDetailsBatch` /
+  `resolveOdometer_` chain in `ServiceHistoryLogic.gs`.
 - Recurring Tasks: access is a Google Group check, but now against **two**
   groups (`leaders@wilderness.co.nz` OR `jirataskengine@wilderness.co.nz`)
   rather than the standalone app's single `jirataskengine@wilderness.co.nz`
