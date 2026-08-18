@@ -15,6 +15,13 @@ function runDuplicateRatings() { new DuplicateRatingsAnalyzer().run(); }
 function runDuplicateRatingsOnly() { new DuplicateRatingsAnalyzer().runRatingsOnly(); }
 
 /**
+ * Merges every row on the "Duplicate Ratings" sheet whose "Approve Merge"
+ * checkbox is ticked - the bulk path for a manually-audited batch (100+ rows),
+ * as opposed to testMergeContacts which handles one pair at a time.
+ */
+function runApprovedMerges() { new DuplicateRatingsAnalyzer().runApprovedMerges(); }
+
+/**
  * Manually merges two specific contact IDs via the LIVE HubSpot API - for
  * testing the merge endpoint directly, independent of DRY_RUN and the
  * auto-merge classifier. Edit the parameters below and run this function
@@ -58,6 +65,7 @@ function onOpen() {
     .addItem('Run Duplicate Detection (auto-merge + ratings)', 'runDuplicateRatings')
     .addItem('Run Ratings Only (no auto-merge)', 'runDuplicateRatingsOnly')
     .addSeparator()
+    .addItem('Merge Approved Rows (checked in Duplicate Ratings)', 'runApprovedMerges')
     .addItem('Test Merge (enter 2 IDs)', 'testMergeContactsPrompt')
     .addToUi();
 }
@@ -70,7 +78,8 @@ var DuplicateRatingsAnalyzer = function() {
   const MERGE_LOG_SHEET_NAME = 'Merge Log';
 
   // Set to false only after reviewing dry-run output and testing mergeContact_
-  // against a couple of real pairs by hand.
+  // against a couple of real pairs by hand. Flip this back to true any time
+  // you change the auto-merge rules, so the next run is a dry run first.
   const DRY_RUN = false;
 
   // Known-equivalent domain pairs. Add more here as you confirm them - a wrong
@@ -90,7 +99,11 @@ var DuplicateRatingsAnalyzer = function() {
   ];
 
   // Common webmail domains used as the "correct" target when checking whether a
-  // domain looks like a 1-2 character typo of a real provider.
+  // domain looks like a 1-2 character typo of a real provider. When exactly one
+  // side of a pair is on this list, that side is treated as objectively correct
+  // (drives primary/master-ID selection). When NEITHER side is on this list,
+  // classifyDomainPair_ still flags a close edit-distance match as a likely typo
+  // (see "Domain Typo (Unverified)" below) - just without knowing which side is right.
   const CANONICAL_DOMAINS = [
     'gmail.com', 'googlemail.com', 'yahoo.com', 'yahoo.co.nz', 'yahoo.com.au', 'yahoo.co.uk',
     'hotmail.com', 'hotmail.co.nz', 'hotmail.co.uk', 'outlook.com', 'outlook.co.nz',
@@ -126,11 +139,12 @@ var DuplicateRatingsAnalyzer = function() {
 
   const OUTPUT_HEADERS = [
     'ID_1', 'ID_2', 'Suggested Master ID', 'Name_1', 'Name_2', 'Email_1', 'Email_2', 'Phone_1', 'Phone_2',
-    'Company_1', 'Company_2', 'Score', 'Rating', 'Reasons', 'Would Auto-Merge', 'Auto-Merge Detail'
+    'Company_1', 'Company_2', 'Score', 'HubSpot Similarity %', 'Rating', 'Reasons', 'Would Auto-Merge', 'Auto-Merge Detail',
+    'Approve Merge', 'Previously Merged'
   ];
 
   const SOURCE_COLUMNS = [
-    'ID_1', 'ID_2', 'FIRSTNAME_1', 'FIRSTNAME_2', 'LASTNAME_1', 'LASTNAME_2',
+    'ID_1', 'ID_2', 'SIMILARITY_SCORE_PERCENTAGE', 'FIRSTNAME_1', 'FIRSTNAME_2', 'LASTNAME_1', 'LASTNAME_2',
     'EMAIL_1', 'EMAIL_2', 'PHONE_1', 'PHONE_2', 'MOBILEPHONE_1', 'MOBILEPHONE_2',
     'COMPANY_1', 'COMPANY_2', 'CITY_1', 'CITY_2', 'COUNTRY_1', 'COUNTRY_2', 'ZIP_1', 'ZIP_2',
     'CREATEDATE_1', 'CREATEDATE_2'
@@ -174,6 +188,7 @@ var DuplicateRatingsAnalyzer = function() {
     const colIndex = buildColumnIndex_(header);
     const autoMergeCandidates = [];
     const manualReviewResults = [];
+    const mergeHistory = loadMergeHistory_(ss);
 
     rows.forEach((row) => {
       const get = (name) => {
@@ -181,10 +196,14 @@ var DuplicateRatingsAnalyzer = function() {
         return idx === undefined || idx === -1 ? '' : row[idx];
       };
 
-      const autoMergeMatch = classifyRowForAutoMerge_(get);
       const scored = scoreRow_(get);
+      let autoMergeMatch = classifyRowForAutoMerge_(get);
+      if (!autoMergeMatch) {
+        autoMergeMatch = classifyRowForAutoMergeFallback_(get, scored);
+      }
       scored.wouldAutoMerge = !!autoMergeMatch;
       scored.autoMergeDetail = autoMergeMatch ? `${autoMergeMatch.pattern}: ${autoMergeMatch.detail}` : '';
+      scored.previouslyMerged = classifyPreviouslyMerged_(scored.id1, scored.id2, mergeHistory);
       manualReviewResults.push(scored);
 
       if (autoMergeMatch) {
@@ -241,15 +260,20 @@ var DuplicateRatingsAnalyzer = function() {
     Logger.log(`[DuplicateRatingsAnalyzer.runRatingsOnly] rowCount=${rows.length}`);
 
     const colIndex = buildColumnIndex_(header);
+    const mergeHistory = loadMergeHistory_(ss);
     const results = rows.map((row) => {
       const get = (name) => {
         const idx = colIndex[name];
         return idx === undefined || idx === -1 ? '' : row[idx];
       };
-      const autoMergeMatch = classifyRowForAutoMerge_(get);
       const scored = scoreRow_(get);
+      let autoMergeMatch = classifyRowForAutoMerge_(get);
+      if (!autoMergeMatch) {
+        autoMergeMatch = classifyRowForAutoMergeFallback_(get, scored);
+      }
       scored.wouldAutoMerge = !!autoMergeMatch;
       scored.autoMergeDetail = autoMergeMatch ? `${autoMergeMatch.pattern}: ${autoMergeMatch.detail}` : '';
+      scored.previouslyMerged = classifyPreviouslyMerged_(scored.id1, scored.id2, mergeHistory);
       return scored;
     });
 
@@ -312,14 +336,17 @@ var DuplicateRatingsAnalyzer = function() {
       (errorMessage ? ` note=${errorMessage}` : '')
     );
 
-    appendMergeLog_(SpreadsheetApp.getActiveSpreadsheet(), [{
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const loggedResult = {
       ...candidate,
       timestamp: new Date(),
       dryRun: false,
       result,
       httpStatus: mergeResult.httpStatus,
       errorMessage
-    }]);
+    };
+    appendMergeLog_(ss, [loggedResult]);
+    updatePreviouslyMergedColumn_(ss, [loggedResult]);
 
     let alertMessage;
     if (mergeResult.success) {
@@ -333,6 +360,129 @@ var DuplicateRatingsAnalyzer = function() {
     ui.alert(
       mergeResult.success ? 'Merge succeeded' : (mergeResult.alreadyMerged ? 'Already merged' : 'Merge failed'),
       alertMessage,
+      ui.ButtonSet.OK
+    );
+  };
+
+  /**
+   * Bulk-merges every row on the "Duplicate Ratings" sheet whose "Approve Merge"
+   * checkbox is currently ticked - for a manually-audited batch (100+ rows),
+   * as opposed to testMerge which handles one pair at a time. Reads the sheet
+   * as it currently stands (does NOT re-run detection first), uses each row's
+   * already-computed "Suggested Master ID" as the surviving contact, and
+   * reuses processMergeCandidates_ / appendMergeLog_ so this respects DRY_RUN
+   * and lands in the same audit trail as every other merge path.
+   *
+   * Rows that end up MERGED or ALREADY MERGED are unchecked afterwards (nothing
+   * more to do with that pairing); DRY RUN previews and genuine FAILUREs are
+   * left checked so they stay visible and re-runnable once DRY_RUN is flipped
+   * or the underlying issue is fixed.
+   *
+   * Note: running "Run Duplicate Detection" / "Run Ratings Only" clears and
+   * rewrites this sheet from scratch, which wipes any checks already made -
+   * don't re-run detection between auditing rows and running this.
+   */
+  this.runApprovedMerges = () => {
+    const ui = SpreadsheetApp.getUi();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName(OUTPUT_SHEET_NAME);
+
+    if (!sheet) {
+      Logger.log('[DuplicateRatingsAnalyzer.runApprovedMerges] error=no output sheet');
+      ui.alert(`No "${OUTPUT_SHEET_NAME}" sheet found. Run duplicate detection first.`);
+      return;
+    }
+
+    const values = sheet.getDataRange().getValues();
+    const header = values[0];
+    const approveColIdx = header.indexOf('Approve Merge');
+    if (approveColIdx === -1) {
+      Logger.log('[DuplicateRatingsAnalyzer.runApprovedMerges] error=no Approve Merge column');
+      ui.alert(`No "Approve Merge" column found on "${OUTPUT_SHEET_NAME}". Re-run duplicate detection to add it.`);
+      return;
+    }
+
+    const colIdx = {
+      id1: header.indexOf('ID_1'),
+      id2: header.indexOf('ID_2'),
+      masterId: header.indexOf('Suggested Master ID'),
+      name1: header.indexOf('Name_1'),
+      name2: header.indexOf('Name_2'),
+      email1: header.indexOf('Email_1'),
+      email2: header.indexOf('Email_2')
+    };
+
+    const approvedRows = [];
+    for (let r = 1; r < values.length; r++) {
+      const row = values[r];
+      if (row[approveColIdx] !== true) continue;
+
+      const id1 = row[colIdx.id1], id2 = row[colIdx.id2], masterId = row[colIdx.masterId];
+      if (!id1 || !id2) continue; // blank row under the filter range - skip
+
+      const primaryId = String(masterId) === String(id2) ? id2 : id1;
+      const secondaryId = String(primaryId) === String(id1) ? id2 : id1;
+
+      approvedRows.push({
+        rowNum: r + 1,
+        id1, id2,
+        name1: row[colIdx.name1], name2: row[colIdx.name2],
+        email1: row[colIdx.email1], email2: row[colIdx.email2],
+        primaryId, secondaryId,
+        primaryReason: 'manual bulk approval (Suggested Master ID)',
+        pattern: 'Manual Bulk Approval',
+        detail: 'Approved via "Approve Merge" checkbox on the Duplicate Ratings sheet'
+      });
+    }
+
+    if (approvedRows.length === 0) {
+      Logger.log('[DuplicateRatingsAnalyzer.runApprovedMerges] no rows checked');
+      ui.alert('No rows are checked in the "Approve Merge" column.');
+      return;
+    }
+
+    const confirmed = ui.alert(
+      'Confirm bulk merge',
+      `${approvedRows.length} row(s) are checked for merge.` +
+      (DRY_RUN
+        ? ' DRY_RUN is currently ON, so this will only log a preview to the Merge Log - nothing will actually merge.'
+        : ' DRY_RUN is OFF - this WILL call the live HubSpot merge API for all of them. This cannot be undone.') +
+      '\n\nContinue?',
+      ui.ButtonSet.YES_NO
+    );
+    if (confirmed !== ui.Button.YES) {
+      Logger.log(`[DuplicateRatingsAnalyzer.runApprovedMerges] cancelled by user | approvedCount=${approvedRows.length}`);
+      return;
+    }
+
+    const mergeResults = processMergeCandidates_(approvedRows);
+    appendMergeLog_(ss, mergeResults);
+    updatePreviouslyMergedColumn_(ss, mergeResults);
+
+    mergeResults.forEach((result, i) => {
+      if (result.result === 'MERGED' || result.result.indexOf('ALREADY MERGED') === 0) {
+        sheet.getRange(approvedRows[i].rowNum, approveColIdx + 1).setValue(false);
+      }
+    });
+
+    const mergedCount = mergeResults.filter((r) => r.result === 'MERGED').length;
+    const alreadyCount = mergeResults.filter((r) => r.result.indexOf('ALREADY MERGED') === 0).length;
+    const failedCount = mergeResults.filter((r) => r.result === 'FAILED').length;
+    const dryRunCount = mergeResults.filter((r) => r.result === 'DRY RUN - NOT MERGED').length;
+
+    Logger.log(
+      `[DuplicateRatingsAnalyzer.runApprovedMerges] complete | approved=${approvedRows.length} ` +
+      `merged=${mergedCount} alreadyMerged=${alreadyCount} failed=${failedCount} dryRun=${dryRunCount}`
+    );
+
+    ui.alert(
+      'Bulk merge complete',
+      `Processed ${approvedRows.length} approved row(s):\n\n` +
+      `Merged: ${mergedCount}\n` +
+      `Already merged in a previous round: ${alreadyCount}\n` +
+      `Failed: ${failedCount}\n` +
+      `Dry run (not merged): ${dryRunCount}\n\n` +
+      `See the "${MERGE_LOG_SHEET_NAME}" sheet for full details.`,
       ui.ButtonSet.OK
     );
   };
@@ -406,11 +556,20 @@ var DuplicateRatingsAnalyzer = function() {
   };
 
   /**
-   * Classifies a same-username email pair as a Domain Alias or Spelling Typo
-   * match, or returns null if neither "obvious, low-risk" pattern applies.
+   * Classifies a same-username email pair (different domains) as one of:
+   *   - Domain Alias: both domains are a known-equivalent pair (same mailbox).
+   *   - Spelling Typo: exactly one domain is a recognized real provider, and
+   *     the other is a 1-2 character edit away from it - we know which side
+   *     is correct.
+   *   - Domain Typo (Unverified): the two domains are a 1-2 character edit
+   *     apart, but NEITHER (or both) is on our recognized-provider list - still
+   *     very likely a typo on an identical username, just against a domain we
+   *     haven't catalogued. Since we can't tell which side is "correct" here,
+   *     canonicalEmail is null and primary selection falls back to createdate.
+   * Returns null if none of these apply.
    * @param {string} email1
    * @param {string} email2
-   * @returns {{pattern: string, detail: string}|null}
+   * @returns {{pattern: string, detail: string, canonicalEmail: string|null}|null}
    */
   const classifyDomainPair_ = (email1, email2) => {
     const [l1, d1] = emailParts_(email1);
@@ -426,33 +585,55 @@ var DuplicateRatingsAnalyzer = function() {
       }
     }
 
+    const dist = levenshtein_(d1, d2);
+    if (dist < 1 || dist > 2) return null;
+
     const d1Canonical = CANONICAL_DOMAINS.indexOf(d1) !== -1;
     const d2Canonical = CANONICAL_DOMAINS.indexOf(d2) !== -1;
+
     if (d1Canonical !== d2Canonical) {
+      // Exactly one side is a domain we recognize - that side is correct.
       const canonical = d1Canonical ? d1 : d2;
       const typo = d1Canonical ? d2 : d1;
-      const dist = levenshtein_(canonical, typo);
-      if (dist >= 1 && dist <= 2) {
-        return {
-          pattern: 'Spelling Typo',
-          detail: `"${typo}" looks like a typo of "${canonical}" (edit distance ${dist})`,
-          canonicalEmail: d1Canonical ? 'email1' : 'email2'
-        };
-      }
+      return {
+        pattern: 'Spelling Typo',
+        detail: `"${typo}" looks like a typo of "${canonical}" (edit distance ${dist})`,
+        canonicalEmail: d1Canonical ? 'email1' : 'email2'
+      };
     }
 
-    return null;
+    if (d1Canonical && d2Canonical) {
+      // Both sides are verified real providers - they're just genuinely
+      // different services that happen to be close in spelling (e.g.
+      // me.com vs msn.com - Apple vs Microsoft; yahoo.co.nz vs yahoo.co.uk -
+      // same brand, different regional accounts, not the same mailbox).
+      // This is NOT a typo relationship - don't guess otherwise.
+      return null;
+    }
+
+    // Neither side is on our recognized-provider list, but the domains are
+    // still a close edit-distance match on an identical username. Likely a
+    // typo against a real domain we just haven't catalogued yet - but since
+    // we can't verify which side is correct, don't guess which one.
+    return {
+      pattern: 'Domain Typo (Unverified)',
+      detail: `"${d1}" vs "${d2}" (edit distance ${dist}) - neither domain is on the recognized-provider list, but this still looks like a typo`,
+      canonicalEmail: null
+    };
   };
 
   /**
    * Decides whether a row qualifies for auto-merge. First+last name must
-   * always match as corroboration; beyond that, one of three patterns must
+   * always match as corroboration; beyond that, one of four patterns must
    * also hold, in priority order:
    *   1. Same domain, local-part differs only by punctuation (safest - same
    *      provider, same underlying mailbox).
    *   2. Same normalized username across unrelated providers, corroborated by
    *      a matching phone number (an independent identity channel).
-   *   3. A known domain-alias or spelling-typo pattern (see classifyDomainPair_).
+   *   3. Same domain, near-identical username, corroborated by tight (5-minute)
+   *      time proximity.
+   *   4. A known domain-alias or spelling-typo pattern, INCLUDING unverified
+   *      domain typos not on the recognized-provider list (see classifyDomainPair_).
    * Everything else falls through to manual review.
    * @param {function(string): *} get
    * @returns {Object|null} auto-merge candidate, or null if not eligible
@@ -516,6 +697,10 @@ var DuplicateRatingsAnalyzer = function() {
         }
       }
     } else {
+      // Includes Domain Alias, Spelling Typo, and Domain Typo (Unverified) -
+      // the last of these auto-merges on a same-username, close-edit-distance
+      // domain pair even when neither domain is on the recognized-provider
+      // list. Still gated by the exact name match required above.
       classification = classifyDomainPair_(email1, email2);
     }
 
@@ -530,6 +715,47 @@ var DuplicateRatingsAnalyzer = function() {
       name1: `${get('FIRSTNAME_1') || ''} ${get('LASTNAME_1') || ''}`.trim(),
       name2: `${get('FIRSTNAME_2') || ''} ${get('LASTNAME_2') || ''}`.trim(),
       pattern: classification.pattern,
+      detail: classification.detail,
+      primaryId, secondaryId, primaryReason
+    };
+  };
+
+  /**
+   * Fallback auto-merge check, run ONLY when classifyRowForAutoMerge_ returns
+   * null (i.e. the strict exact-name-match rule didn't fire) - additive to
+   * that rule, not a replacement. Catches rows where the name match failed
+   * (often a blank last name) but the email domain relationship is still a
+   * verified Domain Alias / Spelling Typo / Domain Typo (Unverified), AND the
+   * row's overall score independently reached Very High or High.
+   *
+   * This is deliberately looser than the strict rule: it does NOT require an
+   * exact last-name match, since at the High threshold a domain-typo match
+   * (38 pts) plus first-name-only (10 pts) already qualifies. Tagged with
+   * "(Score Fallback: <rating>)" in the pattern name so these are easy to spot
+   * and review separately from the strict, name-matched auto-merge candidates.
+   * @param {function(string): *} get
+   * @param {{rating: string}} scored - the already-computed scoreRow_ result for this row
+   * @returns {Object|null} auto-merge candidate, or null if not eligible
+   */
+  const classifyRowForAutoMergeFallback_ = (get, scored) => {
+    if (scored.rating !== 'Very High' && scored.rating !== 'High') return null;
+
+    const email1 = normStr_(get('EMAIL_1'));
+    const email2 = normStr_(get('EMAIL_2'));
+    if (!email1 || !email2 || email1 === email2) return null;
+
+    const classification = classifyDomainPair_(email1, email2);
+    if (!classification) return null;
+
+    const id1 = get('ID_1'), id2 = get('ID_2');
+    const { primaryId, secondaryId, primaryReason } = determinePrimary_(get);
+
+    return {
+      id1, id2,
+      email1: get('EMAIL_1'), email2: get('EMAIL_2'),
+      name1: `${get('FIRSTNAME_1') || ''} ${get('LASTNAME_1') || ''}`.trim(),
+      name2: `${get('FIRSTNAME_2') || ''} ${get('LASTNAME_2') || ''}`.trim(),
+      pattern: `${classification.pattern} (Score Fallback: ${scored.rating})`,
       detail: classification.detail,
       primaryId, secondaryId, primaryReason
     };
@@ -786,7 +1012,9 @@ var DuplicateRatingsAnalyzer = function() {
     const zip1 = normStr_(get('ZIP_1')), zip2 = normStr_(get('ZIP_2'));
 
     // Email: exact match, same-username punctuation variants, alias/typo'd
-    // domains, or the same distinctive username reused across unrelated providers
+    // domains (via the same classifyDomainPair_ used for auto-merge, so the
+    // two never drift apart again), or the same distinctive username reused
+    // across genuinely unrelated providers
     if (em1 && em1 === em2) {
       score += 45;
       reasons.push('Email identical');
@@ -804,14 +1032,17 @@ var DuplicateRatingsAnalyzer = function() {
           score += 40;
           reasons.push(`Same domain, local-part differs only by punctuation (likely same mailbox: ${rawL1} vs ${rawL2})`);
         } else {
-          const domainDist = levenshtein_(d1, d2);
-          if (domainDist <= 2) {
+          const domainClassification = classifyDomainPair_(em1, em2);
+          if (domainClassification) {
+            // Domain Alias, Spelling Typo, or Domain Typo (Unverified) - all
+            // strong signals regardless of whether the domain is on our
+            // recognized-provider list.
             score += 38;
-            reasons.push(`Same username, near-identical domain typo (${d1} vs ${d2})`);
+            reasons.push(`${domainClassification.pattern}: ${domainClassification.detail}`);
           } else {
-            // Entirely different, unrelated providers - still meaningful on a
-            // distinctive username, but weaker than a same-domain/typo match
-            // since two different people could independently pick a common one
+            // Entirely different, unrelated providers with no close edit
+            // distance - still meaningful on a distinctive username, but
+            // weaker than a verified/likely typo match
             const distinctive = nl1.length >= 6;
             score += distinctive ? 30 : 12;
             reasons.push(
@@ -896,6 +1127,10 @@ var DuplicateRatingsAnalyzer = function() {
       company1: get('COMPANY_1'),
       company2: get('COMPANY_2'),
       score,
+      // HubSpot's own duplicate-similarity percentage, passed through as
+      // exported (col C of Raw - Duplicates) - shown for comparison only,
+      // not currently factored into our score or the auto-merge rules.
+      hubspotSimilarity: get('SIMILARITY_SCORE_PERCENTAGE'),
       rating,
       reasons: reasons.length ? reasons.join('; ') : 'No strong matching signals'
     };
@@ -911,7 +1146,7 @@ var DuplicateRatingsAnalyzer = function() {
   /**
    * Writes the dry-run auto-merge candidate sheet.
    * @param {Spreadsheet} ss
-   * @param {Array<Object>} candidates
+   * @param {Array<Object>} mergeResults
    */
   const writeAutoMergeSheet_ = (ss, mergeResults) => {
     let sheet = ss.getSheetByName(AUTO_MERGE_SHEET_NAME);
@@ -939,6 +1174,141 @@ var DuplicateRatingsAnalyzer = function() {
     sheet.setFrozenRows(1);
     sheet.autoResizeColumns(1, AUTO_MERGE_HEADERS.length);
     Logger.log(`[DuplicateRatingsAnalyzer.writeAutoMergeSheet_] rowsWritten=${mergeResults.length}`);
+  };
+
+  /**
+   * Order-independent key for a pair of contact IDs, so the same pair is
+   * recognized regardless of which side was ID_1 vs ID_2 in a given export.
+   * @param {*} a
+   * @param {*} b
+   * @returns {string}
+   */
+  const pairKey_ = (a, b) => [String(a), String(b)].sort().join('::');
+
+  /**
+   * Reads the permanent Merge Log sheet and builds a lookup of everything
+   * that's already been successfully merged - used to flag "Previously
+   * Merged" on the Duplicate Ratings sheet so a reviewer doesn't re-approve
+   * a pair that's already resolved, and so a stale Secondary ID that HubSpot
+   * hasn't dropped from a fresh duplicates export yet is easy to spot.
+   * Only 'MERGED' and 'ALREADY MERGED (...)' results count - 'DRY RUN - NOT
+   * MERGED' and 'FAILED' rows didn't actually change anything in HubSpot.
+   * @param {Spreadsheet} ss
+   * @returns {{mergedSecondaryIds: Set<string>, pairKeys: Set<string>}}
+   */
+  const loadMergeHistory_ = (ss) => {
+    const mergedSecondaryIds = new Set();
+    const pairKeys = new Set();
+
+    const sheet = ss.getSheetByName(MERGE_LOG_SHEET_NAME);
+    if (!sheet || sheet.getLastRow() < 2) return { mergedSecondaryIds, pairKeys };
+
+    const values = sheet.getDataRange().getValues();
+    const header = values[0];
+    const idx = {
+      primaryId: header.indexOf('Primary ID'),
+      secondaryId: header.indexOf('Secondary ID'),
+      result: header.indexOf('Result')
+    };
+    if (idx.primaryId === -1 || idx.secondaryId === -1 || idx.result === -1) {
+      return { mergedSecondaryIds, pairKeys };
+    }
+
+    for (let r = 1; r < values.length; r++) {
+      const row = values[r];
+      const result = String(row[idx.result] || '');
+      const wasSuccessful = result === 'MERGED' || result.indexOf('ALREADY MERGED') === 0;
+      if (!wasSuccessful) continue;
+
+      const primaryId = row[idx.primaryId];
+      const secondaryId = row[idx.secondaryId];
+      if (secondaryId !== '' && secondaryId !== null && secondaryId !== undefined) {
+        mergedSecondaryIds.add(String(secondaryId));
+      }
+      if (primaryId !== '' && primaryId !== null && primaryId !== undefined && secondaryId) {
+        pairKeys.add(pairKey_(primaryId, secondaryId));
+      }
+    }
+
+    return { mergedSecondaryIds, pairKeys };
+  };
+
+  /**
+   * Flags whether a duplicate-pair row was already resolved in a previous
+   * (or the same day's earlier) run, per loadMergeHistory_.
+   * @param {*} id1
+   * @param {*} id2
+   * @param {{mergedSecondaryIds: Set<string>, pairKeys: Set<string>}} mergeHistory
+   * @returns {string} human-readable flag, or '' if no history found
+   */
+  const classifyPreviouslyMerged_ = (id1, id2, mergeHistory) => {
+    if (!id1 || !id2) return '';
+    if (mergeHistory.pairKeys.has(pairKey_(id1, id2))) {
+      return 'Yes - this exact pair was already merged';
+    }
+
+    const id1Merged = mergeHistory.mergedSecondaryIds.has(String(id1));
+    const id2Merged = mergeHistory.mergedSecondaryIds.has(String(id2));
+    if (id1Merged && id2Merged) return 'Yes - both ID_1 and ID_2 were merged away previously';
+    if (id1Merged) return 'Yes - ID_1 was merged away previously (may be a stale ID)';
+    if (id2Merged) return 'Yes - ID_2 was merged away previously (may be a stale ID)';
+    return '';
+  };
+
+  /**
+   * Updates the "Previously Merged" column (in place, cell by cell) on the
+   * Duplicate Ratings sheet immediately after a manual merge (testMerge or
+   * runApprovedMerges) - so the sheet reflects the merge without waiting for
+   * the next full detection run to rewrite it. Only touches rows connected to
+   * THIS batch's newly-successful merges (by exact pair or by either ID
+   * appearing as a just-merged-away Secondary ID) - every other row's
+   * existing "Previously Merged" text (from earlier history) is left alone.
+   * A no-op if the sheet, its "Previously Merged" column, or any successful
+   * merges in this batch don't exist.
+   * @param {Spreadsheet} ss
+   * @param {Array<Object>} mergeResults - candidates enriched by processMergeCandidates_
+   */
+  const updatePreviouslyMergedColumn_ = (ss, mergeResults) => {
+    const newlyMerged = { mergedSecondaryIds: new Set(), pairKeys: new Set() };
+    mergeResults.forEach((r) => {
+      const result = String(r.result || '');
+      const wasSuccessful = result === 'MERGED' || result.indexOf('ALREADY MERGED') === 0;
+      if (!wasSuccessful) return;
+      if (r.secondaryId !== undefined && r.secondaryId !== null && r.secondaryId !== '') {
+        newlyMerged.mergedSecondaryIds.add(String(r.secondaryId));
+      }
+      if (r.primaryId && r.secondaryId) {
+        newlyMerged.pairKeys.add(pairKey_(r.primaryId, r.secondaryId));
+      }
+    });
+    if (newlyMerged.mergedSecondaryIds.size === 0 && newlyMerged.pairKeys.size === 0) return;
+
+    const sheet = ss.getSheetByName(OUTPUT_SHEET_NAME);
+    if (!sheet || sheet.getLastRow() < 2) return;
+
+    const values = sheet.getDataRange().getValues();
+    const header = values[0];
+    const idx = {
+      id1: header.indexOf('ID_1'),
+      id2: header.indexOf('ID_2'),
+      previouslyMerged: header.indexOf('Previously Merged')
+    };
+    if (idx.id1 === -1 || idx.id2 === -1 || idx.previouslyMerged === -1) return;
+
+    let updatedCount = 0;
+    for (let r = 1; r < values.length; r++) {
+      const row = values[r];
+      const id1 = row[idx.id1], id2 = row[idx.id2];
+      if (!id1 || !id2) continue;
+
+      const flag = classifyPreviouslyMerged_(id1, id2, newlyMerged);
+      if (flag) {
+        sheet.getRange(r + 1, idx.previouslyMerged + 1).setValue(flag);
+        updatedCount++;
+      }
+    }
+
+    Logger.log(`[DuplicateRatingsAnalyzer.updatePreviouslyMergedColumn_] rowsUpdated=${updatedCount}`);
   };
 
   /**
@@ -983,6 +1353,14 @@ var DuplicateRatingsAnalyzer = function() {
     if (sheet) {
       sheet.clearContents();
       sheet.clearFormats();
+      // clearContents()/clearFormats() do NOT remove data validation (e.g. the
+      // checkbox rule inserted below) - without this, a column that held
+      // checkboxes in a previous run keeps that rule forever, even after the
+      // header layout changes and a different column ends up there. A blank
+      // string in a checkbox-validated cell renders as an unchecked box, and
+      // real text renders as a broken checkbox/dropdown hybrid - confusing on
+      // any column that isn't meant to be a checkbox at all.
+      sheet.getRange(1, 1, sheet.getMaxRows(), sheet.getMaxColumns()).clearDataValidations();
       const existingFilter = sheet.getFilter();
       if (existingFilter) existingFilter.remove();
     } else {
@@ -998,15 +1376,23 @@ var DuplicateRatingsAnalyzer = function() {
     if (results.length > 0) {
       const dataRows = results.map((r) => [
         r.id1, r.id2, r.masterId, r.name1, r.name2, r.email1, r.email2, r.phone1, r.phone2,
-        r.company1, r.company2, r.score, r.rating, r.reasons, r.wouldAutoMerge ? 'Yes' : 'No', r.autoMergeDetail
+        r.company1, r.company2, r.score, r.hubspotSimilarity, r.rating, r.reasons, r.wouldAutoMerge ? 'Yes' : 'No',
+        r.autoMergeDetail, false, r.previouslyMerged || ''
       ]);
       sheet.getRange(2, 1, dataRows.length, OUTPUT_HEADERS.length).setValues(dataRows);
       sheet.getRange(1, 1, dataRows.length + 1, OUTPUT_HEADERS.length).createFilter();
       applyConditionalFormatting_(sheet, dataRows.length);
+
+      // "Approve Merge" is a manual-audit checkbox, unchecked by default - never
+      // pre-ticked, since a run() call can include auto-merge candidates too and
+      // this column is only meant for rows a human has deliberately reviewed for
+      // this.runApprovedMerges. Re-running detection wipes this sheet (and
+      // therefore any checks already made) before that bulk merge is run.
+      const approveColNum = OUTPUT_HEADERS.indexOf('Approve Merge') + 1;
+      sheet.getRange(2, approveColNum, dataRows.length, 1).insertCheckboxes();
     }
 
     sheet.setFrozenRows(1);
-    sheet.autoResizeColumns(1, OUTPUT_HEADERS.length);
     Logger.log(`[DuplicateRatingsAnalyzer.writeOutput_] rowsWritten=${results.length}`);
   };
 
