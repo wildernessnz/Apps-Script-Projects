@@ -6,9 +6,12 @@ Service History (section "Workshop"), and Recurring Tasks (section
 "Leadership"), behind one sidebar-navigated shell. All 6 tools are built and
 deployed. Recurring Tasks specifically still has open cutover steps (Script
 Properties, daily trigger, retiring the old standalone project) — see
-"Still open / deferred" below before assuming it's fully live. This doc is
-the orientation a fresh Claude Code session needs — read this before
-touching anything.
+"Still open / deferred" below before assuming it's fully live.
+
+`CLAUDE.md` is the auto-loaded quick reference (non-negotiables + the
+add-a-tool recipe) — this doc is the full detail behind it: gotchas,
+resolved decisions, deferred work. Read this before any non-trivial
+change, not just a fresh session.
 
 ## Getting set up
 
