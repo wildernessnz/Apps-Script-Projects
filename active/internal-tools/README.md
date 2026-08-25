@@ -2,11 +2,12 @@
 
 Single standalone Apps Script project unifying Booking Finder, Interislander
 Availability, Relo Rates, and Weather Alert (section "Adventure Support"),
-Service History (section "Workshop"), and Recurring Tasks (section
-"Leadership"), behind one sidebar-navigated shell. All 6 tools are built and
-deployed. Recurring Tasks specifically still has open cutover steps (Script
-Properties, daily trigger, retiring the old standalone project) — see
-"Still open / deferred" below before assuming it's fully live.
+Service History and CIN Generator (section "Retail Sales"), and Recurring
+Tasks (section "Leadership"), behind one sidebar-navigated shell. All 7
+tools are built and deployed. Recurring Tasks specifically still has open
+cutover steps (Script Properties, daily trigger, retiring the old
+standalone project) — see "Still open / deferred" below before assuming
+it's fully live.
 
 `CLAUDE.md` is the auto-loaded quick reference (non-negotiables + the
 add-a-tool recipe) — this doc is the full detail behind it: gotchas,
@@ -15,7 +16,7 @@ change, not just a fresh session.
 
 ## Getting set up
 
-These 23 files are the entire project. Drop them into your local clasp
+These 26 files are the entire project. Drop them into your local clasp
 folder (matching filenames exactly, no subfolders) and `clasp push`.
 
 ```
@@ -29,18 +30,21 @@ Styles.html               — ALL styling + embedded Averta font (~875KB — thi
                              the file is large; don't be alarmed)
 Router.html               — client-side nav + content swap
 Modal.html               — shared ITModal (confirm/notify) + tooltip positioning + escapeHtml()
-Placeholder.html         — unused now (all 6 tools built) but harmless to keep
+Placeholder.html         — unused now (all 7 tools built) but harmless to keep
 BookingFinderLogic.gs / BookingFinder.html
 InterislanderLogic.gs / Interislander.html
 ReloRatesLogic.gs / ReloRates.html
 WeatherAlertLogic.gs / WeatherAlert.html
 ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
+CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
 ```
 
 `ServiceHistoryTemplate.html` is a third file for that tool — it's the PDF's
 internal HTML layout (evaluated by `ServiceHistoryPdf`), not the sidebar UI
-partial. Don't conflate it with `ServiceHistory.html`.
+partial. Don't conflate it with `ServiceHistory.html`. Same relationship
+between `CINGeneratorTemplate.html` (the notice PDF's layout, evaluated by
+`CinNoticePdf`) and `CINGenerator.html` (the sidebar UI partial).
 
 Before it'll actually work, Script Properties need setting (Project Settings
 → Script Properties) — none of these are in the code, by design:
@@ -80,6 +84,12 @@ access), not a Script Property allowlist like Weather Alert/Service
 History — same mechanism the standalone app used, just relocated into
 `ACCESS_GATES`.
 
+**CIN Generator:** `CIN_GENERATOR_ALLOWLIST` (comma-separated emails —
+gates the whole tool, same pattern as Weather Alert/Service History's
+approved-sender allowlists; a dedicated property, not shared with
+`SERVICE_HISTORY_ALLOWLIST` even though both tools now sit under "Retail
+Sales").
+
 Booking Finder and Relo Rates need no properties.
 
 Don't manually set `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY`
@@ -97,8 +107,9 @@ Don't manually set `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY`
   `getToolContent(partialName)` and gets injected into `#itContent`.
 - **Adding a new tool:** one entry in `Config.gs`'s `NAV_CONFIG` (id, label,
   icon SVG, partial name, contentWidth) — either in an existing section or a
-  new `{ section: '...', items: [...] }` block (Service History got its own
-  "Workshop" section; Recurring Tasks got its own "Leadership" section) —
+  new `{ section: '...', items: [...] }` block (Recurring Tasks got its own
+  "Leadership" section; CIN Generator joined Service History's existing
+  "Retail Sales" section rather than starting a new one) —
   one new `<Name>Logic.gs` + `<Name>.html` pair, flip its
   `PLACEHOLDER_PARTIALS` entry in `ContentLoader.gs` to `false` once the
   partial exists. Nothing else needs touching for the shell/routing itself.
@@ -282,6 +293,61 @@ like one of these, it probably is:
     published schema over this file's own proven-working call shape when
     the two disagree — verify any new Fleetio endpoint against a real call
     before relying on the docs.
+19. **Apps Script's HTML→PDF conversion (`Utilities.newBlob(html, 'text/html', ...).getAs('application/pdf')`)
+    drops CSS `background`/`background-color` fills by default** — same
+    behavior as a browser's native print/save-as-PDF silently omitting
+    backgrounds to save ink, unless told to keep them. `border` is
+    unaffected, which is why a colored border can render fine while the
+    fill behind it stays blank, looking like a half-applied style rather
+    than a missing one. Fix: add `print-color-adjust: exact;` (plus the
+    `-webkit-` prefixed and unprefixed `color-adjust` variants, for safety)
+    to any element — or globally via `*` — that needs a background color to
+    actually show up in the generated PDF. `CINGeneratorTemplate.html`'s
+    orange section headers hit this.
+20. **`page-break-inside`/`break-inside: avoid` are not honored at all** by
+    this same PDF conversion — confirmed by testing, not assumed: a table
+    row and a bordered box both still tore mid-content across a page
+    boundary with these properties set. Don't rely on CSS split-avoidance
+    for a PDF template built this way; instead keep each logical page's
+    total content height comfortably under one A4 page so nothing ever
+    reaches a page boundary in the first place.
+21. **A single HTML `<table>` with `table-layout: fixed` needs every row's
+    cell count (accounting for `colspan`) to sum to the same total** — the
+    renderer derives one shared column grid from the row with the most
+    cells, and any row with fewer real columns just leaves the remaining
+    grid columns blank rather than stretching to fill, which looks like a
+    misaligned/truncated row rather than an obviously missing one.
+    `CINGeneratorTemplate.html`'s field-grid table mixes 2-, 3-, and
+    4-column rows on purpose (matching the paper form's layout) — every
+    row uses explicit `colspan`s summing to 4 for exactly this reason. Any
+    new multi-column-per-row PDF table should do the same.
+22. **Fleetio custom fields that are free text (not a numeric field type)
+    can contain a thousands-separator comma**, e.g. `retail_price_nz`
+    storing `"129,900"` as entered by a human. `parseFloat()` stops at the
+    first non-numeric character, so `parseFloat("129,900") === 129`, not
+    `129900` — silently wrong, no error. `CINGeneratorLogic.gs`'s
+    `formatCurrency_`/`formatKm_` strip commas (`String(value).replace(/,/g, '')`)
+    before parsing for exactly this reason. Any new numeric-ish Fleetio
+    custom field should do the same rather than trusting it's already a
+    clean number.
+23. **A `required` attribute on an `<input>` does nothing unless something
+    actually triggers HTML5 validation** — it only fires automatically on a
+    real `<form>` submit event. A button that calls `google.script.run`
+    directly on click (the pattern every tool here uses for its primary
+    action) never submits a form, so `required` silently has zero effect
+    until you call `input.reportValidity()` yourself before proceeding —
+    see `CINGenerator.html`'s Generate PDF handler.
+24. **`.it-segmented`/`.it-segment` sizes each button to its own label's
+    content width, not an even split** — correct for Interislander's
+    direction toggle (deliberately different-length labels), wrong for a
+    genuinely binary choice where both options should look equal. Don't
+    change the shared component's default; scope a `flex: 1` override to
+    the specific toggle's id instead (see `Styles.html`'s `#cinBranch`/
+    `#cinWofCof` rules). Similarly, `.it-form-row`'s flex-wrap doesn't
+    guarantee a second wrapped row's items land in the same columns as the
+    first row's — if fields must line up in columns across rows, use a
+    fixed-column CSS grid (`#cinFleetioFields` in the same file) instead of
+    flex-wrap.
 
 ## Resolved decisions (don't re-litigate these without a real reason)
 
@@ -439,3 +505,15 @@ like one of these, it probably is:
   stacked cards, filtered by one shared row of department pills above
   both. A deliberate redesign to fit the shared shell's one-sidebar model,
   not a straight port.
+- CIN Generator (2026-08-25): the "Engine capacity" field's Fleetio source
+  (`engine_description`, a top-level vehicle field, not under
+  `custom_fields`) was confirmed directly by Mark rather than discovered
+  via trial-and-error against a live vehicle — unlike Service History's
+  Fleetio fields, which were largely confirmed that way (see gotcha #18).
+  Every other CIN Generator field mapping came pre-confirmed from the
+  ticket's own field-mapping spreadsheet.
+- CIN Generator: `generateCinNotice()` takes the Fleetio vehicle fields the
+  client already has from `lookupCinVehicle()` rather than re-fetching
+  Fleetio — a deliberate choice to avoid the exact redundant-refetch
+  pattern flagged under Service History's "Still open / deferred" #8
+  below, not something CIN Generator itself ever did and later fixed.

@@ -13,17 +13,18 @@ summarized there.
 
 Ask if not already clear from the request:
 
-- **Fresh build** — no existing code, designing from scratch.
+- **Fresh build** — no existing code, designing from scratch (CIN Generator
+  was this — no source app to port from).
 - **Port** — an existing standalone Apps Script project is being folded
   in (like Service History and Recurring Tasks were). This mode has extra
   steps (4b) that fresh builds skip — skipping them is how tool #5 and #6
   each shipped with a bug that only showed up after deploy.
 
 Also confirm: what section does it belong in (existing "Adventure
-Support"/"Workshop"/"Leadership", or a new one), what's the access model
-(open to all / Script-Property allowlist like Weather Alert & Service
-History / Google Group check like Recurring Tasks), and does it need any
-Script Properties.
+Support"/"Retail Sales"/"Leadership", or a new one), what's the access
+model (open to all / Script-Property allowlist like Weather Alert, Service
+History & CIN Generator / Google Group check like Recurring Tasks), and
+does it need any Script Properties.
 
 ## 1. NAV_CONFIG
 
@@ -88,6 +89,31 @@ Do these *before* wiring anything into the shell, not after:
   it on the original spreadsheet if that access path still matters to
   anyone (see "Still open / deferred" in README for Weather Alert's
   precedent).
+
+## 4c. If the tool generates a PDF
+
+Service History and CIN Generator both build a PDF via
+`HtmlService.createTemplateFromFile('<Name>Template').evaluate()` →
+`Utilities.newBlob(html, 'text/html', ...).getAs('application/pdf')` — a
+third file, `<Name>Template.html`, alongside the `Logic.gs`/`.html` pair
+(step 2). This conversion has its own non-obvious limits, all discovered
+the hard way on CIN Generator (README gotchas #19–21) — check a real
+rendered PDF against these before calling PDF layout done, not just the
+on-screen preview:
+
+- Any element that needs a background fill needs
+  `print-color-adjust: exact;` (+ `-webkit-` prefixed variant) — fills are
+  dropped by default, same as a browser's print-to-PDF ink-saving
+  behavior. Borders are unaffected, so a border showing while its fill
+  doesn't is the signature of this specific issue, not a sign the color is
+  wrong.
+- `page-break-inside`/`break-inside: avoid` do nothing — a table row or a
+  bordered box will still tear mid-content across a page boundary with
+  these set. Size content to fit within a page instead of relying on
+  split-avoidance.
+- A `table-layout: fixed` table needs every row's `colspan`s to sum to the
+  same total (the widest row's cell count), or shorter rows leave blank
+  trailing columns instead of stretching to fill.
 
 ## 5. Update the docs in the same change
 

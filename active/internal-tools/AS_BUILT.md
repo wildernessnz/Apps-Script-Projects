@@ -1,7 +1,7 @@
 # Wilderness Internal Tools — As Built
 
 **Project:** Standalone Google Apps Script web app
-**Status:** Live — all 6 tools built and deployed. Recurring Tasks has open
+**Status:** Live — all 7 tools built and deployed. Recurring Tasks has open
 cutover steps (Jira OAuth Script Properties, daily trigger, retiring the
 old standalone project) — see section 9.
 **Time zone:** Pacific/Auckland
@@ -9,7 +9,7 @@ old standalone project) — see section 9.
 
 ## 1. Purpose
 
-Unifies six previously-separate internal tools behind one sidebar-navigated
+Unifies seven previously-separate internal tools behind one sidebar-navigated
 shell, as a single Apps Script project:
 
 | Tool | Nav id | Section | Purpose |
@@ -18,13 +18,14 @@ shell, as a single Apps Script project:
 | Interislander Availability | `interislander` | Adventure Support | Check ferry sailing availability |
 | Relo Rates | `relo-rates` | Adventure Support | Vehicle relocation pay rates |
 | Weather Alert | `weather-alert` | Adventure Support | Send weather alerts to on-road guests |
-| Service History | `service-history` | Workshop | Generate a branded vehicle service history PDF from Fleetio |
+| Service History | `service-history` | Retail Sales | Generate a branded vehicle service history PDF from Fleetio |
+| CIN Generator | `cin-generator` | Retail Sales | Generate a branded Consumer Information Notice PDF from Fleetio |
 | Recurring Tasks | `recurring-tasks` | Leadership | Auto-create recurring Jira tickets on a schedule |
 
 Each tool's underlying spreadsheet is untouched and unmerged — this project
 only adds a shared UI shell on top. No data migration occurred. One
 exception: a dedicated cross-tool container spreadsheet (`SHEET_IDS.ACTIVITY_LOG`)
-holds the activity log shared by all 6 tools — see section 7.
+holds the activity log shared by all 7 tools — see section 7.
 
 ## 2. Architecture overview
 
@@ -63,7 +64,7 @@ query-param routing.
 
 ## 3. File inventory
 
-The entire project is 23 files, no subfolders (Apps Script/clasp requirement):
+The entire project is 26 files, no subfolders (Apps Script/clasp requirement):
 
 ```
 appsscript.json        — manifest: scopes, timezone, WildernessAppScriptLibrary dependency
@@ -75,20 +76,21 @@ Shell.html               — sidebar + content area shell, built from NAV_CONFIG
 Styles.html              — all styling + embedded Averta font (~875KB, base64)
 Router.html              — client-side nav + content-swap logic (ITRouter)
 Modal.html               — shared ITModal (confirm/notify), tooltip positioning, escapeHtml()
-Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 6 live)
+Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 7 live)
 BookingFinderLogic.gs / BookingFinder.html
 InterislanderLogic.gs / Interislander.html
 ReloRatesLogic.gs / ReloRates.html
 WeatherAlertLogic.gs / WeatherAlert.html
 ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
+CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
 ```
 
 File naming convention: `<ToolName>Logic.gs` + `<ToolName>.html`. Apps Script
 does not allow a `.gs` and `.html` file to share a base name.
-`ServiceHistoryTemplate.html` is a third file for that one tool — it's the
-PDF's internal layout (evaluated by `ServiceHistoryPdf`, itself defined in
-`ServiceHistoryLogic.gs`), not a sidebar UI partial.
+`ServiceHistoryTemplate.html` (evaluated by `ServiceHistoryPdf`) and
+`CINGeneratorTemplate.html` (evaluated by `CinNoticePdf`) are each a third
+file for their tool — the PDF's internal layout, not a sidebar UI partial.
 
 ## 4. Core mechanisms
 
@@ -153,9 +155,10 @@ const NAV_CONFIG = [
     ],
   },
   {
-    section: 'Workshop',
+    section: 'Retail Sales',
     items: [
       { id: 'service-history', label: 'Service History', icon: ICON_WRENCH, partial: 'ServiceHistory', contentWidth: 'wide' },
+      { id: 'cin-generator',   label: 'CIN Generator', icon: ICON_DOCUMENT, partial: 'CINGenerator', contentWidth: 'wide' },
     ],
   },
   {
@@ -171,10 +174,12 @@ This array (now 3 sections) is the routing table — it drives both the
 server-rendered sidebar (`Shell.html`) and the server-side partial lookup
 (`ContentLoader.gs`). The client never duplicates it. A new tool can either
 join an existing section's `items` array or start its own `{ section, items
-}` block, as Service History did with "Workshop" and Recurring Tasks did
-with "Leadership". Recurring Tasks' `contentWidth: 'xwide'` is also the
-first use of the third content-width tier — see section 8 for why `wide`
-(1000px) wasn't enough for its table.
+}` block, as Recurring Tasks did with "Leadership"; CIN Generator instead
+joined Service History's existing "Retail Sales" section (originally
+"Workshop", renamed and given a second tool once Service History was
+recognised as retail-facing rather than workshop). Recurring Tasks'
+`contentWidth: 'xwide'` is also the first use of the third content-width
+tier — see section 8 for why `wide` (1000px) wasn't enough for its table.
 
 `Config.gs` also holds `SHEET_IDS` (each tool's spreadsheet ID) and
 `getSpreadsheet_(key)`, a wrapper around `SpreadsheetApp.openById` that
@@ -273,8 +278,8 @@ Resolution order: **access gate → view log → placeholder flag → real parti
   as the script owner
 - `webapp.access`: `DOMAIN` — restricted to the Wilderness Google Workspace domain
 - Depends on library `WildernessAppScriptLibrary` (development mode) — used
-  by Service History for Fleetio auth (`WildernessAppScriptLibrary.FleetioSecurity`,
-  must be instantiated with `new`)
+  by Service History and CIN Generator for Fleetio auth
+  (`WildernessAppScriptLibrary.FleetioSecurity`, must be instantiated with `new`)
 - OAuth scopes: `spreadsheets`, `userinfo.email`, `script.external_request`,
   `script.send_mail`, `script.container.ui`, `drive`, `groups`,
   `script.scriptapp`. The `drive` scope (not the narrower `drive.file`) was
@@ -329,6 +334,11 @@ Access control for this tool is a Google Group membership check
 not a Script Property), currently `leaders@wilderness.co.nz` and
 `jirataskengine@wilderness.co.nz` — membership in either grants access.
 
+**CIN Generator:** `CIN_GENERATOR_ALLOWLIST` (comma-separated emails, gates
+the whole tool — same pattern as `SERVICE_HISTORY_ALLOWLIST`; a dedicated
+property, not shared with it even though both tools sit under "Retail
+Sales").
+
 **Booking Finder / Relo Rates:** none required.
 
 `WEATHER_ALERT_LAST_SEND_DATE` / `WEATHER_ALERT_LAST_SEND_BY` are managed
@@ -337,7 +347,7 @@ automatically by the send/reset-lock code — do not set manually.
 All properties share one store (one project now hosts what used to be
 several separate projects), so every property is prefixed per tool
 (`WEATHER_ALERT_*`, `KIWIRAIL_PROD_*`/`KIWIRAIL_UAT_*`, `SERVICE_HISTORY_*`,
-`RECURRING_TASKS_*`) to avoid collisions.
+`RECURRING_TASKS_*`, `CIN_GENERATOR_*`) to avoid collisions.
 
 ## 7. Data model
 
@@ -371,7 +381,7 @@ wired to any UI button.
 ### 7.1 Cross-tool activity log
 
 One exception to "every tool owns its own sheet": `SHEET_IDS.ACTIVITY_LOG`
-is a dedicated container spreadsheet shared by all 6 tools, holding a single
+is a dedicated container spreadsheet shared by all 7 tools, holding a single
 "Activity Log" tab (`Timestamp | User | Event | Notes`). `Logging.gs`'s
 `logEvent_(event, notes)`:
 
@@ -514,16 +524,25 @@ Two call sites populate it today:
   `#rtRoot`, not applied to `.it-table` generally) since its 7-column table
   didn't fit `wide` (1000px) even before accounting for the sidebar this
   tool didn't have to share with anything in its standalone form.
+- **CIN Generator:** a new build, not a port — no source standalone app to
+  diverge from. Its Fleetio field mappings came pre-confirmed from the
+  ticket's own field-mapping spreadsheet, except "Engine capacity"
+  (`engine_description`), which Mark confirmed directly rather than it
+  being discovered by trial-and-error the way Service History's fields
+  were. Service History moved from its own "Workshop" section into a new
+  "Retail Sales" section alongside CIN Generator, since both are
+  retail-facing rather than workshop tools; "Workshop" no longer exists as
+  a section.
 
 ## 11. Extending the app
 
-To add a 7th tool:
+To add another tool:
 
 1. Add one entry to `NAV_CONFIG` in `Config.gs` (id, label, icon SVG,
    partial name, content width) — either into an existing section's `items`,
-   or as a new `{ section, items }` block (Service History got its own
-   "Workshop" section, Recurring Tasks got "Leadership", rather than
-   joining "Adventure Support").
+   or as a new `{ section, items }` block (Recurring Tasks got its own
+   "Leadership" section; CIN Generator joined Service History's existing
+   "Retail Sales" section rather than starting a new one).
 2. Add `<Name>Logic.gs` + `<Name>.html`.
 3. Add/flip its `PLACEHOLDER_PARTIALS` entry in `ContentLoader.gs` to
    `false` once the partial exists.

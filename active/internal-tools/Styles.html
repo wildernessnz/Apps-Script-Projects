@@ -257,6 +257,27 @@
     border: none; cursor: pointer;
   }
   .it-segment.active { background: var(--color-dusk-sky); color: #fff; }
+  /* CIN Generator's two 2-option toggles (branch, WOF/COF) are genuinely
+     even choices, unlike Interislander's direction toggle (deliberately
+     content-width per label) — scoped to force a 50/50 split rather than
+     changing .it-segment generally. */
+  #cinBranch, #cinWofCof { width: 240px; }
+  #cinBranch .it-segment, #cinWofCof .it-segment { flex: 1; justify-content: center; }
+  /* CIN Generator's Fleetio field summary: fixed 6-column grid (not
+     .it-form-row's flex-wrap) so the second row's fields land in the same
+     columns as the first row's regardless of each field's own content
+     width, and spread across the full available width. */
+  #cinFleetioFields {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    column-gap: 18px;
+    row-gap: 16px;
+  }
+  #cinFleetioFields .it-label {
+    font-size: 10px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
 
   /* ── TOGGLE SWITCH (replaces checkboxes for boolean flags) ── */
   .it-toggle {

@@ -1,9 +1,9 @@
 # Wilderness Internal Tools
 
 Single standalone Apps Script project (clasp, flat files, no subfolders)
-unifying 6 tools behind one sidebar-navigated shell. This file is the
+unifying 7 tools behind one sidebar-navigated shell. This file is the
 always-loaded summary — read `README.md` in full before any non-trivial
-change. It has the 18 numbered "Hard-won gotchas," "Resolved decisions"
+change. It has the 24 numbered "Hard-won gotchas," "Resolved decisions"
 (don't re-litigate without a real reason), and "Still open / deferred"
 sections that are intentionally left out of this file to keep it short.
 `AS_BUILT.md` has a fuller architecture writeup covering the same ground in
@@ -30,6 +30,23 @@ more detail, if README doesn't answer something.
 - Script Properties are prefixed per tool (`WEATHER_ALERT_*`,
   `SERVICE_HISTORY_*`, etc.) since all tools share one properties store.
   Never add an unprefixed one.
+
+## Generating a PDF (Service History, CIN Generator)
+
+Both PDF tools use the same `HtmlService.createTemplateFromFile(...).evaluate()`
+→ `Utilities.newBlob(html, 'text/html', ...).getAs('application/pdf')`
+mechanism, which has its own non-obvious limits (README gotchas #19–21):
+
+- `background`/`background-color` is dropped by default (browsers'
+  print-to-PDF ink-saving behavior) — add
+  `print-color-adjust: exact;`/`-webkit-print-color-adjust: exact;` to any
+  element that needs one. `border` is unaffected, so a colored border
+  showing while its fill doesn't is the signature of this exact issue.
+- `page-break-inside`/`break-inside: avoid` are not honored at all — size
+  content to fit within a page rather than relying on split-avoidance.
+- A `table-layout: fixed` table needs every row's `colspan`s to sum to the
+  same total, or short rows leave blank trailing columns instead of
+  stretching to fill.
 
 ## Adding a new tool
 

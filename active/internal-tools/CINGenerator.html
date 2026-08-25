@@ -1,0 +1,223 @@
+<div class="it-tool-header">
+  <h1>CIN Generator</h1>
+  <p class="it-tool-subtitle">Look up a vehicle by rego, fill in the remaining fields, then generate a Consumer Information Notice PDF.</p>
+</div>
+
+<div class="it-card">
+  <form class="it-card-body it-form-row" id="cinLookupForm">
+    <div class="it-field">
+      <label class="it-label" for="cinRego">Rego</label>
+      <input type="text" id="cinRego" class="it-input" placeholder="e.g. PGA668" required>
+    </div>
+    <button type="submit" class="it-btn it-btn-primary" id="cinLookupBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="11" cy="11" r="7" stroke="#fff" stroke-width="2"/><line x1="16.5" y1="16.5" x2="22" y2="22" stroke="#fff" stroke-width="2" stroke-linecap="round"/></svg>
+      <span id="cinLookupBtnLabel">Look Up Vehicle</span>
+    </button>
+  </form>
+</div>
+
+<div class="it-card" id="cinFormCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header"><span>Notice Details</span></div>
+  <div class="it-card-body" style="display:flex; flex-direction:column; gap:20px;">
+
+    <div class="it-form-row" id="cinFleetioFields"></div>
+
+    <div class="it-form-row">
+      <div class="it-field">
+        <label class="it-label">Sales location</label>
+        <div class="it-segmented" id="cinBranch">
+          <button type="button" class="it-segment active" data-value="AKL">Auckland</button>
+          <button type="button" class="it-segment" data-value="CHC">Christchurch</button>
+        </div>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; height:44px;">
+        <button type="button" class="it-toggle on" id="cinSecurityInterest" data-on="true"><div class="it-toggle-thumb"></div></button>
+        <span style="font-size:14px; font-weight:700;">Security interest on PPSR</span>
+      </div>
+    </div>
+
+    <div class="it-form-row">
+      <div class="it-field">
+        <label class="it-label">Warrant or Certificate of Fitness</label>
+        <div class="it-segmented" id="cinWofCof">
+          <button type="button" class="it-segment active" data-value="WOF">WOF</button>
+          <button type="button" class="it-segment" data-value="COF">COF</button>
+        </div>
+      </div>
+      <div class="it-field">
+        <label class="it-label" for="cinWofCofExpiry">WOF/COF expiry date</label>
+        <input type="date" id="cinWofCofExpiry" class="it-input" required>
+      </div>
+    </div>
+
+    <div class="it-form-row">
+      <div style="display:flex; align-items:center; gap:10px; height:44px;">
+        <button type="button" class="it-toggle" id="cinRegistered" data-on="false"><div class="it-toggle-thumb"></div></button>
+        <span style="font-size:14px; font-weight:700;">Registered vehicle</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; height:44px;">
+        <button type="button" class="it-toggle" id="cinReRegistered" data-on="false"><div class="it-toggle-thumb"></div></button>
+        <span style="font-size:14px; font-weight:700;">Re-registered vehicle</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; height:44px;">
+        <button type="button" class="it-toggle" id="cinOutstandingRuc" data-on="false"><div class="it-toggle-thumb"></div></button>
+        <span style="font-size:14px; font-weight:700;">Outstanding road user charges</span>
+      </div>
+    </div>
+
+  </div>
+  <div class="it-card-body" style="display:flex; justify-content:flex-end; border-top: 1px solid var(--it-card-divider);">
+    <button type="button" class="it-btn it-btn-primary" id="cinGenerateBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="cinGenerateBtnLabel">Generate PDF</span>
+    </button>
+  </div>
+</div>
+
+<div class="it-card" id="cinResultCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-body" id="cinResultBody"></div>
+</div>
+
+<script>
+(function () {
+  const lookupForm      = document.getElementById('cinLookupForm');
+  const regoInput       = document.getElementById('cinRego');
+  const lookupBtn       = document.getElementById('cinLookupBtn');
+  const lookupLabel     = document.getElementById('cinLookupBtnLabel');
+  const formCard        = document.getElementById('cinFormCard');
+  const fleetioFields   = document.getElementById('cinFleetioFields');
+  const branchToggle    = document.getElementById('cinBranch');
+  const wofCofToggle    = document.getElementById('cinWofCof');
+  const wofCofExpiry    = document.getElementById('cinWofCofExpiry');
+  const generateBtn     = document.getElementById('cinGenerateBtn');
+  const generateLabel   = document.getElementById('cinGenerateBtnLabel');
+  const resultCard      = document.getElementById('cinResultCard');
+  const resultBody      = document.getElementById('cinResultBody');
+
+  let currentVehicle = null;
+
+  function toggle(id) {
+    const btn = document.getElementById(id);
+    btn.addEventListener('click', function () {
+      const isOn = btn.dataset.on === 'true';
+      btn.dataset.on = (!isOn).toString();
+      btn.classList.toggle('on', !isOn);
+    });
+  }
+  toggle('cinSecurityInterest');
+  toggle('cinRegistered');
+  toggle('cinReRegistered');
+  toggle('cinOutstandingRuc');
+
+  function wireSegmented(containerEl) {
+    containerEl.querySelectorAll('.it-segment').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        containerEl.querySelectorAll('.it-segment').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+      });
+    });
+  }
+  wireSegmented(branchToggle);
+  wireSegmented(wofCofToggle);
+
+  function segmentedValue(containerEl) {
+    return containerEl.querySelector('.it-segment.active').dataset.value;
+  }
+
+  function fieldDisplay(label, value) {
+    return '<div class="it-field"><span class="it-label">' + escapeHtml(label) + '</span>' +
+      '<span style="font-weight:700;">' + escapeHtml(value) + '</span></div>';
+  }
+
+  function renderFleetioFields(vehicle) {
+    fleetioFields.innerHTML = [
+      fieldDisplay('Cash price', vehicle.cashPrice),
+      fieldDisplay('Make and model', vehicle.makeModel),
+      fieldDisplay('Vehicle year', vehicle.vehicleYear),
+      fieldDisplay('Engine capacity', vehicle.engineCapacity),
+      fieldDisplay('Odometer', vehicle.odometer),
+      fieldDisplay('VIN', vehicle.vin),
+      fieldDisplay('Licence expiry', vehicle.regoExpiry),
+      fieldDisplay('Plate number', vehicle.plateNumber),
+      fieldDisplay('Year registered in NZ', vehicle.yearRegisteredNz),
+      fieldDisplay('Fuel type', vehicle.fuelType),
+      fieldDisplay('Road user charges apply', vehicle.rucApplies ? 'Yes' : 'No'),
+    ].join('');
+  }
+
+  // Submit only fires once the browser's own required-field validation has
+  // passed — an empty Rego blocks submission and shows the native
+  // "Please fill in this field" tooltip automatically.
+  lookupForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+
+    const rego = regoInput.value.trim();
+
+    lookupBtn.disabled = true;
+    lookupLabel.textContent = 'Looking up…';
+    formCard.style.display = 'none';
+    resultCard.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function (json) {
+        lookupBtn.disabled = false;
+        lookupLabel.textContent = 'Look Up Vehicle';
+        currentVehicle = JSON.parse(json);
+        renderFleetioFields(currentVehicle);
+        formCard.style.display = 'block';
+      })
+      .withFailureHandler(function (err) {
+        lookupBtn.disabled = false;
+        lookupLabel.textContent = 'Look Up Vehicle';
+        resultBody.innerHTML = '<p class="it-error-cell">' + escapeHtml(err.message) + '</p>';
+        resultCard.style.display = 'block';
+      })
+      .lookupCinVehicle(rego);
+  });
+
+  generateBtn.addEventListener('click', function () {
+    if (!currentVehicle) return;
+
+    // Generate PDF is a plain button, not a form submit, so the input's
+    // `required` attribute is never enforced automatically — trigger the
+    // same native validation UI a form submit would show.
+    if (!wofCofExpiry.reportValidity()) return;
+
+    const payload = {
+      vehicle: currentVehicle,
+      branch: segmentedValue(branchToggle),
+      manual: {
+        securityInterest: document.getElementById('cinSecurityInterest').dataset.on === 'true',
+        wofOrCof: segmentedValue(wofCofToggle),
+        wofCofExpiry: wofCofExpiry.value
+          ? new Date(wofCofExpiry.value + 'T00:00:00').toLocaleDateString('en-NZ', { day: '2-digit', month: '2-digit', year: 'numeric' })
+          : '',
+        vehicleRegistered: document.getElementById('cinRegistered').dataset.on === 'true',
+        reRegistered: document.getElementById('cinReRegistered').dataset.on === 'true',
+        outstandingRuc: document.getElementById('cinOutstandingRuc').dataset.on === 'true',
+      }
+    };
+
+    generateBtn.disabled = true;
+    generateLabel.textContent = 'Generating…';
+    resultCard.style.display = 'none';
+
+    google.script.run
+      .withSuccessHandler(function (url) {
+        generateBtn.disabled = false;
+        generateLabel.textContent = 'Generate PDF';
+        resultBody.innerHTML =
+          '<p class="it-tool-subtitle" style="margin-bottom: 16px;">CIN generated for <strong>' + escapeHtml(currentVehicle.plateNumber) + '</strong>. Saved to your Google Drive (My Drive).</p>' +
+          '<a href="' + escapeHtml(url) + '" target="_blank" class="it-btn it-btn-primary">Open PDF</a>';
+        resultCard.style.display = 'block';
+      })
+      .withFailureHandler(function (err) {
+        generateBtn.disabled = false;
+        generateLabel.textContent = 'Generate PDF';
+        resultBody.innerHTML = '<p class="it-error-cell">' + escapeHtml(err.message) + '</p>';
+        resultCard.style.display = 'block';
+      })
+      .generateCinNotice(payload);
+  });
+})();
+</script>
