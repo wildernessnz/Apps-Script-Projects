@@ -9,6 +9,23 @@ sections that are intentionally left out of this file to keep it short.
 `AS_BUILT.md` has a fuller architecture writeup covering the same ground in
 more detail, if README doesn't answer something.
 
+## Deploying changes
+
+`clasp push` and `clasp deploy` both act on whatever's in the working
+directory regardless of git branch — git history doesn't protect the live
+tool from an in-progress/broken iteration the way it might in a
+CI/CD-deployed project. Two deployments exist
+(`clasp deployments`): `@HEAD` (test deployment, URL ends `/dev`, only
+reachable by someone with edit access to the script) and a versioned one
+pinned to a specific deployment ID that's what staff actually use. While
+iterating (e.g. tightening a PDF template's layout across several rounds
+of screenshot feedback): `clasp push` after each change and test against
+`@HEAD`'s `/dev` URL; only run
+`clasp deploy --deploymentId <the live one> --description "..."` once the
+change is actually verified, so staff never see a broken intermediate
+state. Get the live deployment ID from `clasp deployments` — it's the one
+with a version number, not `@HEAD`.
+
 ## Non-negotiables (violate these and it breaks silently, no error)
 
 - No native `alert()`/`confirm()`/`prompt()` — HtmlService's IFRAME sandbox
