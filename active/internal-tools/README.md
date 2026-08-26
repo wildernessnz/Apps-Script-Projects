@@ -85,11 +85,15 @@ mechanism the standalone app used, just relocated into `ACCESS_GATES`.
 
 **CIN Generator:** available to all staff, no access gate.
 
-**Hours Worked:** none — it only reads three tabs of a dedicated
-spreadsheet (`SHEET_IDS.HOURS_WORKED`, "PayHero Hours Worked" — a copy
-Mark made 2026-08-27 of the same three tabs "PayHero Visibility" already
-had, without its other unrelated tabs), no API keys of its own. Its
-dependency isn't a Script Property but a sharing one: since
+**Hours Worked:** `HOURS_WORKED_ALLOWLIST` (comma-separated emails — gates
+the whole tool, same pattern as Weather Alert's approved-sender allowlist;
+added 2026-08-28 at Mark's request, a temporary gate ahead of a longer-
+term access-model decision — **the allowlist is empty until this is set,
+so nobody, including Mark, passes the gate until it is**). No API keys of
+its own — it only reads three tabs of a dedicated spreadsheet
+(`SHEET_IDS.HOURS_WORKED`, "PayHero Hours Worked" — a copy Mark made
+2026-08-27 of the same three tabs "PayHero Visibility" already had,
+without its other unrelated tabs). It also has a sharing dependency: since
 `webapp.executeAs` is `USER_ACCESSING`, every visiting user needs their
 own read access to that spreadsheet. It's shared to
 `it.team@wilderness.co.nz`/`admin@wilderness.co.nz`/`scripts@wilderness.co.nz`

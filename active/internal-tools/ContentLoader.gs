@@ -31,6 +31,7 @@ const PLACEHOLDER_PARTIALS = {
 const ACCESS_GATES = {
   WeatherAlert:   () => isWeatherAlertApproved(),
   RecurringTasks: () => isRecurringTasksApproved(),
+  HoursWorked:    () => isHoursWorkedApproved(),
 };
 
 /**

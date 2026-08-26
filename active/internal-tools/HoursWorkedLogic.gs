@@ -78,7 +78,14 @@
  *     shared page-load cost, and staleness there would be more visible
  *     to whoever's specifically checking that one person's hours.
  *
- * Script Properties: none required.
+ * Access: gated for the moment behind HOURS_WORKED_ALLOWLIST (comma-
+ * separated emails, same pattern as Weather Alert's
+ * WEATHER_ALERT_APPROVED_SENDERS) — added 2026-08-28 at Mark's request,
+ * ahead of a longer-term access-model decision. Until that property is
+ * set, the allowlist is empty and nobody passes isHoursWorkedApproved(),
+ * including Mark himself — set it before expecting anyone to get in.
+ *
+ * Script Properties: HOURS_WORKED_ALLOWLIST (see "Access" above).
  */
 
 const HOURS_WORKED_SHEET_KEY = 'HOURS_WORKED';
@@ -103,6 +110,19 @@ const HOURS_WORKED_EXCLUDED_KEYS_ = ['334888'];
 
 const HOURS_WORKED_CACHE_KEY_          = 'HOURS_WORKED_TEAMS_CACHE';
 const HOURS_WORKED_CACHE_TTL_SECONDS_  = 900; // 15 min — longer than the 10-min refresh trigger, so a slightly-late trigger run doesn't let the cache go cold
+
+/**
+ * Used by ContentLoader.gs to gate this tool's content behind
+ * HOURS_WORKED_ALLOWLIST before the sidebar-shared shell renders it —
+ * same pattern as isWeatherAlertApproved().
+ * @returns {boolean}
+ */
+function isHoursWorkedApproved() {
+  const email = Session.getActiveUser().getEmail()?.toLowerCase() || '';
+  const props = PropertiesService.getScriptProperties();
+  const approved = (props.getProperty('HOURS_WORKED_ALLOWLIST') ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+  return approved.includes(email);
+}
 
 // ── Entry points — the only things exposed to google.script.run ────────────
 // getTeamsAndMembers() is a single read-only lookup with no side effect
