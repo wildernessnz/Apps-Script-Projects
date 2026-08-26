@@ -9,19 +9,6 @@
  */
 
 /**
- * Used by ContentLoader.gs to gate this tool's content behind
- * SERVICE_HISTORY_ALLOWLIST before the sidebar-shared shell renders it —
- * same pattern as Weather Alert's isWeatherAlertApproved().
- * @returns {boolean}
- */
-function isServiceHistoryApproved() {
-  const email = Session.getActiveUser().getEmail()?.toLowerCase() || '';
-  const props = PropertiesService.getScriptProperties();
-  const approved = (props.getProperty('SERVICE_HISTORY_ALLOWLIST') ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  return approved.includes(email);
-}
-
-/**
  * Fetches a vehicle's overview + service history without generating a PDF —
  * lets the client show a preview table so staff can pick which entries to
  * include before generating.

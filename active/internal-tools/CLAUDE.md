@@ -1,7 +1,7 @@
 # Wilderness Internal Tools
 
 Single standalone Apps Script project (clasp, flat files, no subfolders)
-unifying 7 tools behind one sidebar-navigated shell. This file is the
+unifying 8 tools behind one sidebar-navigated shell. This file is the
 always-loaded summary — read `README.md` in full before any non-trivial
 change. It has the 24 numbered "Hard-won gotchas," "Resolved decisions"
 (don't re-litigate without a real reason), and "Still open / deferred"

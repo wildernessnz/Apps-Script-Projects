@@ -18,19 +18,6 @@ const CIN_BRANCH_ADDRESSES = {
 };
 
 /**
- * Used by ContentLoader.gs to gate this tool's content behind
- * CIN_GENERATOR_ALLOWLIST before the sidebar-shared shell renders it —
- * same pattern as isServiceHistoryApproved()/isWeatherAlertApproved().
- * @returns {boolean}
- */
-function isCinGeneratorApproved() {
-  const email = Session.getActiveUser().getEmail()?.toLowerCase() || '';
-  const props = PropertiesService.getScriptProperties();
-  const approved = (props.getProperty('CIN_GENERATOR_ALLOWLIST') ?? '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
-  return approved.includes(email);
-}
-
-/**
  * Global wrapper — resolves a rego to a Fleetio vehicle and maps the
  * notice's Fleetio-sourced fields. Exposed to google.script.run.
  * @param {string} rego

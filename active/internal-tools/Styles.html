@@ -344,6 +344,26 @@
   .rr-row:last-child { border-bottom: none; }
   .rr-row-total { font-size: 16px; padding-top: 16px; }
 
+  /* ── SUMMARY ROWS (Hours Worked fortnight panel) ── */
+  .hw-row {
+    display: flex; justify-content: space-between; padding: 12px 0;
+    border-bottom: 1px solid var(--color-border-light); font-size: 14px;
+    color: var(--color-text-primary); font-weight: 400;
+  }
+  .hw-row:last-child { border-bottom: none; }
+  .hw-row span:last-child { font-weight: 700; }
+  .hw-row-total {
+    background: var(--color-dusk-sky); color: #fff; border-bottom: none;
+    border-radius: 6px; padding: 12px 14px; margin-top: 4px;
+  }
+  .hw-row-total span:last-child { font-weight: 700; color: #fff; }
+  /* Denser than the shared .it-table — 14 daily rows (+ a mid-fortnight
+     week-break spacer) need to read at roughly the same overall height as
+     the summary panel's 9 rows sitting next to it, not scroll past it. */
+  .hw-days-table thead th { padding: 8px 16px; }
+  .hw-days-table tbody td { padding: 7px 16px; }
+  .hw-days-table tr.hw-week-divider td { border-bottom: 2px solid var(--color-dusk-sky); }
+
   /* ── TOOLTIP FLYOUT (info icons) ──
      position:fixed (not absolute) — .it-card has overflow:hidden for its
      rounded corners/header clipping, which would otherwise cut this off

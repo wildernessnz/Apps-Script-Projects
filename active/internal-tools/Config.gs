@@ -24,6 +24,14 @@ const SHEET_IDS = {
   INTERISLANDER:  '1HFe6iabLeToK1yyDlwwSNqeyrnZ43KCRLEgiMJD4roM',
   WEATHER_ALERT:  '1rPypfI_m5t7tbLN1QiW_qjcAYTV3quCtmgjYu-I4VjQ',
   RECURRING_TASKS: '1zwb6S63norFs5j5vOwKR6vxpfJN_84PaQM_ALcIMR_w',
+  // "PayHero Hours Worked" — read-only, data-only (no UI of its own). A
+  // dedicated copy Mark made 2026-08-27 of the same three IMPORTRANGE-fed
+  // tabs "PayHero Visibility" already had (Linked - Employees / Linked -
+  // PayHero Time / Linked - Operations Pay Cycle), still populated by the
+  // same upstream scripts@wilderness.co.nz-owned PayHero integration —
+  // just without that spreadsheet's other, unrelated tabs. This tool only
+  // ever reads from it, never writes.
+  HOURS_WORKED:   '1VXMj2wMqxmSn_2844jeSPBUugVZRgfgdNrObGV4k6ZA',
   // Cross-tool container sheet — activity log lives here (Logging.gs),
   // shared edit-access to everyone who uses any tool since log writes run
   // as the visiting user (executeAs: USER_ACCESSING), not a service account.
@@ -61,6 +69,7 @@ const ICON_CLOCK          = '<svg width="14" height="14" viewBox="0 0 24 24" fil
 const ICON_WRENCH         = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_REPEAT         = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 2l4 4-4 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 11V9a4 4 0 014-4h14" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M7 22l-4-4 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 13v2a4 4 0 01-4 4H3" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const ICON_DOCUMENT       = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+const ICON_USERS          = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M23 21v-2a4 4 0 00-3-3.87" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
 const NAV_CONFIG = [
   {
@@ -83,6 +92,12 @@ const NAV_CONFIG = [
     section: 'Leadership',
     items: [
       { id: 'recurring-tasks',  label: 'Recurring Tasks',              icon: ICON_REPEAT,         partial: 'RecurringTasks', contentWidth: 'xwide' },
+    ],
+  },
+  {
+    section: 'Team',
+    items: [
+      { id: 'hours-worked',     label: 'Hours Worked',                 icon: ICON_USERS,          partial: 'HoursWorked',    contentWidth: 'wide' },
     ],
   },
 ];

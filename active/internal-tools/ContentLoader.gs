@@ -20,6 +20,7 @@ const PLACEHOLDER_PARTIALS = {
   ServiceHistory: false, // Phase 5 — done
   RecurringTasks: false, // Phase 6 — done
   CINGenerator:   false, // Phase 7 — done
+  HoursWorked:    false, // Phase 8 — done
 };
 
 // Maps a partial name to a function that returns true/false for whether the
@@ -29,9 +30,7 @@ const PLACEHOLDER_PARTIALS = {
 // would be fragile.
 const ACCESS_GATES = {
   WeatherAlert:   () => isWeatherAlertApproved(),
-  ServiceHistory: () => isServiceHistoryApproved(),
   RecurringTasks: () => isRecurringTasksApproved(),
-  CINGenerator:   () => isCinGeneratorApproved(),
 };
 
 /**

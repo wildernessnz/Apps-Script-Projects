@@ -1,0 +1,219 @@
+<div class="it-tool-header">
+  <h1>Hours Worked</h1>
+  <p class="it-tool-subtitle">Choose a team and a team member to see their hours logged against a rostered target for the current pay-cycle fortnight.</p>
+</div>
+
+<div class="it-card">
+  <div class="it-card-body it-form-row">
+    <div class="it-field">
+      <label class="it-label" for="hwTeam">Team</label>
+      <select id="hwTeam" class="it-select"><option value="">Loading teams…</option></select>
+    </div>
+    <div class="it-field">
+      <label class="it-label" for="hwMember">Team member</label>
+      <select id="hwMember" class="it-select" disabled><option value="">Select a team first…</option></select>
+    </div>
+  </div>
+</div>
+
+<div class="it-card" id="hwResultsCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-header">
+    <span style="display:flex; align-items:center; gap:8px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--color-dusk-sky)" stroke-width="2"/><path d="M12 7v5l3 3" stroke="var(--color-dusk-sky)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span id="hwOutMember"></span>
+    </span>
+    <span id="hwOutCycleRange" style="font-weight:400; opacity:0.7;"></span>
+  </div>
+  <div class="it-card-body" style="display:flex; gap:32px; flex-wrap:wrap; align-items:flex-start;">
+    <table class="it-table hw-days-table" style="flex:1; min-width:260px;">
+      <thead>
+        <tr><th>Date</th><th style="text-align:right;">Hours</th></tr>
+      </thead>
+      <tbody id="hwDaysBody"></tbody>
+    </table>
+    <div style="flex:1; min-width:260px;">
+      <div class="hw-row">
+        <span>Rostered days</span>
+        <select id="hwRosteredDays" class="it-select" style="width:auto; padding:4px 28px 4px 10px; height:auto;">
+          <option value="9">9</option>
+          <option value="10" selected>10</option>
+        </select>
+      </div>
+      <div class="hw-row">
+        <span>Rostered hours</span>
+        <input type="number" id="hwRosteredHours" class="it-input" style="width:80px; text-align:right; padding:4px 10px; height:auto;" value="80" min="0" step="0.01">
+      </div>
+      <div class="hw-row"><span>Rostered hours/day</span><span id="hwOutRosteredHoursPerDay"></span></div>
+      <div class="hw-row"><span>Days worked</span><span id="hwOutDaysWorked"></span></div>
+      <div class="hw-row"><span>Hours worked</span><span id="hwOutHoursWorked"></span></div>
+      <div class="hw-row"><span>Days left</span><span id="hwOutDaysLeft"></span></div>
+      <div class="hw-row"><span>Avg. hours/day to date</span><span id="hwOutAvgHours"></span></div>
+      <div class="hw-row"><span>Hours/day remaining</span><span id="hwOutHoursPerDayRemaining"></span></div>
+      <div class="hw-row hw-row-total"><span>Total hours remaining</span><span id="hwOutTotalHoursRemaining"></span></div>
+    </div>
+  </div>
+</div>
+
+<div class="it-card" id="hwErrorCard" style="display:none; margin-top: var(--it-content-gap);">
+  <div class="it-card-body it-error-cell" id="hwErrorText"></div>
+</div>
+
+<script>
+(function () {
+  const teamSelect    = document.getElementById('hwTeam');
+  const memberSelect  = document.getElementById('hwMember');
+  const resultsCard   = document.getElementById('hwResultsCard');
+  const errorCard     = document.getElementById('hwErrorCard');
+  const errorText     = document.getElementById('hwErrorText');
+  const daysBody       = document.getElementById('hwDaysBody');
+  const outMember      = document.getElementById('hwOutMember');
+  const outCycleRange  = document.getElementById('hwOutCycleRange');
+  const outDaysWorked  = document.getElementById('hwOutDaysWorked');
+  const outHoursWorked = document.getElementById('hwOutHoursWorked');
+  const outAvgHours    = document.getElementById('hwOutAvgHours');
+  const rosteredDaysInput  = document.getElementById('hwRosteredDays');
+  const rosteredHoursInput = document.getElementById('hwRosteredHours');
+  const outRosteredHoursPerDay   = document.getElementById('hwOutRosteredHoursPerDay');
+  const outDaysLeft              = document.getElementById('hwOutDaysLeft');
+  const outHoursPerDayRemaining  = document.getElementById('hwOutHoursPerDayRemaining');
+  const outTotalHoursRemaining   = document.getElementById('hwOutTotalHoursRemaining');
+
+  // Last server response ({memberName, days, daysWorked, hoursWorked, ...}
+  // — actual figures only). Rostered days/hours are manual, unpersisted
+  // inputs (same as the original spreadsheet's independently-typed cells,
+  // not derived from each other) — every row derived from them recomputes
+  // from this cache in the browser, no server round trip needed.
+  let _lastResult = null;
+
+  function hideResults() {
+    resultsCard.style.display = 'none';
+    errorCard.style.display = 'none';
+    _lastResult = null;
+  }
+
+  function showError(message) {
+    hideResults();
+    errorText.textContent = message;
+    errorCard.style.display = '';
+  }
+
+  function recomputeRostered() {
+    if (!_lastResult) return;
+    const rosteredDays  = Number(rosteredDaysInput.value) || 0;
+    const rosteredHours = Number(rosteredHoursInput.value) || 0;
+    const daysWorked  = _lastResult.daysWorked;
+    const hoursWorked = _lastResult.hoursWorked;
+
+    const rosteredHoursPerDay = rosteredDays > 0 ? (rosteredHours / rosteredDays) : 0;
+    const daysLeft = rosteredDays - daysWorked;
+    const hoursPerDayRemaining = daysLeft > 0 ? ((rosteredHours - hoursWorked) / daysLeft) : 0;
+    const totalHoursRemaining = rosteredHours - hoursWorked;
+
+    outRosteredHoursPerDay.textContent = rosteredHoursPerDay.toFixed(2);
+    outDaysLeft.textContent = daysLeft;
+    outHoursPerDayRemaining.textContent = hoursPerDayRemaining.toFixed(2);
+    outTotalHoursRemaining.textContent = totalHoursRemaining.toFixed(2);
+  }
+
+  // Loaded once on init — {teams, membersByTeam}. Switching teams filters
+  // this in memory instead of round-tripping to the server each time.
+  let _data = { teams: [], membersByTeam: {} };
+
+  function populateMemberSelect(teamId) {
+    const members = _data.membersByTeam[teamId] || [];
+    memberSelect.innerHTML = members.length
+      ? '<option value="">Select a team member…</option>'
+      : '<option value="">No active team members found</option>';
+    members.forEach(function (m) {
+      const opt = document.createElement('option');
+      opt.value = m.key;
+      opt.textContent = m.name + ' (' + m.hoursWorked.toFixed(2) + ')';
+      memberSelect.appendChild(opt);
+    });
+    memberSelect.disabled = members.length === 0;
+  }
+
+  function loadTeamsAndMembers() {
+    google.script.run
+      .withSuccessHandler(function (data) {
+        _data = data || { teams: [], membersByTeam: {} };
+        teamSelect.innerHTML = '<option value="">Select a team…</option>';
+        _data.teams.forEach(function (t) {
+          const opt = document.createElement('option');
+          opt.value = t.id;
+          opt.textContent = t.label;
+          teamSelect.appendChild(opt);
+        });
+      })
+      .withFailureHandler(function (e) {
+        teamSelect.innerHTML = '<option value="">Could not load teams</option>';
+        ITModal.notify('Could not load teams: ' + e.message, 'Error');
+      })
+      .getHoursWorkedTeamsAndMembers();
+  }
+
+  function loadFortnight(teamId, employeeKey) {
+    hideResults();
+
+    outMember.textContent = 'Loading…';
+    outCycleRange.textContent = '';
+    daysBody.innerHTML = '<tr><td colspan="2" style="text-align:center; padding:32px;">'
+      + '<div class="it-spinner" style="margin:0 auto 10px;"></div>Loading hours…</td></tr>';
+    [outDaysWorked, outHoursWorked, outAvgHours, outRosteredHoursPerDay, outDaysLeft, outHoursPerDayRemaining, outTotalHoursRemaining]
+      .forEach(function (el) { el.textContent = ''; });
+    resultsCard.style.display = '';
+
+    google.script.run
+      .withSuccessHandler(function (r) {
+        if (r && r.error) { showError(r.error); return; }
+
+        outMember.textContent = r.memberName;
+        outCycleRange.textContent = r.cycleStartLabel + ' – ' + r.cycleEndLabel;
+        outDaysWorked.textContent = r.daysWorked;
+        outHoursWorked.textContent = r.hoursWorked.toFixed(2);
+        outAvgHours.textContent = r.avgHoursPerDay.toFixed(2);
+
+        // A heavier bottom border on the 7th day's row splits week 1 from
+        // week 2 — the fortnight is always exactly 14 days, so that's
+        // always the last row of the first week.
+        daysBody.innerHTML = r.days.map(function (d, i) {
+          var cls = i === 6 ? ' class="hw-week-divider"' : '';
+          return '<tr' + cls + '><td>' + escapeHtml(d.label) + '</td><td style="text-align:right;">' + d.hours.toFixed(2) + '</td></tr>';
+        }).join('');
+
+        errorCard.style.display = 'none';
+        resultsCard.style.display = '';
+
+        _lastResult = r;
+        recomputeRostered();
+      })
+      .withFailureHandler(function (e) {
+        showError('Failed to load hours: ' + e.message);
+      })
+      .getHoursWorkedFortnight(teamId, employeeKey);
+  }
+
+  teamSelect.addEventListener('change', function () {
+    const teamId = teamSelect.value;
+    hideResults();
+    if (!teamId) {
+      memberSelect.disabled = true;
+      memberSelect.innerHTML = '<option value="">Select a team first…</option>';
+      return;
+    }
+    populateMemberSelect(teamId);
+  });
+
+  memberSelect.addEventListener('change', function () {
+    const teamId = teamSelect.value;
+    const employeeKey = memberSelect.value;
+    if (!teamId || !employeeKey) { hideResults(); return; }
+    loadFortnight(teamId, employeeKey);
+  });
+
+  rosteredDaysInput.addEventListener('change', recomputeRostered);
+  rosteredHoursInput.addEventListener('input', recomputeRostered);
+
+  loadTeamsAndMembers();
+})();
+</script>

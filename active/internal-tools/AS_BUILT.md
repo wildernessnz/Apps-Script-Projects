@@ -64,7 +64,7 @@ query-param routing.
 
 ## 3. File inventory
 
-The entire project is 26 files, no subfolders (Apps Script/clasp requirement):
+The entire project is 28 files, no subfolders (Apps Script/clasp requirement):
 
 ```
 appsscript.json        — manifest: scopes, timezone, WildernessAppScriptLibrary dependency
@@ -76,7 +76,7 @@ Shell.html               — sidebar + content area shell, built from NAV_CONFIG
 Styles.html              — all styling + embedded Averta font (~875KB, base64)
 Router.html              — client-side nav + content-swap logic (ITRouter)
 Modal.html               — shared ITModal (confirm/notify), tooltip positioning, escapeHtml()
-Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 7 live)
+Placeholder.html         — "coming soon" stub for unmigrated tools (currently unused, all 8 live)
 BookingFinderLogic.gs / BookingFinder.html
 InterislanderLogic.gs / Interislander.html
 ReloRatesLogic.gs / ReloRates.html
@@ -84,6 +84,7 @@ WeatherAlertLogic.gs / WeatherAlert.html
 ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
 CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
+HoursWorkedLogic.gs / HoursWorked.html
 ```
 
 File naming convention: `<ToolName>Logic.gs` + `<ToolName>.html`. Apps Script
@@ -243,21 +244,22 @@ Resolution order: **access gate → view log → placeholder flag → real parti
 
 - `ACCESS_GATES` maps a partial name to a function returning true/false for
   whether the current user may see that tool. `WeatherAlert`
-  (`isWeatherAlertApproved()`), `ServiceHistory`
-  (`isServiceHistoryApproved()`), and `RecurringTasks`
-  (`isRecurringTasksApproved()`) are gated today, since all three
-  originally gated their whole page at `doGet()` and now share a page with
-  the other tools. Stored as direct function references (not string-keyed
-  dynamic dispatch), since top-level `this` isn't reliably the global
-  object under Apps Script's V8 runtime. Two different gate mechanisms
-  exist: Weather Alert/Service History check a comma-separated email
+  (`isWeatherAlertApproved()`) and `RecurringTasks`
+  (`isRecurringTasksApproved()`) are gated today, since both originally
+  gated their whole page at `doGet()` and now share a page with the other
+  tools. Stored as direct function references (not string-keyed dynamic
+  dispatch), since top-level `this` isn't reliably the global object under
+  Apps Script's V8 runtime. Weather Alert checks a comma-separated email
   allowlist in a Script Property; Recurring Tasks checks Google Group
   membership (`GroupsApp.getGroupByEmail(...).hasUser(email)`, `.some()`
   across `RECURRING_TASKS_CONFIG.ACCESS_GROUPS` — access granted by
   membership in *any* listed group) — carried over unmodified from the
   standalone app rather than converted to the allowlist pattern, since the
   ask was "keep functionality the same," not "make every tool's access
-  control identical."
+  control identical." Service History and CIN Generator were originally
+  gated the same way as Weather Alert but are now open to all staff —
+  their `isServiceHistoryApproved()`/`isCinGeneratorApproved()` functions
+  and `*_ALLOWLIST` Script Properties were removed.
 - `getToolContent()` is also the single chokepoint every tool view passes
   through — initial page load (`getToolContentForNavId`) and every nav
   click both route through it — so it's where cross-tool view logging
@@ -311,8 +313,7 @@ Properties:
 `KIWIRAIL_PROD_BASE64_HEADER`, `KIWIRAIL_UAT_API_KEY`,
 `KIWIRAIL_UAT_BASE64_HEADER`
 
-**Service History:** `SERVICE_HISTORY_ALLOWLIST` (comma-separated emails,
-gates the whole tool — same pattern as `WEATHER_ALERT_APPROVED_SENDERS`),
+**Service History:** available to all staff, no access gate.
 `SERVICE_HISTORY_EXCLUDED_TASKS` (comma-separated Fleetio service task names
 excluded from every PDF, matched case- and whitespace-insensitively;
 defaults to `Rental Turn Around,Detail` if unset). Matching tasks are
@@ -334,10 +335,7 @@ Access control for this tool is a Google Group membership check
 not a Script Property), currently `leaders@wilderness.co.nz` and
 `jirataskengine@wilderness.co.nz` — membership in either grants access.
 
-**CIN Generator:** `CIN_GENERATOR_ALLOWLIST` (comma-separated emails, gates
-the whole tool — same pattern as `SERVICE_HISTORY_ALLOWLIST`; a dedicated
-property, not shared with it even though both tools sit under "Retail
-Sales").
+**CIN Generator:** available to all staff, no access gate.
 
 **Booking Finder / Relo Rates:** none required.
 
@@ -377,6 +375,31 @@ whenever Atlassian returns a new one. `rtAuthoriseJira()` /
 `rtExchangeCodeForTokens()` / `rtRevokeOAuthToken()` / `rtCheckOAuthStatus()`
 are editor-only maintenance functions for setting this up — none are
 wired to any UI button.
+
+Hours Worked's spreadsheet (`SHEET_IDS.HOURS_WORKED`, "PayHero Hours
+Worked") is read-only from this project's side, unlike every other
+tool's — it never writes to it. It's one hop downstream of PayHero
+itself: an existing `scripts@wilderness.co.nz`-owned Apps Script (not
+part of this project — a separate "PayHero Integration" spreadsheet)
+pulls from the PayHero API on its own schedule into that file's `Raw - *`
+tabs; "PayHero Hours Worked" mirrors those via `IMPORTRANGE` into
+`Linked - Employees`, `Linked - PayHero Time` and `Linked - Operations
+Pay Cycle` — a dedicated copy (2026-08-27) of the same three tabs the
+original "PayHero Visibility" spreadsheet already had, minus its other,
+unrelated tabs. That copy's own sharing is narrower than the original's
+(organizer access plus `team@wilderness.co.nz` as reader, not the extra
+groups/individuals the original had) — confirmed fine (Mark, 2026-08-28):
+`team@` is the all-staff group, so every operational team already has
+read access.
+`HoursWorkedLogic.gs` reads all three tabs by header name (not position —
+`Linked - Operations Pay Cycle`'s own "Start " header even carries a
+trailing space, hence the trimmed match in `colIndex_`), and only the
+`duration` column of `Linked - PayHero Time` — `external_pay_rate` lives
+in that same tab but is never selected, which is how the "no payroll
+data" requirement is actually enforced. The current pay-cycle fortnight
+is read from `Linked - Operations Pay Cycle`'s row with `Current Cycle =
+1` — the same source and lookup the original tool's `Report` tab used via
+`VLOOKUP(1, ...)`, just read directly.
 
 ### 7.1 Cross-tool activity log
 

@@ -2,12 +2,12 @@
 
 Single standalone Apps Script project unifying Booking Finder, Interislander
 Availability, Relo Rates, and Weather Alert (section "Adventure Support"),
-Service History and CIN Generator (section "Retail Sales"), and Recurring
-Tasks (section "Leadership"), behind one sidebar-navigated shell. All 7
-tools are built and deployed. Recurring Tasks specifically still has open
-cutover steps (Script Properties, daily trigger, retiring the old
-standalone project) — see "Still open / deferred" below before assuming
-it's fully live.
+Service History and CIN Generator (section "Retail Sales"), Recurring
+Tasks (section "Leadership"), and Hours Worked (section "Team"), behind one
+sidebar-navigated shell. All 8 tools are built and deployed. Recurring
+Tasks specifically still has open cutover steps (Script Properties, daily
+trigger, retiring the old standalone project) — see "Still open /
+deferred" below before assuming it's fully live.
 
 `CLAUDE.md` is the auto-loaded quick reference (non-negotiables + the
 add-a-tool recipe) — this doc is the full detail behind it: gotchas,
@@ -16,7 +16,7 @@ change, not just a fresh session.
 
 ## Getting set up
 
-These 26 files are the entire project. Drop them into your local clasp
+These 28 files are the entire project. Drop them into your local clasp
 folder (matching filenames exactly, no subfolders) and `clasp push`.
 
 ```
@@ -38,6 +38,7 @@ WeatherAlertLogic.gs / WeatherAlert.html
 ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
 CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
+HoursWorkedLogic.gs / HoursWorked.html
 ```
 
 `ServiceHistoryTemplate.html` is a third file for that tool — it's the PDF's
@@ -58,8 +59,7 @@ Before it'll actually work, Script Properties need setting (Project Settings
 **Interislander:** `KIWIRAIL_PRODUCTION_MODE`, `KIWIRAIL_PROD_API_KEY`,
 `KIWIRAIL_PROD_BASE64_HEADER`, `KIWIRAIL_UAT_API_KEY`, `KIWIRAIL_UAT_BASE64_HEADER`
 
-**Service History:** `SERVICE_HISTORY_ALLOWLIST` (comma-separated emails —
-gates the whole tool, same pattern as Weather Alert's approved senders),
+**Service History:** available to all staff, no access gate.
 `SERVICE_HISTORY_EXCLUDED_TASKS` (comma-separated Fleetio service task names
 to exclude from every PDF, matched case- and whitespace-insensitively;
 defaults to `Rental Turn Around,Detail` if unset). Matching tasks are
@@ -80,15 +80,32 @@ but Run Now and the daily trigger fail with "No OAuth refresh token
 found." Access is a Google Group check (`ACCESS_GROUPS` in
 `RecurringTasksLogic.gs`, currently `leaders@wilderness.co.nz` and
 `jirataskengine@wilderness.co.nz` — membership in *either* grants
-access), not a Script Property allowlist like Weather Alert/Service
-History — same mechanism the standalone app used, just relocated into
-`ACCESS_GATES`.
+access), not a Script Property allowlist like Weather Alert — same
+mechanism the standalone app used, just relocated into `ACCESS_GATES`.
 
-**CIN Generator:** `CIN_GENERATOR_ALLOWLIST` (comma-separated emails —
-gates the whole tool, same pattern as Weather Alert/Service History's
-approved-sender allowlists; a dedicated property, not shared with
-`SERVICE_HISTORY_ALLOWLIST` even though both tools now sit under "Retail
-Sales").
+**CIN Generator:** available to all staff, no access gate.
+
+**Hours Worked:** none — it only reads three tabs of a dedicated
+spreadsheet (`SHEET_IDS.HOURS_WORKED`, "PayHero Hours Worked" — a copy
+Mark made 2026-08-27 of the same three tabs "PayHero Visibility" already
+had, without its other unrelated tabs), no API keys of its own. Its
+dependency isn't a Script Property but a sharing one: since
+`webapp.executeAs` is `USER_ACCESSING`, every visiting user needs their
+own read access to that spreadsheet. It's shared to
+`it.team@wilderness.co.nz`/`admin@wilderness.co.nz`/`scripts@wilderness.co.nz`
+(organizer) and `team@wilderness.co.nz` (reader) — `team@` is confirmed
+(Mark, 2026-08-28) to be the all-staff group, so every operational team
+already has read access with no further sharing needed.
+
+**Also for Hours Worked** (not a Script Property, a one-time manual step):
+the source spreadsheet's tabs are all `IMPORTRANGE`-fed, which makes a
+live read slow (seconds). Run `installHoursWorkedRefreshTrigger()` once
+from the Apps Script editor (select it, click Run) to install a 10-minute
+background trigger that keeps the team/member dropdown data warm in
+`CacheService` — without it, every page load pays the full slow read
+directly. Safe to skip if you'd rather not add a trigger; the tool still
+works, just slower to open. See `HoursWorkedLogic.gs`'s fileoverview for
+the full performance writeup.
 
 Booking Finder and Relo Rates need no properties.
 
@@ -517,3 +534,81 @@ like one of these, it probably is:
   Fleetio — a deliberate choice to avoid the exact redundant-refetch
   pattern flagged under Service History's "Still open / deferred" #8
   below, not something CIN Generator itself ever did and later fixed.
+- Hours Worked: kept the original "PayHero Visibility" tool's rostered-
+  days/rostered-hours comparison exactly (an earlier pass had dropped it
+  per an early read of the ticket, then Mark asked for it back once he'd
+  reviewed the original tool again) — same independent manual "9 or 10"
+  days selector and free-typed hours figure (not derived from each
+  other), same derived rows (Rostered hours/day, Days left, Hours/day
+  remaining, Total hours remaining). One deliberate change: the rostered-
+  days selector now **defaults to 10** on load (the original had no
+  fixed default — whatever value was last left in that spreadsheet cell).
+  Also unlike the original's persistent spreadsheet cells, neither
+  rostered input is saved anywhere — every page load starts from the
+  default, and switching team member does *not* reset whatever the user
+  has already typed (matching the original's single shared/sticky-cell
+  behavior for the duration of one session, just not across reloads).
+  Purely client-side arithmetic (`recomputeRostered()` in
+  `HoursWorked.html`) — the server (`HoursWorkedLogic.gs`) only ever
+  returns actual hours, never the rostered figures, keeping the no-
+  payroll-data boundary at the server unaffected by this UI-only feature.
+- Hours Worked: expanded from Adventure Support only to four teams
+  (Adventure Support, Parts & Warranty, Detailing, Workshop), each team
+  selectable regardless of who's logged in — team leaders were the
+  original driver, but nothing restricts a team member from checking a
+  teammate's hours either, matching how the tool was scoped.
+- Hours Worked: PayHero's own `team_name` splits Adventure Support,
+  Detailing and Workshop by site (`AK …`/`CC …` prefixes); the team
+  selector merges each pair into one team, matching the original tool's
+  own `contains 'Adventure Support Team'` filter (which already merged
+  both sites for that one team) and the ticket's four named teams. Parts &
+  Warranty has no site split in PayHero, so it's already a single team.
+- Hours Worked: the current pay cycle is read the same way the original
+  tool's `Report` tab did — the "Linked - Operations Pay Cycle" row with
+  `Current Cycle = 1` — just read directly by `HoursWorkedLogic.gs`
+  instead of through `Report`'s intermediate `VLOOKUP(1, ...)`. Not a
+  behavior change, same source of truth. That source table is only
+  pre-populated through 2029-08-15 (confirmed against live data) — if no
+  row is ever flagged current (table runs dry, or the flag logic breaks),
+  the tool throws rather than guessing a cycle, surfacing the problem
+  instead of silently showing a wrong fortnight.
+- Hours Worked: the original tool's team-roster `QUERY` excluded one
+  specific `employee_key` (334888) by hand, cause originally unconfirmed
+  at port time. Confirmed 2026-08-27 against live data: it's "LOGIN
+  STATION" in `Linked - Employees` — a shared kiosk/login account, not a
+  real person. `HOURS_WORKED_EXCLUDED_KEYS_` in `HoursWorkedLogic.gs`
+  carries the same exclusion forward, applied everywhere an employee row
+  is matched (team-member lists and the fortnight lookup), not just the
+  `active` filter.
+- Hours Worked: not in the original at all — each team member's option in
+  the member dropdown shows their current fortnight's total hours worked
+  in brackets (e.g. "Jack Bowyer (35.33)"), so a team leader can scan the
+  list without opening each person individually. `getTeamsAndMembers()`
+  now reads all three tabs (previously just `Linked - Employees`) to
+  compute this — still one call, still no per-team-switch round trip.
+- Hours Worked: excludes any time entry dated after today from every
+  hours-worked figure (Hours worked, Days worked, Avg. hours/day to date,
+  and the dropdown's bracketed total) — a behavior the original tool
+  never had, discovered 2026-08-27 once real data showed several team
+  members with identical repeating shift blocks logged days/weeks in
+  advance. PayHero's `/time` API has no `end_date` param (confirmed
+  against the actual integration script), so it returns forward-rostered
+  shifts alongside genuinely worked time with no field to tell them
+  apart — a day that hasn't happened yet can't be actual hours worked, so
+  `todayEpochDay_()` in `HoursWorkedLogic.gs` caps every aggregate at
+  today regardless. The daily table still shows future days (as 0.00,
+  same as any day with nothing logged) — only the summed/derived figures
+  are affected. TOIL entries (identifiable only via free-text
+  `description`, no structured field) are deliberately still counted —
+  Mark's call, not a limitation.
+- Hours Worked: the daily table marks the week 1/week 2 split with a
+  heavier bottom border (`.hw-week-divider`, same dusk-sky navy as the
+  table header) on day 7's row, rather than a blank spacer row like the
+  original spreadsheet had (row 11 sat blank between its two 7-day
+  blocks) — tried the literal blank-row port first, then switched to a
+  border once it added height without helping the table fit without a
+  scroll. The `.hw-days-table` cell padding is also denser than the
+  shared `.it-table` default, and the table shares width equally with
+  the summary panel (`flex:1` each) instead of sizing to content — both
+  so the 14-day table reads at roughly the same height as the summary
+  panel next to it.
