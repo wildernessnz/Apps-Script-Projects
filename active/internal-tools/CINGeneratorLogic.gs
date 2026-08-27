@@ -112,7 +112,7 @@ var CinVehicleFetcher = function() {
    * @returns {Object|null}
    */
   const findVehicleByRego_ = (rego) => {
-    const res = fleetioFetch_(`/vehicles?q[license_plate_eq]=${encodeURIComponent(rego)}`);
+    const res = fleetioFetch_(`/vehicles?q[license_plate_eq]=${encodeURIComponent(rego.toUpperCase())}`);
     const records = res.records || res;
     return records[0] || null;
   };
