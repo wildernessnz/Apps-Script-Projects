@@ -86,11 +86,12 @@ var CinVehicleFetcher = function() {
    */
   const mapVehicle_ = (vehicle) => {
     const cf = vehicle.custom_fields || {};
+    const specs = vehicle.specs || {};
     const fuelType = vehicle.fuel_type_name || '—';
     return {
       makeModel: [vehicle.make, vehicle.model].filter(Boolean).join(' ') || '—',
       vehicleYear: cf.model_year || '—',
-      engineCapacity: vehicle.engine_description || '—',
+      engineCapacity: specs.engine_description || '—',
       odometer: formatKm_(vehicle.current_meter_value),
       vin: vehicle.vin || '—',
       plateNumber: vehicle.license_plate || '—',

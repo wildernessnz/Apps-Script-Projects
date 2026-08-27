@@ -124,9 +124,10 @@
     return containerEl.querySelector('.it-segment.active').dataset.value;
   }
 
-  function fieldDisplay(label, value) {
-    return '<div class="it-field"><span class="it-label">' + escapeHtml(label) + '</span>' +
-      '<span style="font-weight:700;">' + escapeHtml(value) + '</span></div>';
+  function fieldDisplay(label, value, wide) {
+    return '<div class="it-field"' + (wide ? ' style="grid-column: span 2;"' : '') + '>' +
+      '<span class="it-label">' + escapeHtml(label) + '</span>' +
+      '<span style="font-weight:700;' + (wide ? 'white-space:nowrap;' : '') + '">' + escapeHtml(value) + '</span></div>';
   }
 
   function renderFleetioFields(vehicle) {
@@ -134,14 +135,14 @@
       fieldDisplay('Cash price', vehicle.cashPrice),
       fieldDisplay('Make and model', vehicle.makeModel),
       fieldDisplay('Vehicle year', vehicle.vehicleYear),
-      fieldDisplay('Engine capacity', vehicle.engineCapacity),
       fieldDisplay('Odometer', vehicle.odometer),
       fieldDisplay('VIN', vehicle.vin),
       fieldDisplay('Licence expiry', vehicle.regoExpiry),
       fieldDisplay('Plate number', vehicle.plateNumber),
       fieldDisplay('Year registered in NZ', vehicle.yearRegisteredNz),
       fieldDisplay('Fuel type', vehicle.fuelType),
-      fieldDisplay('Road user charges apply', vehicle.rucApplies ? 'Yes' : 'No'),
+      fieldDisplay('RUCs apply', vehicle.rucApplies ? 'Yes' : 'No'),
+      fieldDisplay('Engine capacity', vehicle.engineCapacity, true),
     ].join('');
   }
 
