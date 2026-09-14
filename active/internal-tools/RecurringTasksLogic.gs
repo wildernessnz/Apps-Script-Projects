@@ -774,7 +774,7 @@ function runRecurringTasksDailyCheck() {
       '',
       hasFailures ? 'Please check the Apps Script logs for more detail.' : ''
     ].join('\n');
-    GmailApp.sendEmail(RECURRING_TASKS_CONFIG.NOTIFY_EMAIL, subject, body);
+    MailApp.sendEmail(RECURRING_TASKS_CONFIG.NOTIFY_EMAIL, subject, body);
   }
 }
 
