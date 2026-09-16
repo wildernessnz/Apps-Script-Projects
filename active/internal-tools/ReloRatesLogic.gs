@@ -6,14 +6,21 @@
  * of getActiveSpreadsheet).
  *
  * Rate inputs come from the "Variables" tab in the Relo Rates spreadsheet
- * (SHEET_IDS.RELO_RATES in Config.gs): living wage (B3), meal allowance (B5),
- * standard waiting minutes (B6).
+ * (SHEET_IDS.RELO_RATES in Config.gs): living wage (B3), overnight meal
+ * allowance (B5), standard waiting minutes (B6), day-trip meal allowance
+ * (B7).
+ *
+ * Meal allowance rules (never both at once):
+ *  - Overnight jobs: overnight meal allowance (B5) x number of nights.
+ *  - Day trips (no overnight): flat day-trip meal allowance (B7) if
+ *    estimated job hours (travel + standard waiting time) is 6+ hours,
+ *    otherwise none.
  */
 
 // Global wrapper — the only entry point exposed to google.script.run from the client.
-function getJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday) {
+function getJobRates(departure, destination, departureDate, overnight, nights, tripDuration, flightDuration, delayDuration, publicHoliday) {
   try {
-    const result = new JobRates().calculateJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday);
+    const result = new JobRates().calculateJobRates(departure, destination, departureDate, overnight, nights, tripDuration, flightDuration, delayDuration, publicHoliday);
     logEvent_('Relo Rates: Calculate', `departure=${departure} | destination=${destination} | departureDate=${departureDate}`);
     return result;
   } catch (err) {
@@ -32,22 +39,24 @@ var JobRates = function () {
    * @param {string} destination
    * @param {string|Date} departureDate
    * @param {boolean} overnight
+   * @param {number} nights - number of nights away (overnight jobs only)
    * @param {number} tripDuration - minutes
    * @param {number} flightDuration - minutes
    * @param {number} delayDuration - minutes
    * @param {boolean} publicHoliday
    * @returns {string} JSON-stringified job rate breakdown
    */
-  this.calculateJobRates = (departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday) => {
-    Logger.log(`[JobRates.calculateJobRates] departure=${departure} | destination=${destination} | tripDuration=${tripDuration} | overnight=${overnight} | publicHoliday=${publicHoliday}`);
+  this.calculateJobRates = (departure, destination, departureDate, overnight, nights, tripDuration, flightDuration, delayDuration, publicHoliday) => {
+    Logger.log(`[JobRates.calculateJobRates] departure=${departure} | destination=${destination} | tripDuration=${tripDuration} | overnight=${overnight} | nights=${nights} | publicHoliday=${publicHoliday}`);
 
     const ss = getSpreadsheet_(SHEET_KEY);
     const sheetVariables = ss.getSheetByName(VARS_TAB);
     if (!sheetVariables) throw new Error(`[JobRates.calculateJobRates] Sheet tab "${VARS_TAB}" not found`);
 
     let livingWage          = Number(sheetVariables.getRange('B3').getValue()) || 0;
-    const mealAllowanceAmount = Number(sheetVariables.getRange('B5').getValue()) || 0;
-    const standardWaitingMins = Number(sheetVariables.getRange('B6').getValue()) || 0;
+    const mealAllowanceAmount    = Number(sheetVariables.getRange('B5').getValue()) || 0;
+    const standardWaitingMins    = Number(sheetVariables.getRange('B6').getValue()) || 0;
+    const dayTripMealAllowanceAmount = Number(sheetVariables.getRange('B7').getValue()) || 0;
 
     if (publicHoliday) livingWage = livingWage * 1.5; // 1.5x rate for public holidays
 
@@ -112,7 +121,13 @@ var JobRates = function () {
 
     // Pay calculations
     const payOffered    = estimatedHours * livingWage; // base hours only
-    const mealAllowance = overnight ? mealAllowanceAmount : 0;
+
+    // Overnight and day-trip meal allowances are mutually exclusive.
+    const nightsCount = overnight ? Math.max(1, Number(nights) || 0) : 0;
+    const mealAllowance = overnight
+      ? mealAllowanceAmount * nightsCount
+      : (estimatedHours >= 6 ? dayTripMealAllowanceAmount : 0);
+
     const delayPay      = delayMins  > 0 ? (delayMins  / 60) * livingWage : 0;
     const restPay       = restDuration > 0 ? (restDuration / 60) * livingWage : 0;
 

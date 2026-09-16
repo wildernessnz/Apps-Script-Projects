@@ -11,9 +11,15 @@
         <label class="it-label" for="rrJobStart">Job start (arrival at base) <span class="it-tooltip" tabindex="0"><span class="it-tooltip-icon">ⓘ</span><span class="it-tooltip-content">Arrival at base</span></span></label>
         <input type="datetime-local" id="rrJobStart" class="it-input" required>
       </div>
-      <div style="display:flex; align-items:center; gap:10px; height:44px;">
-        <button type="button" class="it-toggle" id="rrOvernight" data-on="false"><div class="it-toggle-thumb"></div></button>
-        <span style="font-size:14px; font-weight:700;">Overnight</span>
+      <div style="display:flex; align-items:center; gap:14px;">
+        <div style="display:flex; align-items:center; gap:10px; height:44px;">
+          <button type="button" class="it-toggle" id="rrOvernight" data-on="false"><div class="it-toggle-thumb"></div></button>
+          <span style="font-size:14px; font-weight:700;">Overnight</span>
+        </div>
+        <div class="it-field" id="rrNightsField" style="display:none;">
+          <label class="it-label" for="rrNights">Nights</label>
+          <input type="number" id="rrNights" class="it-input" min="1" value="1" style="width:64px; text-align:center;">
+        </div>
       </div>
       <div style="display:flex; align-items:center; gap:10px; height:44px;">
         <button type="button" class="it-toggle" id="rrPublicHoliday" data-on="false"><div class="it-toggle-thumb"></div></button>
@@ -76,15 +82,18 @@
 
 <script>
 (function () {
-  function toggle(id) {
+  function toggle(id, onToggle) {
     const btn = document.getElementById(id);
     btn.addEventListener('click', function () {
       const isOn = btn.dataset.on === 'true';
       btn.dataset.on = (!isOn).toString();
       btn.classList.toggle('on', !isOn);
+      if (onToggle) onToggle(!isOn);
     });
   }
-  toggle('rrOvernight');
+  toggle('rrOvernight', function (isOn) {
+    document.getElementById('rrNightsField').style.display = isOn ? 'block' : 'none';
+  });
   toggle('rrPublicHoliday');
 
   function getDurationMinutes(containerSelector) {
@@ -199,6 +208,7 @@
 
     const departureDate = document.getElementById('rrJobStart').value;
     const overnight     = document.getElementById('rrOvernight').dataset.on === 'true';
+    const nights        = overnight ? (Number(document.getElementById('rrNights').value) || 1) : 0;
     const publicHoliday = document.getElementById('rrPublicHoliday').dataset.on === 'true';
 
     const legs = Array.from(rrLegsContainer.querySelectorAll('.rr-leg'));
@@ -225,7 +235,7 @@
         label.textContent = 'Calculate';
         ITModal.notify('Could not calculate: ' + err.message, 'Error');
       })
-      .getJobRates(departure, destination, departureDate, overnight, tripDuration, flightDuration, delayDuration, publicHoliday);
+      .getJobRates(departure, destination, departureDate, overnight, nights, tripDuration, flightDuration, delayDuration, publicHoliday);
   });
 })();
 </script>
