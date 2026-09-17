@@ -95,7 +95,7 @@ var CinVehicleFetcher = function() {
       odometer: formatKm_(vehicle.current_meter_value),
       vin: vehicle.vin || '—',
       plateNumber: vehicle.license_plate || '—',
-      cashPrice: formatCurrency_(cf.retail_price_nz),
+      cashPrice: formatCurrency_(cf.fsp || cf.retail_price_nz),
       regoExpiry: formatDate_(cf.rego_expiry),
       // Only the year is shown on the notice, per the field-mapping sheet.
       yearRegisteredNz: cf.first_nz_registration ? String(cf.first_nz_registration).slice(0, 4) : '—',
@@ -160,10 +160,11 @@ var CinVehicleFetcher = function() {
   };
 
   /**
-   * @param {string|number} value - Fleetio's retail_price_nz custom field is
-   *   free text, entered with a thousands separator (e.g. "129,900") — strip
-   *   commas before parseFloat, which otherwise silently truncates at the
-   *   first comma (parseFloat("129,900") === 129, not 129900).
+   * @param {string|number} value - Fleetio's fsp/retail_price_nz custom
+   *   fields are free text, entered with a thousands separator (e.g.
+   *   "129,900") — strip commas before parseFloat, which otherwise silently
+   *   truncates at the first comma (parseFloat("129,900") === 129, not
+   *   129900).
    * @returns {string}
    */
   const formatCurrency_ = (value) => {
