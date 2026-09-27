@@ -2,7 +2,8 @@
 
 **Twilio Functions URL:** `https://browser-calling-5194.twil.io`  
 **Call page URL:** `https://call.wilderness.co.nz`  
-**Last updated:** May 2026 — covers Phase 1 (core calling), Phase 2 (attribution, whisper, transcription), and hosting setup
+**Last updated:** May 2026 — covers Phase 1 (core calling), Phase 2 (attribution, whisper, transcription), and hosting setup  
+**Addendum (September 2026):** CI/CD notes added below — see "Continuous Deployment (GitHub Actions)"
 
 ---
 
@@ -190,6 +191,18 @@ This installs a daily trigger that runs `monitorCallLog()` at 8am NZT and emails
 
 ---
 
+## Continuous Deployment (GitHub Actions)
+
+*Added September 2026.*
+
+Pushes to `main` that touch `functions/**` or `assets/**` trigger `twilio serverless:deploy` via GitHub Actions, which redeploys the Twilio Functions **and** the Twilio Asset copy of `index.html`.
+
+**Scope — read carefully:** this workflow only ever touches the Twilio side (`browser-calling-5194.twil.io`). It does **not** upload anything to the AWS S3 bucket behind `call.wilderness.co.nz`, and it never invalidates CloudFront. Since real customers only ever hit `call.wilderness.co.nz` (see Phase 3 below), a green GitHub Actions run means the *Functions* are current — it says nothing about whether the customer-facing page has actually changed. The manual steps under "Updating the call page" (near the end of this guide) are still required after every change, CI or no CI.
+
+The workflow file lives at the **monorepo root** — `Apps-Script-Projects/.github/workflows/deploy.yml` — not inside this project folder, because GitHub Actions only ever reads `.github/workflows/` from the repository root. It was discovered on 28 Sept 2026 that this file had been sitting one directory too deep (`active/browser-calling/.github/workflows/deploy.yml`), where GitHub silently ignored it — so despite existing since the project's initial build, it had never actually run a single time. It's now at the correct path.
+
+---
+
 ## Phase 3 — Call Page Hosting (AWS S3 + CloudFront)
 
 Twilio Functions does not support custom domains. The call page is hosted on AWS S3 + CloudFront so customers see `https://call.wilderness.co.nz` rather than the Twilio URL.
@@ -373,4 +386,4 @@ Without an invalidation, CloudFront may serve a cached version for hours.
 
 ---
 
-*Setup Guide — call.wilderness.co.nz — May 2026*
+*Setup Guide — call.wilderness.co.nz — May 2026 (CI/CD section added September 2026)*

@@ -460,6 +460,7 @@ let isCallPending     = false; // true while ringing/connecting, before accept
 let outputDevices     = [];    // available audio output devices (speaker/earpiece/headset)
 let outputDeviceIndex = 0;
 let outputChosenByUser = false;
+let pageIsUnloading   = false; // true only while the page is actually navigating away mid-call
 
 // ── UI helpers
 function setStatus(state, text) {
@@ -549,26 +550,47 @@ async function ensureMicPermission() {
 }
 
 // ── Audio output routing (speaker / earpiece / headset)
-function labelForOutputDevice(d) {
+//
+// Desktop Chrome/Edge support setSinkId, so device.audio.speakerDevices lets
+// us switch the actual output device directly ("output" mode below).
+//
+// Neither Android Chrome nor iOS Safari implement setSinkId for phone output
+// at all — this is a confirmed, still-open Chromium limitation (see
+// crbug 41276355), not something fixable from a web page. Plain "earpiece"
+// is unreachable there no matter what. The one mobile lever that does exist:
+// on Android Chrome, switching the *microphone* (input device) also switches
+// the audio route to match, so a paired Bluetooth/wired headset can still be
+// selected that way ("input" mode below) — but there's no equivalent for a
+// customer with nothing connected, and iOS has no lever at all.
+let outputRoutingMode = 'output'; // 'output' | 'input' | 'none'
+
+function labelForDevice(d, mode) {
   const l = ((d && d.label) || '').toLowerCase();
-  if (l.includes('speaker')) return 'Speaker';
   if (l.includes('headset') || l.includes('headphone') || l.includes('bluetooth') || l.includes('airpods')) return 'Headset';
+  if (mode === 'input') return 'Phone';
+  if (l.includes('speaker')) return 'Speaker';
   if (l.includes('earpiece') || l.includes('receiver') || l.includes('default') || !l) return 'Earpiece';
   return d.label.length > 16 ? d.label.slice(0, 16) + '…' : d.label;
 }
 
 function refreshOutputDevices() {
-  if (!device || !device.audio || !device.audio.isOutputSelectionSupported) { outputDevices = []; updateOutputToggle(); return; }
+  if (!device || !device.audio) { outputDevices = []; updateOutputToggle(); return; }
   try {
-    outputDevices = Array.from(device.audio.availableOutputDevices.values());
+    if (device.audio.isOutputSelectionSupported) {
+      outputRoutingMode = 'output';
+      outputDevices = Array.from(device.audio.availableOutputDevices.values());
+    } else {
+      outputRoutingMode = 'input';
+      outputDevices = Array.from(device.audio.availableInputDevices.values());
+    }
   } catch (e) {
     outputDevices = [];
   }
-  // Default away from a "speaker"-labelled device on mobile, unless the
-  // customer has already picked an output this session — fixes calls
-  // defaulting to speakerphone with no way to switch to earpiece/headset.
-  if (!outputChosenByUser && outputDevices.length > 1) {
-    const nonSpeakerIdx = outputDevices.findIndex(d => labelForOutputDevice(d) !== 'Speaker');
+  // Default away from a "speaker"-labelled output on desktop, unless the
+  // customer has already picked one this session — fixes calls defaulting
+  // to speakerphone with no way to switch to earpiece/headset.
+  if (outputRoutingMode === 'output' && !outputChosenByUser && outputDevices.length > 1) {
+    const nonSpeakerIdx = outputDevices.findIndex(d => labelForDevice(d, outputRoutingMode) !== 'Speaker');
     outputDeviceIndex = nonSpeakerIdx >= 0 ? nonSpeakerIdx : 0;
   }
   updateOutputToggle();
@@ -582,26 +604,41 @@ function updateOutputToggle() {
   }
   wrap.classList.add('visible');
   const current = outputDevices[outputDeviceIndex] || outputDevices[0];
-  document.getElementById('outputToggleLabel').textContent = labelForOutputDevice(current);
+  document.getElementById('outputToggleLabel').textContent = labelForDevice(current, outputRoutingMode);
 }
 
 async function cycleOutputDevice() {
   if (outputDevices.length < 2) return;
+  const previousIndex = outputDeviceIndex;
   outputDeviceIndex = (outputDeviceIndex + 1) % outputDevices.length;
   outputChosenByUser = true;
   const target = outputDevices[outputDeviceIndex];
+  // Switching the input device means re-acquiring the mic stream and
+  // renegotiating the connection, which isn't instant — show that something's
+  // happening rather than leaving the button looking frozen for that gap.
+  const btn = document.getElementById('outputToggle');
+  const label = document.getElementById('outputToggleLabel');
+  btn.disabled = true;
+  label.textContent = 'Switching…';
   try {
-    await device.audio.speakerDevices.set(target.deviceId);
-    updateOutputToggle();
+    if (outputRoutingMode === 'output') {
+      await device.audio.speakerDevices.set(target.deviceId);
+    } else {
+      await device.audio.setInputDevice(target.deviceId);
+    }
   } catch (e) {
-    console.warn('[Audio] Failed to switch output device:', e);
+    console.warn('[Audio] Failed to switch device:', e);
+    outputDeviceIndex = previousIndex; // revert — the switch didn't actually happen
+  } finally {
+    btn.disabled = false;
+    updateOutputToggle();
   }
 }
 
 async function applyInitialOutputRoute() {
-  if (!device || !device.audio || !device.audio.isOutputSelectionSupported) return;
+  if (!device || !device.audio) return;
   refreshOutputDevices();
-  if (outputDevices.length > 1) {
+  if (outputRoutingMode === 'output' && outputDevices.length > 1) {
     const target = outputDevices[outputDeviceIndex];
     try { await device.audio.speakerDevices.set(target.deviceId); } catch (e) { /* leave default route */ }
   }
@@ -714,16 +751,23 @@ async function placeCall() {
   isCallPending = true;
   hideMicDenied();
   document.getElementById('reconnectBanner').classList.remove('visible');
-  document.getElementById('micPrompt').classList.add('visible');
   setStatus('calling', 'Connecting…');
   setCallBtn('connecting');
 
   // Request the mic ourselves first so a denial shows a clear message
-  // instead of the call just failing silently.
+  // instead of the call just failing silently. Only show the "tap Allow"
+  // banner if the browser is actually waiting on a real prompt — most
+  // repeat callers already granted permission, so ensureMicPermission()
+  // resolves near-instantly and the banner should never flash for them.
+  const micPromptTimer = setTimeout(() => {
+    document.getElementById('micPrompt').classList.add('visible');
+  }, 400);
   const micOk = await ensureMicPermission();
+  clearTimeout(micPromptTimer);
+  document.getElementById('micPrompt').classList.remove('visible');
+
   if (!micOk) {
     isCallPending = false;
-    document.getElementById('micPrompt').classList.remove('visible');
     setStatus('error', 'Microphone blocked');
     setCallBtn('ready');
     showMicDenied();
@@ -732,13 +776,15 @@ async function placeCall() {
 
   try {
     activeCall = await device.connect({ params: { bookingRef, customerName } });
-    document.getElementById('micPrompt').classList.remove('visible');
+    // The call is now live from the customer's perspective (ringing/connecting) —
+    // flag it as in-progress from here, not just once an agent answers, so a
+    // refresh during ringing still surfaces the reconnect banner on reload.
+    try { sessionStorage.setItem(CALL_IN_PROGRESS_KEY, '1'); } catch (e) {}
 
     activeCall.on('ringing',     () => setStatus('calling', 'Ringing…'));
     activeCall.on('accept',      () => {
       isCallActive = true; isCallPending = false;
       setStatus('connected', 'Connected'); setCallBtn('active'); startTimer();
-      try { sessionStorage.setItem(CALL_IN_PROGRESS_KEY, '1'); } catch (e) {}
       applyInitialOutputRoute();
     });
     // Network handoff (e.g. wifi -> mobile data): the SDK attempts an ICE
@@ -779,7 +825,15 @@ function onCallEnded(droppedUnexpectedly) {
   isCallPending = false;
   activeCall    = null;
   stopTimer();
-  try { sessionStorage.removeItem(CALL_IN_PROGRESS_KEY); } catch (e) {}
+  // Only clear the in-progress flag when the page itself isn't mid-navigation.
+  // A refresh tears down the WebRTC connection as part of leaving the page,
+  // which fires this same 'disconnect' handler — clearing the flag then would
+  // wipe it out moments before the new page loads and needs to read it. Any
+  // other call end (hang up, agent ends it, rejected) happens on a page that's
+  // staying open, so the flag should be cleared as normal.
+  if (!pageIsUnloading) {
+    try { sessionStorage.removeItem(CALL_IN_PROGRESS_KEY); } catch (e) {}
+  }
   if (droppedUnexpectedly && wasActive) {
     setStatus('error', 'Call dropped — tap to reconnect');
   } else {
@@ -809,6 +863,15 @@ window.addEventListener('beforeunload', (e) => {
   if (isCallActive || isCallPending) {
     e.preventDefault();
     e.returnValue = '';
+  }
+});
+
+// pagehide only ever fires on a genuine unload (navigating away, reloading,
+// closing the tab) — never when a beforeunload prompt is cancelled — so it's
+// a reliable signal that the page is really going away, unlike beforeunload.
+window.addEventListener('pagehide', () => {
+  if (isCallActive || isCallPending) {
+    pageIsUnloading = true;
   }
 });
 

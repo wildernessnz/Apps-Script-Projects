@@ -2,8 +2,9 @@
 
 Wi-Fi browser calling for customers arriving without a working SIM. Calls route through Twilio to Aircall with full HubSpot attribution, agent whisper, and call transcription.
 
-**Live URL:** https://browser-calling-5194.twil.io/index.html  
-**Version:** 1.0 — May 2026
+**Twilio Functions URL:** https://browser-calling-5194.twil.io (generate-token, voice-handler, whisper-handler, transcript-handler — plus a Twilio Asset copy of `index.html` used for direct/CI testing, not what customers use)  
+**Customer-facing URL:** https://call.wilderness.co.nz (separately hosted on AWS S3 + CloudFront — see `docs/SETUP_GUIDE.md` Phase 3. This is the actual live link customers get; deploying `index.html` to Twilio does **not** update it)  
+**Version:** 1.1 — September 2026
 
 ## Structure
 
@@ -54,8 +55,12 @@ cd gas && clasp push
 
 ## GitHub Actions
 
-Pushes to `main` touching `functions/` or `assets/` auto-deploy to Twilio.
-Add secrets prefixed with `BROWSER_CALLING_` to the repo — see `.github/workflows/deploy.yml` for the full list.
+Pushes to `main` touching `functions/` or `assets/` auto-deploy the Twilio Functions and the Twilio Asset copy of `index.html`.
+Add secrets prefixed with `BROWSER_CALLING_` to the repo — see `.github/workflows/deploy.yml` (lives at the monorepo root, `Apps-Script-Projects/.github/workflows/`, **not** under this folder) for the full list.
+
+**This does not update the customer-facing page.** `call.wilderness.co.nz` is a separate AWS S3 + CloudFront deployment (see `docs/SETUP_GUIDE.md` → "Updating the call page") that this workflow never touches — every change to `index.html` still needs a manual S3 upload + CloudFront invalidation to actually reach customers.
+
+> **Fixed 28 Sept 2026:** this workflow file was previously nested at `active/browser-calling/.github/workflows/deploy.yml`, which GitHub Actions never recognised (it only reads `.github/workflows/` from the repo root) — so despite this README's claim, it had never actually run. It's now at the correct path and works going forward.
 
 ## GAS Script Properties
 
