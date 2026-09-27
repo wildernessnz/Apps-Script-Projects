@@ -3,7 +3,7 @@
 **Twilio Functions URL:** `https://browser-calling-5194.twil.io`  
 **Call page URL:** `https://call.wilderness.co.nz`  
 **Last updated:** May 2026 — covers Phase 1 (core calling), Phase 2 (attribution, whisper, transcription), and hosting setup  
-**Addendum (September 2026):** CI/CD notes added below — see "Continuous Deployment (GitHub Actions)"
+**Addendum (September 2026):** see "Deployment (manual only)" below — there is no CI/CD for this project
 
 ---
 
@@ -191,15 +191,13 @@ This installs a daily trigger that runs `monitorCallLog()` at 8am NZT and emails
 
 ---
 
-## Continuous Deployment (GitHub Actions)
+## Deployment (manual only)
 
-*Added September 2026.*
+*Updated September 2026.*
 
-Pushes to `main` that touch `functions/**` or `assets/**` trigger `twilio serverless:deploy` via GitHub Actions, which redeploys the Twilio Functions **and** the Twilio Asset copy of `index.html`.
+There is no CI/CD for this project — every deploy is manual, on purpose. Redeploy the Twilio side with `twilio serverless:deploy` (see the repo README); redeploy the customer-facing page separately per "Updating the call page" below.
 
-**Scope — read carefully:** this workflow only ever touches the Twilio side (`browser-calling-5194.twil.io`). It does **not** upload anything to the AWS S3 bucket behind `call.wilderness.co.nz`, and it never invalidates CloudFront. Since real customers only ever hit `call.wilderness.co.nz` (see Phase 3 below), a green GitHub Actions run means the *Functions* are current — it says nothing about whether the customer-facing page has actually changed. The manual steps under "Updating the call page" (near the end of this guide) are still required after every change, CI or no CI.
-
-The workflow file lives at the **monorepo root** — `Apps-Script-Projects/.github/workflows/deploy.yml` — not inside this project folder, because GitHub Actions only ever reads `.github/workflows/` from the repository root. It was discovered on 28 Sept 2026 that this file had been sitting one directory too deep (`active/browser-calling/.github/workflows/deploy.yml`), where GitHub silently ignored it — so despite existing since the project's initial build, it had never actually run a single time. It's now at the correct path.
+A GitHub Actions auto-deploy workflow existed for a while but had been silently non-functional since the project's initial build — the workflow file was nested one directory too deep for GitHub Actions to ever recognise it, so it had never actually run. Even after relocating it to where GitHub would pick it up, it turned out the required Twilio secrets were never configured in the repo either. Rather than fix and maintain both, it was removed on 28 Sept 2026 — treat every deploy here as a manual, deliberate step.
 
 ---
 
@@ -386,4 +384,4 @@ Without an invalidation, CloudFront may serve a cached version for hours.
 
 ---
 
-*Setup Guide — call.wilderness.co.nz — May 2026 (CI/CD section added September 2026)*
+*Setup Guide — call.wilderness.co.nz — May 2026 (deployment notes updated September 2026)*

@@ -23,7 +23,6 @@ browser-calling/
 │   ├── appsscript.json     GAS project manifest
 │   └── .clasp.json         clasp CLI config (update scriptId before use)
 ├── docs/                   Setup guide and as-built documentation
-├── .github/workflows/      CI/CD — auto-deploys on push to main
 ├── .env.example            Environment variable template
 └── .twilioserverlessrc     Twilio Serverless project config
 ```
@@ -53,14 +52,11 @@ clasp login
 cd gas && clasp push
 ```
 
-## GitHub Actions
+## Deployment
 
-Pushes to `main` touching `functions/` or `assets/` auto-deploy the Twilio Functions and the Twilio Asset copy of `index.html`.
-Add secrets prefixed with `BROWSER_CALLING_` to the repo — see `.github/workflows/deploy.yml` (lives at the monorepo root, `Apps-Script-Projects/.github/workflows/`, **not** under this folder) for the full list.
+Deployment is manual — there is no CI/CD. `twilio serverless:deploy` pushes the Twilio Functions and a Twilio Asset copy of `index.html` (see "Deploy — Twilio Functions" above); the customer-facing page at `call.wilderness.co.nz` is a separate AWS S3 + CloudFront deployment that needs its own manual upload + CloudFront invalidation after every change (see `docs/SETUP_GUIDE.md` → "Updating the call page").
 
-**This does not update the customer-facing page.** `call.wilderness.co.nz` is a separate AWS S3 + CloudFront deployment (see `docs/SETUP_GUIDE.md` → "Updating the call page") that this workflow never touches — every change to `index.html` still needs a manual S3 upload + CloudFront invalidation to actually reach customers.
-
-> **Fixed 28 Sept 2026:** this workflow file was previously nested at `active/browser-calling/.github/workflows/deploy.yml`, which GitHub Actions never recognised (it only reads `.github/workflows/` from the repo root) — so despite this README's claim, it had never actually run. It's now at the correct path and works going forward.
+> **Note (Sept 2026):** a GitHub Actions auto-deploy workflow existed for a while but had been silently broken since the project's initial build (nested one directory too deep for GitHub Actions to ever recognise it) and was never actually functional. Rather than fix and maintain it, it's been removed — manual deploys are the intended process going forward.
 
 ## GAS Script Properties
 
