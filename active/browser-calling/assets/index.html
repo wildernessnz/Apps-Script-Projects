@@ -231,6 +231,76 @@
     .mic-prompt.visible { display: block; }
     .mic-prompt strong { color: var(--warn); }
 
+    /* ── Mic denied panel ── */
+    .mic-denied {
+      display: none;
+      font-size: 13px;
+      color: var(--ink-s);
+      text-align: center;
+      line-height: 1.55;
+      padding: 14px 16px;
+      background: rgba(251,80,78,0.06);
+      border: 1px solid rgba(251,80,78,0.35);
+      border-radius: 8px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .mic-denied.visible { display: block; }
+    .mic-denied strong { display: block; color: var(--red); font-weight: 600; margin-bottom: 4px; }
+    .mic-denied-retry {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 20px;
+      border-radius: 999px;
+      border: 1.5px solid rgba(251,80,78,0.4);
+      background: transparent;
+      color: var(--red);
+      font-family: var(--font);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .mic-denied-retry:hover { background: rgba(251,80,78,0.08); }
+
+    /* ── Reconnect-after-refresh banner ── */
+    .reconnect-banner {
+      display: none;
+      font-size: 13px;
+      color: var(--ink-s);
+      text-align: center;
+      line-height: 1.5;
+      padding: 10px 14px;
+      background: rgba(0,99,136,0.06);
+      border: 1px solid rgba(0,99,136,0.25);
+      border-radius: 8px;
+      width: 100%;
+      margin-bottom: 16px;
+    }
+    .reconnect-banner.visible { display: block; }
+    .reconnect-banner strong { color: var(--blue); }
+
+    /* ── Audio output toggle ── */
+    .output-toggle-wrap { display: none; margin-top: 2px; }
+    .output-toggle-wrap.visible { display: flex; }
+    .output-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 16px;
+      border-radius: 999px;
+      border: 1.5px solid var(--line);
+      background: var(--beige);
+      color: var(--ink-s);
+      font-family: var(--font);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .output-toggle:hover { background: #F3EEE0; }
+    .output-toggle svg { width: 14px; height: 14px; flex-shrink: 0; }
+
     /* ── Info banner (below card) ── */
     .info-banner {
       width: 100%;
@@ -266,6 +336,12 @@
 
   <div class="card">
 
+    <!-- Shown on load if a call was in progress when the page last closed/refreshed -->
+    <div class="reconnect-banner" id="reconnectBanner">
+      <strong>Your last call was interrupted.</strong><br />
+      Tap Call Now to reconnect.
+    </div>
+
     <!-- Status pill -->
     <div class="status-pill" id="statusBadge">
       <div class="status-dot"></div>
@@ -276,6 +352,14 @@
     <div class="mic-prompt" id="micPrompt">
       <strong>Microphone access needed</strong>
       Tap Allow when your browser asks for permission.
+    </div>
+
+    <!-- Shown when the customer has denied/blocked microphone access -->
+    <div class="mic-denied" id="micDenied">
+      <strong>Microphone access is blocked</strong>
+      <span id="micDeniedInstructions"></span>
+      <br />
+      <button class="mic-denied-retry" id="micRetryBtn" type="button">Try again</button>
     </div>
 
     <!-- Call button + label -->
@@ -290,6 +374,12 @@
       </div>
       <span class="btn-label" id="btnLabel">CALL NOW</span>
       <span class="timer" id="timer">0:00</span>
+      <div class="output-toggle-wrap" id="outputToggleWrap">
+        <button class="output-toggle" id="outputToggle" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5z"/><path d="M19.07 4.93a10 10 0 010 14.14M15.54 8.46a5 5 0 010 7.07"/></svg>
+          <span id="outputToggleLabel">Speaker</span>
+        </button>
+      </div>
     </div>
 
     <hr class="card-rule" />
@@ -357,14 +447,19 @@ const params       = new URLSearchParams(window.location.search);
 const bookingRef   = params.get('ref')  || '';
 const customerName = params.get('name') || ''; // intentionally empty — whisper-handler and GAS resolve name from HubSpot if missing
 
+const CALL_IN_PROGRESS_KEY = 'wc_call_in_progress'; // sessionStorage flag, used to detect a mid-call refresh/close
+
 // ── State
-let device         = null;
-let activeCall     = null;
-let timerInterval  = null;
-let renewalTimer   = null;
-let secondsElapsed = 0;
-let isCallActive   = false;
-let isCallPending  = false; // true while ringing/connecting, before accept
+let device            = null;
+let activeCall        = null;
+let timerInterval     = null;
+let renewalTimer      = null;
+let secondsElapsed    = 0;
+let isCallActive      = false;
+let isCallPending     = false; // true while ringing/connecting, before accept
+let outputDevices     = [];    // available audio output devices (speaker/earpiece/headset)
+let outputDeviceIndex = 0;
+let outputChosenByUser = false;
 
 // ── UI helpers
 function setStatus(state, text) {
@@ -418,6 +513,101 @@ function stopTimer() {
   document.getElementById('timer').textContent = '0:00';
 }
 
+// ── Mic permission denied UI
+function micDeniedInstructions() {
+  const ua = navigator.userAgent;
+  const isIOS = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+  const isAndroid = /Android/.test(ua);
+  if (isIOS) {
+    return 'Open Settings, then scroll to Safari (or your browser app) and turn Microphone on. Then come back and reload this page.';
+  } else if (isAndroid) {
+    return "Tap the lock icon next to the web address, turn Microphone on, then reload this page.";
+  }
+  return 'Click the lock/camera icon in your address bar, allow microphone access, then reload this page.';
+}
+
+function showMicDenied() {
+  document.getElementById('micDeniedInstructions').textContent = micDeniedInstructions();
+  document.getElementById('micDenied').classList.add('visible');
+}
+function hideMicDenied() {
+  document.getElementById('micDenied').classList.remove('visible');
+}
+
+// Explicitly requests the mic ourselves (rather than relying on the Twilio SDK's
+// internal getUserMedia call) so a denial can be caught and explained clearly,
+// instead of the call just silently failing to connect.
+async function ensureMicPermission() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    stream.getTracks().forEach(t => t.stop());
+    return true;
+  } catch (err) {
+    console.warn('[Mic] Permission denied or unavailable:', err);
+    return false;
+  }
+}
+
+// ── Audio output routing (speaker / earpiece / headset)
+function labelForOutputDevice(d) {
+  const l = ((d && d.label) || '').toLowerCase();
+  if (l.includes('speaker')) return 'Speaker';
+  if (l.includes('headset') || l.includes('headphone') || l.includes('bluetooth') || l.includes('airpods')) return 'Headset';
+  if (l.includes('earpiece') || l.includes('receiver') || l.includes('default') || !l) return 'Earpiece';
+  return d.label.length > 16 ? d.label.slice(0, 16) + '…' : d.label;
+}
+
+function refreshOutputDevices() {
+  if (!device || !device.audio || !device.audio.isOutputSelectionSupported) { outputDevices = []; updateOutputToggle(); return; }
+  try {
+    outputDevices = Array.from(device.audio.availableOutputDevices.values());
+  } catch (e) {
+    outputDevices = [];
+  }
+  // Default away from a "speaker"-labelled device on mobile, unless the
+  // customer has already picked an output this session — fixes calls
+  // defaulting to speakerphone with no way to switch to earpiece/headset.
+  if (!outputChosenByUser && outputDevices.length > 1) {
+    const nonSpeakerIdx = outputDevices.findIndex(d => labelForOutputDevice(d) !== 'Speaker');
+    outputDeviceIndex = nonSpeakerIdx >= 0 ? nonSpeakerIdx : 0;
+  }
+  updateOutputToggle();
+}
+
+function updateOutputToggle() {
+  const wrap = document.getElementById('outputToggleWrap');
+  if (!isCallActive || outputDevices.length < 2) {
+    wrap.classList.remove('visible');
+    return;
+  }
+  wrap.classList.add('visible');
+  const current = outputDevices[outputDeviceIndex] || outputDevices[0];
+  document.getElementById('outputToggleLabel').textContent = labelForOutputDevice(current);
+}
+
+async function cycleOutputDevice() {
+  if (outputDevices.length < 2) return;
+  outputDeviceIndex = (outputDeviceIndex + 1) % outputDevices.length;
+  outputChosenByUser = true;
+  const target = outputDevices[outputDeviceIndex];
+  try {
+    await device.audio.speakerDevices.set(target.deviceId);
+    updateOutputToggle();
+  } catch (e) {
+    console.warn('[Audio] Failed to switch output device:', e);
+  }
+}
+
+async function applyInitialOutputRoute() {
+  if (!device || !device.audio || !device.audio.isOutputSelectionSupported) return;
+  refreshOutputDevices();
+  if (outputDevices.length > 1) {
+    const target = outputDevices[outputDeviceIndex];
+    try { await device.audio.speakerDevices.set(target.deviceId); } catch (e) { /* leave default route */ }
+  }
+  updateOutputToggle();
+}
+
 // ── Token fetch
 async function fetchToken() {
   const resp = await fetch(`${TOKEN_URL}?bookingRef=${encodeURIComponent(bookingRef)}&customerName=${encodeURIComponent(customerName)}&secret=${encodeURIComponent(TOKEN_SECRET)}`);
@@ -457,13 +647,27 @@ async function init() {
       logLevel: 1,
       codecPreferences: ['opus', 'pcmu'],
       fakeLocalDTMF: true,
-      enableRingingState: true
+      enableRingingState: true,
+      edge: 'sydney' // closest Twilio edge to NZ — cuts latency/jitter vs default region routing
     });
+
+    // Explicit echo cancellation / noise suppression / auto gain — desktop
+    // audio quality was rated noticeably below WhatsApp/Meet in testing.
+    try {
+      await device.audio.setAudioConstraints({ echoCancellation: true, noiseSuppression: true, autoGainControl: true });
+    } catch (e) {
+      console.warn('[Audio] Could not set audio constraints:', e);
+    }
+
+    if (device.audio && typeof device.audio.on === 'function') {
+      device.audio.on('deviceChange', () => refreshOutputDevices());
+    }
 
     device.on('registered', () => {
       setStatus('ready', 'Line open');
       setCallBtn('ready');
       scheduleRenewal();
+      refreshOutputDevices();
     });
 
     device.on('tokenWillExpire', () => {
@@ -508,44 +712,82 @@ async function placeCall() {
   if (isCallActive) return; // Guard against double-tap
   // Immediately disable button to prevent double-tap before SDK confirms state
   isCallPending = true;
+  hideMicDenied();
+  document.getElementById('reconnectBanner').classList.remove('visible');
   document.getElementById('micPrompt').classList.add('visible');
   setStatus('calling', 'Connecting…');
   setCallBtn('connecting');
+
+  // Request the mic ourselves first so a denial shows a clear message
+  // instead of the call just failing silently.
+  const micOk = await ensureMicPermission();
+  if (!micOk) {
+    isCallPending = false;
+    document.getElementById('micPrompt').classList.remove('visible');
+    setStatus('error', 'Microphone blocked');
+    setCallBtn('ready');
+    showMicDenied();
+    return;
+  }
 
   try {
     activeCall = await device.connect({ params: { bookingRef, customerName } });
     document.getElementById('micPrompt').classList.remove('visible');
 
-    activeCall.on('ringing',    () => setStatus('calling', 'Ringing…'));
-    activeCall.on('accept',     () => { isCallActive = true; isCallPending = false; setStatus('connected', 'Connected'); setCallBtn('active'); startTimer(); });
-    activeCall.on('disconnect', () => onCallEnded());
-    activeCall.on('cancel',     () => onCallEnded());
-    activeCall.on('reject',     () => { setStatus('error', 'Call unavailable'); onCallEnded(); });
+    activeCall.on('ringing',     () => setStatus('calling', 'Ringing…'));
+    activeCall.on('accept',      () => {
+      isCallActive = true; isCallPending = false;
+      setStatus('connected', 'Connected'); setCallBtn('active'); startTimer();
+      try { sessionStorage.setItem(CALL_IN_PROGRESS_KEY, '1'); } catch (e) {}
+      applyInitialOutputRoute();
+    });
+    // Network handoff (e.g. wifi -> mobile data): the SDK attempts an ICE
+    // restart under the hood — keep the call alive and reflect it in the UI
+    // instead of treating it as a drop.
+    activeCall.on('reconnecting', () => setStatus('calling', 'Reconnecting…'));
+    activeCall.on('reconnected',  () => { setStatus('connected', 'Connected'); setCallBtn('active'); });
+    activeCall.on('disconnect',  (call, error) => onCallEnded(!!error));
+    activeCall.on('cancel',      () => onCallEnded(false));
+    activeCall.on('reject',      () => { setStatus('error', 'Call unavailable'); onCallEnded(false); });
 
     // Enable hang up immediately once we have the call object
     setCallBtn('active');
   } catch (err) {
     console.error('[Call] error:', err);
     isCallPending = false;
-    setStatus('error', 'Failed to connect');
-    setCallBtn('ready');
     document.getElementById('micPrompt').classList.remove('visible');
+    const isPermissionErr = err && (err.name === 'NotAllowedError' || (err.message && /permission/i.test(err.message)));
+    if (isPermissionErr) {
+      setStatus('error', 'Microphone blocked');
+      setCallBtn('ready');
+      showMicDenied();
+    } else {
+      setStatus('error', 'Failed to connect');
+      setCallBtn('ready');
+    }
   }
 }
 
 function hangUp() {
   if (activeCall) activeCall.disconnect();
-  onCallEnded();
+  onCallEnded(false);
 }
 
-function onCallEnded() {
+function onCallEnded(droppedUnexpectedly) {
+  const wasActive = isCallActive;
   isCallActive  = false;
   isCallPending = false;
   activeCall    = null;
   stopTimer();
-  setStatus('ready', 'Line open');
+  try { sessionStorage.removeItem(CALL_IN_PROGRESS_KEY); } catch (e) {}
+  if (droppedUnexpectedly && wasActive) {
+    setStatus('error', 'Call dropped — tap to reconnect');
+  } else {
+    setStatus('ready', 'Line open');
+  }
   setCallBtn('ready');
   document.getElementById('micPrompt').classList.remove('visible');
+  updateOutputToggle();
   // Re-register device so next call starts completely fresh
   if (device) {
     try { device.unregister(); } catch(e) {}
@@ -557,6 +799,28 @@ function onCallEnded() {
 
 // ── Attach click handler to button wrapper so it fires even during connecting
 document.getElementById('callBtn').addEventListener('click', handleCallButton);
+document.getElementById('micRetryBtn').addEventListener('click', () => { hideMicDenied(); handleCallButton(); });
+document.getElementById('outputToggle').addEventListener('click', cycleOutputDevice);
+
+// Warn before an accidental refresh/close mid-call — refreshing tears down
+// the WebRTC connection outright, so we ask for confirmation rather than
+// silently dropping the call.
+window.addEventListener('beforeunload', (e) => {
+  if (isCallActive || isCallPending) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// If the page reloaded while a call was active (refresh, crash, tab close),
+// the flag survives in sessionStorage even though the call itself did not —
+// surface a clear way to reconnect instead of leaving it looking like nothing happened.
+try {
+  if (sessionStorage.getItem(CALL_IN_PROGRESS_KEY)) {
+    document.getElementById('reconnectBanner').classList.add('visible');
+    sessionStorage.removeItem(CALL_IN_PROGRESS_KEY);
+  }
+} catch (e) {}
 
 // ── Boot
 if (typeof Twilio === 'undefined') {
