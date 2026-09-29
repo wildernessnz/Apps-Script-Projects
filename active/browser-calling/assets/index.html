@@ -858,7 +858,11 @@ document.getElementById('outputToggle').addEventListener('click', cycleOutputDev
 
 // Warn before an accidental refresh/close mid-call — refreshing tears down
 // the WebRTC connection outright, so we ask for confirmation rather than
-// silently dropping the call.
+// silently dropping the call. Note: iOS Safari does not support this at all
+// (WebKit ignores it for most navigations, including tapping the reload
+// button, and never shows a dialog) — that's a platform limitation with no
+// workaround, so iPhone customers get straight to the reconnect banner below
+// instead of a warning first.
 window.addEventListener('beforeunload', (e) => {
   if (isCallActive || isCallPending) {
     e.preventDefault();
@@ -866,12 +870,26 @@ window.addEventListener('beforeunload', (e) => {
   }
 });
 
-// pagehide only ever fires on a genuine unload (navigating away, reloading,
-// closing the tab) — never when a beforeunload prompt is cancelled — so it's
-// a reliable signal that the page is really going away, unlike beforeunload.
-window.addEventListener('pagehide', () => {
+// pagehide is the reliable "this page is genuinely going away" signal on
+// desktop and Android, but iOS Safari is known to sometimes skip it (or fire
+// it late) for certain reload paths. Belt and braces: also mark the call as
+// interrupted on visibilitychange → hidden, which iOS fires more
+// consistently and earlier in the unload sequence. The risk with using
+// visibilitychange is that it also fires for switching apps or locking the
+// screen — cases where the page hasn't actually unloaded — so it's reset
+// back on visibilitychange → visible, which can only happen if this same
+// page (and its JS) is still alive, proving it never actually unloaded.
+function markCallInterrupted() {
   if (isCallActive || isCallPending) {
     pageIsUnloading = true;
+  }
+}
+window.addEventListener('pagehide', markCallInterrupted);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'hidden') {
+    markCallInterrupted();
+  } else if (document.visibilityState === 'visible') {
+    pageIsUnloading = false;
   }
 });
 
