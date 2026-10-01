@@ -122,9 +122,11 @@ upstream by the PayHero Integration project's
 same `USER_ACCESSING` sharing dependency as Hours Worked applies: every
 visiting user needs read access to that spreadsheet. It's shared with
 `it.team@`/`admin@`/`scripts@` (organizer) and `team@wilderness.co.nz`
-(reader, the all-staff group, added 2026-10-02). That gives all staff read
-access to the whole spreadsheet, including its `Linked - Employees` and
-`Linked - Employee Leave` tabs, not just the two this tool reads.
+(reader, the all-staff group, added 2026-10-02). The spreadsheet holds only
+the two tabs this tool reads. Its `Linked - Employees` (birth dates) and
+`Linked - Employee Leave` (annual leave balances) tabs were removed on
+2026-10-02, since all staff can read the file. **Don't add other PayHero data
+to this spreadsheet**: anything in it is readable by every staff member.
 
 **Also for Alt Leave Balance:** results are cached in `CacheService` for 30
 min (`clearAltLeaveBalanceCache()` from the editor forces a re-read). No
