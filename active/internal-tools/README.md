@@ -3,8 +3,8 @@
 Single standalone Apps Script project unifying Booking Finder, Interislander
 Availability, Relo Rates, and Weather Alert (section "Adventure Support"),
 Service History and CIN Generator (section "Retail Sales"), Recurring
-Tasks (section "Leadership"), and Hours Worked (section "Team"), behind one
-sidebar-navigated shell. All 8 tools are built and deployed. Recurring
+Tasks (section "Leadership"), and Hours Worked and Alt Leave Balance (section
+"Team"), behind one sidebar-navigated shell. All 9 tools are built and deployed. Recurring
 Tasks specifically still has open cutover steps (Script Properties, daily
 trigger, retiring the old standalone project) — see "Still open /
 deferred" below before assuming it's fully live.
@@ -16,7 +16,7 @@ change, not just a fresh session.
 
 ## Getting set up
 
-These 28 files are the entire project. Drop them into your local clasp
+These 30 files are the entire project. Drop them into your local clasp
 folder (matching filenames exactly, no subfolders) and `clasp push`.
 
 ```
@@ -39,6 +39,7 @@ ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
 CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
 HoursWorkedLogic.gs / HoursWorked.html
+AltLeaveBalanceLogic.gs / AltLeaveBalance.html
 ```
 
 `ServiceHistoryTemplate.html` is a third file for that tool — it's the PDF's
@@ -110,6 +111,29 @@ background trigger that keeps the team/member dropdown data warm in
 directly. Safe to skip if you'd rather not add a trigger; the tool still
 works, just slower to open. See `HoursWorkedLogic.gs`'s fileoverview for
 the full performance writeup.
+
+**Alt Leave Balance:** available to all staff, no access gate, no Script
+Properties. It reads two tabs of the "PayHero Leave" spreadsheet
+(`SHEET_IDS.ALT_LEAVE`): `Linked - Alternative Leave Summary` (PayHero's
+balance per employee) and `Linked - Alternative Leave Accruals` (per-period
+accruals, with how much of each is still "In Balance"). Both are produced
+upstream by the PayHero Integration project's
+`populateAlternativeLeaveAccruals()`. This tool never recomputes them. The
+same `USER_ACCESSING` sharing dependency as Hours Worked applies: every
+visiting user needs read access to that spreadsheet. It's shared with
+`it.team@`/`admin@`/`scripts@` (organizer) and `team@wilderness.co.nz`
+(reader, the all-staff group, added 2026-10-02). That gives all staff read
+access to the whole spreadsheet, including its `Linked - Employees` and
+`Linked - Employee Leave` tabs, not just the two this tool reads.
+
+**Also for Alt Leave Balance:** results are cached in `CacheService` for 30
+min (`clearAltLeaveBalanceCache()` from the editor forces a re-read). No
+refresh trigger is needed because the upstream data only changes daily.
+**Bump the version suffix on `ALT_LEAVE_CACHE_KEY_` whenever the shape of
+`getAltLeaveBalances()`'s result changes** (currently `..._V2`). Otherwise
+pages keep getting the old cached payload, without the new field, for up to
+30 min after a push. That made the "Owed since" column look broken on
+2026-10-02 until the key was bumped.
 
 Booking Finder and Relo Rates need no properties.
 
@@ -605,6 +629,25 @@ like one of these, it probably is:
   are affected. TOIL entries (identifiable only via free-text
   `description`, no structured field) are deliberately still counted —
   Mark's call, not a limitation.
+- Alt Leave Balance: not ported from an existing tool. A team member's
+  "leave history" lists only the accruals still making up their balance
+  (upstream "In Balance (Days)" > 0, newest first), dated by **Period End**,
+  which is the date PayHero's own report uses. Pay Date can trail it by
+  weeks. This assumes leave is used oldest-first, the same allocation the
+  upstream reconciliation makes. Any balance the upstream script couldn't
+  trace to an accrual inside its 5-year window is shown as an undated
+  "Earlier balance" line so the history always totals the balance. Only
+  employees with a balance > 0 are listed, and only their teams get a pill.
+  PayHero's trailing " Team" is dropped from team names for display.
+  A partly used accrual reads "0.19 of 0.40 days left". The history
+  footer's dating and oldest-first explanation sits behind a click-to-
+  show ⓘ (click, not hover, so it works on touch screens).
+- Alt Leave Balance: the table's **Owed since** column (not in the
+  mockups) is the oldest date in that person's history, so it always
+  matches the expanded view. If part of the balance couldn't be traced to
+  a dated accrual, it reads "Before <window start>" (e.g. "Before 1 Oct
+  2021", from the Summary tab's "Data From"), since the real date is
+  unknown.
 - Hours Worked: the daily table marks the week 1/week 2 split with a
   heavier bottom border (`.hw-week-divider`, same dusk-sky navy as the
   table header) on day 7's row, rather than a blank spacer row like the

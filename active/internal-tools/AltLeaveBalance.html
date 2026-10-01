@@ -1,0 +1,188 @@
+<div id="albRoot">
+
+  <div class="it-tool-header">
+    <h1>Alternative Leave Balance</h1>
+  </div>
+
+  <div class="alb-total-block">
+    <div class="alb-total" id="albTotal">–</div>
+    <div class="alb-total-label" id="albTotalLabel">days total alternative leave</div>
+  </div>
+
+  <div id="albTeamPills" class="alb-pills">
+    <div class="it-spinner" style="width:16px; height:16px; border-width:2px;"></div>
+  </div>
+
+  <div class="it-card">
+    <table class="it-table alb-table">
+      <thead>
+        <tr>
+          <th style="width:32%;">Team member</th>
+          <th style="width:26%;">Team</th>
+          <th style="width:18%;">Balance</th>
+          <th>Owed since</th>
+          <th style="width:48px;"></th>
+        </tr>
+      </thead>
+      <tbody id="albBody">
+        <tr><td colspan="5" style="text-align:center; padding:32px;">
+          <div class="it-spinner" style="margin:0 auto 10px;"></div>Loading balances…
+        </td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="alb-footnote" id="albFootnote"></p>
+</div>
+
+<script>
+(function () {
+  const totalEl    = document.getElementById('albTotal');
+  const totalLabel = document.getElementById('albTotalLabel');
+  const pillsEl    = document.getElementById('albTeamPills');
+  const bodyEl     = document.getElementById('albBody');
+  const footnoteEl = document.getElementById('albFootnote');
+
+  // Loaded once: {total, teams:[{team,label,balance}], members:[...], lastRefreshed}.
+  // Filtering and expanding rows all work from this in memory.
+  let _data = null;
+  let _teamFilter = null;   // raw PayHero team name, or null for All
+  let _expandedKey = null;  // employee key of the open history row
+
+  // Pills use the mockup's compact style (10.0, 7.25), table rows use 2dp.
+  function formatPill(n) {
+    return (Math.round(n * 100) % 10 === 0) ? n.toFixed(1) : n.toFixed(2);
+  }
+  function formatDays(n, singular) {
+    return n.toFixed(2) + ' ' + (n === 1 && singular ? 'day' : 'days');
+  }
+  function initials(name) {
+    const parts = String(name).trim().split(/\s+/);
+    return ((parts[0] || '')[0] || '') + (parts.length > 1 ? parts[parts.length - 1][0] : '');
+  }
+
+  function visibleMembers() {
+    return _data.members.filter(function (m) { return !_teamFilter || m.team === _teamFilter; });
+  }
+
+  function renderTotal() {
+    if (!_teamFilter) {
+      totalEl.textContent = _data.total.toFixed(2);
+      totalLabel.textContent = 'days total alternative leave';
+      return;
+    }
+    const team = _data.teams.find(function (t) { return t.team === _teamFilter; });
+    totalEl.textContent = (team ? team.balance : 0).toFixed(2);
+    totalLabel.textContent = 'days alternative leave · ' + (team ? team.label : '');
+  }
+
+  function renderPills() {
+    const pills = [{ value: null, label: 'All', balance: _data.total }].concat(
+      _data.teams.map(function (t) { return { value: t.team, label: t.label, balance: t.balance }; })
+    );
+    pillsEl.innerHTML = pills.map(function (p) {
+      const active = _teamFilter === p.value;
+      return '<button type="button" class="it-btn-ghost-sm alb-pill' + (active ? ' active' : '') + '" data-team="' + escapeHtml(p.value || '') + '">'
+        + escapeHtml(p.label) + ' · ' + formatPill(p.balance) + '</button>';
+    }).join('');
+  }
+
+  function renderHistory(m) {
+    const rows = m.history.map(function (h) {
+      const note = h.accrued
+        ? ' <span class="alb-history-note">· ' + h.days.toFixed(2) + ' of ' + h.accrued.toFixed(2) + ' days left</span>'
+        : '';
+      return '<div class="alb-history-row"><span>' + escapeHtml(h.date) + note + '</span><span class="alb-green">' + formatDays(h.days, true) + '</span></div>';
+    });
+    if (m.unexplained > 0) {
+      rows.push('<div class="alb-history-row"><span>Earlier balance <span class="alb-history-note">(earned before the dated history begins)</span></span>'
+        + '<span class="alb-green">' + formatDays(m.unexplained, true) + '</span></div>');
+    }
+    if (!rows.length) rows.push('<div class="alb-history-row"><span class="alb-history-note">No dated accruals found for this balance.</span><span></span></div>');
+
+    return '<tr class="alb-detail-row"><td colspan="5">'
+      + '<div class="alb-history">'
+      + '<div class="alb-history-header"><span>Leave history – ' + escapeHtml(m.name) + '</span>'
+      + '<button type="button" class="alb-history-close" data-action="collapse" aria-label="Close">'
+      + '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><path d="M9 9l6 6M15 9l-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+      + '</button></div>'
+      + rows.join('')
+      + '<div class="alb-history-footer"><span>Alternative leave earned and not yet taken'
+      + '<button type="button" class="alb-info-btn" data-action="info" aria-label="How these dates work" aria-expanded="false">'
+      + '<svg width="13" height="13" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"/><line x1="12" y1="11" x2="12" y2="16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="8" r="1" fill="currentColor"/></svg>'
+      + '</button>'
+      + '<span class="alb-history-explainer" hidden>Each date is the end of the pay period the leave was earned in. '
+      + 'Leave taken comes off the oldest days first, so the days shown are the most recent ones.</span></span>'
+      + '<strong>Total: ' + formatDays(m.balance) + '</strong></div>'
+      + '</div></td></tr>';
+  }
+
+  function renderTable() {
+    const members = visibleMembers();
+    if (!members.length) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; padding:32px; color:var(--color-text-muted);">No one has an alternative leave balance.</td></tr>';
+      return;
+    }
+    bodyEl.innerHTML = members.map(function (m) {
+      const open = m.key === _expandedKey;
+      const chevron = open
+        ? '<path d="M6 9l6 6 6-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+        : '<path d="M9 6l6 6-6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>';
+      return '<tr class="alb-member-row' + (open ? ' open' : '') + '" data-key="' + escapeHtml(m.key) + '">'
+        + '<td><span class="alb-member"><span class="alb-avatar">' + escapeHtml(initials(m.name).toUpperCase()) + '</span>' + escapeHtml(m.name) + '</span></td>'
+        + '<td><span class="it-badge">' + escapeHtml(m.teamLabel) + '</span></td>'
+        + '<td class="alb-green">' + formatDays(m.balance) + '</td>'
+        + '<td>' + escapeHtml(m.owedSince || '–') + '</td>'
+        + '<td style="text-align:right;"><svg class="alb-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none">' + chevron + '</svg></td>'
+        + '</tr>'
+        + (open ? renderHistory(m) : '');
+    }).join('');
+  }
+
+  function renderAll() {
+    renderTotal();
+    renderPills();
+    renderTable();
+  }
+
+  pillsEl.addEventListener('click', function (e) {
+    const btn = e.target.closest('.alb-pill');
+    if (!btn) return;
+    _teamFilter = btn.dataset.team || null;
+    _expandedKey = null;
+    renderAll();
+  });
+
+  bodyEl.addEventListener('click', function (e) {
+    // Click rather than hover, so it also works on touch screens.
+    const infoBtn = e.target.closest('[data-action="info"]');
+    if (infoBtn) {
+      const explainer = infoBtn.parentElement.querySelector('.alb-history-explainer');
+      explainer.hidden = !explainer.hidden;
+      infoBtn.setAttribute('aria-expanded', String(!explainer.hidden));
+      return;
+    }
+    if (e.target.closest('[data-action="collapse"]')) {
+      _expandedKey = null;
+      renderTable();
+      return;
+    }
+    const row = e.target.closest('.alb-member-row');
+    if (!row) return;
+    _expandedKey = (_expandedKey === row.dataset.key) ? null : row.dataset.key;
+    renderTable();
+  });
+
+  google.script.run
+    .withSuccessHandler(function (data) {
+      _data = data;
+      renderAll();
+      footnoteEl.textContent = data.lastRefreshed ? 'PayHero data as at ' + data.lastRefreshed + '.' : '';
+    })
+    .withFailureHandler(function (e) {
+      pillsEl.innerHTML = '';
+      bodyEl.innerHTML = '<tr><td colspan="5" class="it-error-cell">Could not load balances: ' + escapeHtml(e.message) + '</td></tr>';
+    })
+    .getAltLeaveBalances();
+})();
+</script>

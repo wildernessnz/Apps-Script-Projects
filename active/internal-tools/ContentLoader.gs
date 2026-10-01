@@ -21,6 +21,7 @@ const PLACEHOLDER_PARTIALS = {
   RecurringTasks: false, // Phase 6 — done
   CINGenerator:   false, // Phase 7 — done
   HoursWorked:    false, // Phase 8 — done
+  AltLeaveBalance: false, // Phase 9 — done
 };
 
 // Maps a partial name to a function that returns true/false for whether the

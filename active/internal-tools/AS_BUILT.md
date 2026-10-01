@@ -64,7 +64,7 @@ query-param routing.
 
 ## 3. File inventory
 
-The entire project is 28 files, no subfolders (Apps Script/clasp requirement):
+The entire project is 30 files, no subfolders (Apps Script/clasp requirement):
 
 ```
 appsscript.json        — manifest: scopes, timezone, WildernessAppScriptLibrary dependency
@@ -85,6 +85,7 @@ ServiceHistoryLogic.gs / ServiceHistory.html / ServiceHistoryTemplate.html
 RecurringTasksLogic.gs / RecurringTasks.html
 CINGeneratorLogic.gs / CINGenerator.html / CINGeneratorTemplate.html
 HoursWorkedLogic.gs / HoursWorked.html
+AltLeaveBalanceLogic.gs / AltLeaveBalance.html
 ```
 
 File naming convention: `<ToolName>Logic.gs` + `<ToolName>.html`. Apps Script
@@ -400,6 +401,20 @@ data" requirement is actually enforced. The current pay-cycle fortnight
 is read from `Linked - Operations Pay Cycle`'s row with `Current Cycle =
 1` — the same source and lookup the original tool's `Report` tab used via
 `VLOOKUP(1, ...)`, just read directly.
+
+Alt Leave Balance's spreadsheet (`SHEET_IDS.ALT_LEAVE`, "PayHero Leave") is
+also read-only from this project's side. It comes from the same "PayHero
+Integration" pipeline: `populateAlternativeLeaveAccruals()` writes `Raw -
+Alternative Leave Summary`/`Accruals` there (netting reversals per pay
+period, and allocating each employee's PayHero balance to accruals newest
+first), and "PayHero Leave" mirrors them as `Linked - *` tabs.
+`AltLeaveBalanceLogic.gs` reads only those two tabs, by header name. It
+takes each balance from the Summary tab's "PayHero Balance (Days)" and
+builds each person's history from Accruals rows with "In Balance (Days)" >
+0, dated by "Period End". It recomputes nothing, so the tool can't drift
+from the reconciled upstream figures. The whole result (about 65 people) is
+returned in one call and cached for 30 min, and filtering and expanding
+rows are all done in the browser.
 
 ### 7.1 Cross-tool activity log
 

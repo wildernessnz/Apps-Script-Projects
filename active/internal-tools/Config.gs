@@ -32,6 +32,12 @@ const SHEET_IDS = {
   // just without that spreadsheet's other, unrelated tabs. This tool only
   // ever reads from it, never writes.
   HOURS_WORKED:   '1VXMj2wMqxmSn_2844jeSPBUugVZRgfgdNrObGV4k6ZA',
+  // "PayHero Leave" — read-only. Its "Linked - Alternative Leave Summary"
+  // / "Linked - Alternative Leave Accruals" tabs are written upstream by the
+  // PayHero Integration project's populateAlternativeLeaveAccruals()
+  // (reconciled against PayHero's own "AA: Alternative Leave Awarded"
+  // report). Alt Leave Balance only ever reads those two tabs.
+  ALT_LEAVE:      '1w5jGro9tKKVXBnddXiPzQf8tcSSj8fEhENhkgaCfDB8',
   // Cross-tool container sheet — activity log lives here (Logging.gs),
   // shared edit-access to everyone who uses any tool since log writes run
   // as the visiting user (executeAs: USER_ACCESSING), not a service account.
@@ -71,6 +77,8 @@ const ICON_REPEAT         = '<svg width="14" height="14" viewBox="0 0 24 24" fil
 const ICON_DOCUMENT       = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 2v6h6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><line x1="8" y1="13" x2="16" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="17" x2="16" y2="17" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
 const ICON_USERS          = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="7" r="4" stroke="currentColor" stroke-width="2"/><path d="M23 21v-2a4 4 0 00-3-3.87" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 3.13a4 4 0 010 7.75" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 
+const ICON_CALENDAR_CHECK = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" stroke-width="2"/><line x1="16" y1="2" x2="16" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="8" y1="2" x2="8" y2="6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="3" y1="10" x2="21" y2="10" stroke="currentColor" stroke-width="2"/><path d="M9 16l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
 const NAV_CONFIG = [
   {
     section: 'Adventure Support',
@@ -98,6 +106,7 @@ const NAV_CONFIG = [
     section: 'Team',
     items: [
       { id: 'hours-worked',     label: 'Hours Worked',                 icon: ICON_USERS,          partial: 'HoursWorked',    contentWidth: 'wide' },
+      { id: 'alt-leave-balance', label: 'Alt Leave Balance',           icon: ICON_CALENDAR_CHECK, partial: 'AltLeaveBalance', contentWidth: 'wide' },
     ],
   },
 ];
