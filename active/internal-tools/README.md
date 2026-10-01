@@ -639,7 +639,7 @@ like one of these, it probably is:
   "Earlier balance" line so the history always totals the balance. Only
   employees with a balance > 0 are listed, and only their teams get a pill.
   PayHero's trailing " Team" is dropped from team names for display.
-  A partly used accrual reads "0.19 of 0.40 days left". The history
+  A partly used accrual reads "(0.19 of 0.40 days left)". The history
   footer's dating and oldest-first explanation sits behind a click-to-
   show ⓘ (click, not hover, so it works on touch screens).
 - Alt Leave Balance: the table's **Owed since** column (not in the

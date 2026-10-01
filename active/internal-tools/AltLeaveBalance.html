@@ -90,7 +90,7 @@
   function renderHistory(m) {
     const rows = m.history.map(function (h) {
       const note = h.accrued
-        ? ' <span class="alb-history-note">· ' + h.days.toFixed(2) + ' of ' + h.accrued.toFixed(2) + ' days left</span>'
+        ? ' <span class="alb-history-note">(' + h.days.toFixed(2) + ' of ' + h.accrued.toFixed(2) + ' days left)</span>'
         : '';
       return '<div class="alb-history-row"><span>' + escapeHtml(h.date) + note + '</span><span class="alb-green">' + formatDays(h.days, true) + '</span></div>';
     });
